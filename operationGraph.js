@@ -3,6 +3,7 @@ import { getCurrentColorMode } from './main.js';
 import { createShapeCanvas } from './shapeRendering.js';
 
 export let cyInstance = null;
+let lastSolutionPath = null;
 
 export function renderGraph(solutionPath) {
     const container = document.getElementById('graph-container');
@@ -19,6 +20,8 @@ export function renderGraph(solutionPath) {
     }
 
     if (!solutionPath || solutionPath.length === 0) return;
+
+    lastSolutionPath = solutionPath;
 
     const elements = [];
     const nodeMap = {};
@@ -43,17 +46,18 @@ export function renderGraph(solutionPath) {
         }
 
         let imageName = operation.toLowerCase().replace(/\s+/g, '-');
-        if (operation === 'Belt Split') imageName = 'belt';
 
-        elements.push({
-            data: {
-                id: opId,
-                label: opLabel,
-                image: `images/operations/${imageName}.png`,
-                backgroundColor: backgroundColor
-            },
-            classes: nodeClasses
-        });
+        if (operation !== 'Belt Split') {
+            elements.push({
+                data: {
+                    id: opId,
+                    label: opLabel,
+                    image: `images/operations/${imageName}.png`,
+                    backgroundColor: backgroundColor
+                },
+                classes: nodeClasses
+            });
+        }
 
         // Input shapes
         inputs.forEach(input => {
@@ -70,7 +74,9 @@ export function renderGraph(solutionPath) {
                 });
                 nodeMap[nodeId] = true;
             }
-            elements.push({ data: { source: nodeId, target: opId } });
+            if (operation !== 'Belt Split') {
+                elements.push({ data: { source: nodeId, target: opId } });
+            }
         });
 
         // Output shapes
@@ -88,13 +94,73 @@ export function renderGraph(solutionPath) {
                 });
                 nodeMap[nodeId] = true;
             }
-            elements.push({ data: { source: opId, target: nodeId } });
+            if (operation !== 'Belt Split') {
+                elements.push({ data: { source: opId, target: nodeId } });
+            }
         });
+
+        if (operation === 'Belt Split') {
+            inputs.forEach(input => {
+                outputs.forEach(output => {
+                    elements.push({ data: { source: `shape-${input.id}`, target: `shape-${output.id}` }, classes: 'branch' });
+                });
+            });
+        }
     });
 
     // Get the initial direction from the select element
     const directionSelect = document.getElementById('direction-select');
     const selectedDirection = directionSelect ? directionSelect.value : 'LR'; // Default to 'LR' if element not found
+
+    // Get the selected edge style
+    const edgeStyleSelect = document.getElementById('edge-style-select');
+    const selectedEdgeStyle = edgeStyleSelect ? edgeStyleSelect.value : 'curved'; // Default to 'curved' if element not found
+
+    console.log('Selected edge style:', selectedEdgeStyle);
+
+    // Build edge style based on selection
+    let edgeStyle = {
+        'width': 2,
+        'line-color': '#aaa',
+        'target-arrow-color': '#aaa',
+        'target-arrow-shape': 'triangle'
+    };
+
+    switch(selectedEdgeStyle) {
+        case 'curved':
+            edgeStyle['curve-style'] = 'unbundled-bezier';
+            edgeStyle['control-point-weights'] = 0.5;
+            console.log('Setting curve-style to: unbundled-bezier with dynamic offset');
+            break;
+        case 'straight':
+            edgeStyle['curve-style'] = 'straight';
+            console.log('Setting curve-style to: straight');
+            break;
+        case 'orthogonal':
+            edgeStyle['curve-style'] = 'taxi';
+            edgeStyle['taxi-direction'] = 'auto';
+            edgeStyle['taxi-turn'] = 40;
+            edgeStyle['taxi-turn-min-distance'] = 20;
+            console.log('Setting curve-style to: taxi with turn near source');
+            break;
+        case 'stepped':
+            edgeStyle['curve-style'] = 'segments';
+            edgeStyle['control-point-distances'] = [50, 50, 50];
+            edgeStyle['control-point-weights'] = [0.33, 0.66, 1];
+            console.log('Setting curve-style to: segments');
+            break;
+    }
+
+    // Build branch style based on selection
+    let branchStyle = {
+        'curve-style': selectedEdgeStyle === 'orthogonal' ? 'taxi' : (selectedEdgeStyle === 'curved' ? 'unbundled-bezier' : (edgeStyle['curve-style'] || 'bezier')),
+        'control-point-weights': selectedEdgeStyle === 'curved' ? 0.5 : undefined
+    };
+    if (selectedEdgeStyle === 'orthogonal') {
+        branchStyle['taxi-direction'] = 'auto';
+        branchStyle['taxi-turn'] = 40;
+        branchStyle['taxi-turn-min-distance'] = 20;
+    }
 
     // Render graph
     cyInstance = cytoscape({
@@ -147,14 +213,35 @@ export function renderGraph(solutionPath) {
             },
             {
                 selector: 'edge',
+                style: edgeStyle
+            },
+            {
+                selector: 'edge.branch',
+                style: branchStyle
+            },
+
+            ...(selectedEdgeStyle === 'curved' ? [{
+                selector: 'edge',
                 style: {
-                    'width': 2,
-                    'line-color': '#aaa',
-                    'target-arrow-color': '#aaa',
-                    'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier'
+                    'control-point-distances': function(ele) {
+                        const cy = ele.cy();
+                        const source = ele.source().position();
+                        const target = ele.target().position();
+                        const edgeMidY = (source.y + target.y) / 2;
+
+                        const bb = cy.elements().boundingBox();
+                        const graphMidY = bb.y1 + bb.h / 2;
+
+                        const delta = edgeMidY - graphMidY;
+
+                        const baseMagnitude = 40;
+                        const extraFactor = 0.15;
+                        const magnitude = baseMagnitude + Math.abs(delta) * extraFactor;
+
+                        return delta > 0 ? magnitude : -magnitude;
+                    }
                 }
-            }
+            }] : [])
         ],
         layout: {
             name: 'dagre',
@@ -179,6 +266,13 @@ export function renderGraph(solutionPath) {
             console.error('Failed to copy:', err);
         }
     });
+}
+
+export function reRenderGraph() {
+    console.log('reRenderGraph called');
+    if (lastSolutionPath) {
+        renderGraph(lastSolutionPath);
+    }
 }
 
 export async function copyGraphToClipboard() {
@@ -296,6 +390,8 @@ export function renderSpaceGraph(graph) {
 
     // Operation nodes
     for (const op of graph.ops) {
+        if (op.type === 'Belt Split') continue;
+
         const opId = op.id;
 
         const img = `images/operations/${op.type.toLowerCase().replace(/\s+/g,'-')}.png`;

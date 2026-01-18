@@ -1,7 +1,7 @@
 // Imports
 import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
 import { Shape, _extractLayers } from './shapeOperations.js';
-import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph } from './operationGraph.js';
+import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 
 // Utility Helpers
@@ -321,4 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
 byId('snapshot-btn').addEventListener('click', copyGraphToClipboard);
 byId('direction-select').addEventListener('change', (e) => {
     applyGraphLayout(e.target.value);
+});
+byId('edge-style-select').addEventListener('change', () => {
+    reRenderGraph();
 });

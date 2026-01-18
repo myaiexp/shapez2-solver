@@ -7,7 +7,7 @@ A web-based tool for the game [Shapez 2](https://shapez2.com/) that tries to fin
 - Handles all the main Shapez 2 operations (cutting, rotating, stacking, painting, trash, belt splitting, etc.)
 - Supports search algorithms BFS and A* heuristic search.
 - Shapes work with any amount of parts. (Hex shapes are supported!)
-- Shows you a visual flowchart of the solution steps, which can be copied it as an image.
+- Shows you a visual flowchart of the solution steps with customizable edge styles (curved, straight, orthogonal, stepped), which can be copied as an image.
 - Renders shapes visually with customizable color modes (RGB, RYB, CMYK).
 - Has several settings to control the solver to the user's liking.
 - User-friendly interface.
