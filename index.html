@@ -22,8 +22,37 @@
             <h2>Target Shape</h2>
             <p>A specific shape you want the solver to make. This will try to find a valid production chain and will show it as a hierarchical graph.</p>
             <div id="input-button-container">
-                <input type="text" id="target-shape" placeholder="Shape Code">
+                <div class="input-with-builder">
+                    <input type="text" id="target-shape" placeholder="Shape Code">
+                    <button id="target-shape-builder-btn" class="builder-toggle-btn" title="Build shape visually">🎨</button>
+                </div>
                 <button id="solve-btn">Solve</button>
+            </div>
+
+            <!-- Shape Builder Panel -->
+            <div class="shape-builder" id="target-shape-builder" style="display: none;">
+                <div class="builder-header">
+                    <h3>Build Target Shape</h3>
+                    <div class="layer-controls">
+                        <button id="target-add-layer-btn">+ Layer</button>
+                        <button id="target-remove-layer-btn">- Layer</button>
+                        <span id="target-layer-count">1 Layer</span>
+                    </div>
+                </div>
+                <!-- Layer Selector Tabs -->
+                <div class="layer-selector" id="target-layer-selector" style="display: none;">
+                    <button class="layer-tab active" data-builder="target" data-layer="0">Layer 1</button>
+                    <button class="layer-tab" data-builder="target" data-layer="1">Layer 2</button>
+                    <button class="layer-tab" data-builder="target" data-layer="2">Layer 3</button>
+                    <button class="layer-tab" data-builder="target" data-layer="3">Layer 4</button>
+                    <button class="layer-tab" data-builder="target" data-layer="4">Layer 5</button>
+                </div>
+                <div class="shape-preview" id="target-shape-preview"></div>
+                <div class="parts-editor" id="target-parts-editor"></div>
+                <div class="builder-actions">
+                    <button id="target-apply-shape-btn" class="primary">Apply</button>
+                    <button id="target-cancel-shape-btn">Cancel</button>
+                </div>
             </div>
 
             <div id="separator"></div>
@@ -40,7 +69,10 @@
             <h2>Starting Shapes</h2>
             <p>Shapes to start from. You can add the same shape multiple times.</p>
             <div id="input-button-container">
-                <input type="text" id="new-shape-input" placeholder="Shape Code">
+                <div class="input-with-builder">
+                    <input type="text" id="new-shape-input" placeholder="Shape Code">
+                    <button id="new-shape-builder-btn" class="builder-toggle-btn" title="Build shape visually">🎨</button>
+                </div>
                 <button id="add-shape-btn">+</button>
             </div>
             <div id="starting-shapes"></div>
