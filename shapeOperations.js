@@ -694,3 +694,69 @@ function _comparePartOrder(shape1, shape2) {
 
     return bestMatchRatio;
 }
+
+// Shape Filtering Functions - for Solver Optimization
+export function _getRequiredColors(targetShape) {
+    const colors = new Set();
+    
+    for (const layer of targetShape.layers) {
+        for (const part of layer) {
+            // Skip unpaintable shapes
+            if (UNPAINTABLE_SHAPES.includes(part.shape)) continue;
+            
+            // Add non-uncolored parts
+            if (part.color !== 'u') {
+                colors.add(part.color);
+            }
+        }
+    }
+    
+    return colors;
+}
+
+export function _getRequiredShapes(targetShape) {
+    const shapes = new Set();
+    
+    for (const layer of targetShape.layers) {
+        for (const part of layer) {
+            // Skip nothing and crystal shapes (they're generated, not base shapes)
+            if (part.shape !== NOTHING_CHAR && part.shape !== CRYSTAL_CHAR) {
+                shapes.add(part.shape);
+            }
+        }
+    }
+    
+    return shapes;
+}
+
+export function _filterStartingShapes(startingShapeCodes, targetShapeCode) {
+    const target = Shape.fromShapeCode(targetShapeCode);
+    const requiredColors = _getRequiredColors(target);
+    const requiredShapes = _getRequiredShapes(target);
+    
+    // If target has no specific colors or shapes, keep all starting shapes
+    if (requiredColors.size === 0 && requiredShapes.size === 0) {
+        return startingShapeCodes;
+    }
+    
+    return startingShapeCodes.filter(shapeCode => {
+        const shape = Shape.fromShapeCode(shapeCode);
+        
+        for (const layer of shape.layers) {
+            for (const part of layer) {
+                // Check if this part's shape is required
+                if (requiredShapes.has(part.shape)) {
+                    return true;
+                }
+                
+                // Check if this part's color is required (and shape is paintable)
+                if (!UNPAINTABLE_SHAPES.includes(part.shape) &&
+                    requiredColors.has(part.color)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    });
+}

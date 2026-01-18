@@ -94,7 +94,7 @@ self.onmessage = async function (e) {
             preventWaste,
             orientationSensitive,
             monolayerPainting,
-            heuristicDivisor = 4,
+            heuristicDivisor = 0.1,
             searchMethod = 'A*'
         } = data;
 
@@ -129,7 +129,7 @@ self.onmessage = async function (e) {
     }
 };
 
-async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperations, maxLayers, maxStatesPerLevel = Infinity, preventWaste, orientationSensitive, monolayerPainting, heuristicDivisor = 4, searchMethod = 'A*') {
+async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperations, maxLayers, maxStatesPerLevel = Infinity, preventWaste, orientationSensitive, monolayerPainting, heuristicDivisor = 0.1, searchMethod = 'A*') {
     const target = Shape.fromShapeCode(targetShapeCode);
     const targetCrystalColors = _getCrystalColors(target);
     const config = new ShapeOperationConfig(maxLayers);

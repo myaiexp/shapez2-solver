@@ -1,6 +1,6 @@
 // Imports
 import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
-import { Shape, _extractLayers } from './shapeOperations.js';
+import { Shape, _extractLayers, _filterStartingShapes } from './shapeOperations.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 
@@ -172,7 +172,7 @@ byId('solve-btn').addEventListener('click', () => {
 
     // Gather inputs
     const target = byId('target-shape').value.trim();
-    const starting = $all('#starting-shapes .shape-item .shape-label').map((x) => x.textContent);
+    let starting = $all('#starting-shapes .shape-item .shape-label').map((x) => x.textContent);
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
 
     const maxLayers = parseInt(byId('max-layers').value) || 4;
@@ -180,12 +180,31 @@ byId('solve-btn').addEventListener('click', () => {
     const preventWaste = byId('prevent-waste').checked;
     const orientationSensitive = byId('orientation-sensitive').checked;
     const monolayerPainting = byId('monolayer-painting').checked;
-    const heuristicDivisor = parseFloat(byId('heuristic-divisor').value) || 4;
+    const heuristicDivisor = parseFloat(byId('heuristic-divisor').value) || 0.1;
     const searchMethod = byId('search-method-select').value;
+    const filterUnusedShapes = byId('filter-unused-shapes')?.checked ?? true;
 
     if (!showValidationErrors(target, 'target shape')) return;
+
+    // Filter unused shapes if enabled
+    if (filterUnusedShapes && starting.length > 0) {
+        const originalCount = starting.length;
+        starting = _filterStartingShapes(starting, target);
+        const removedCount = originalCount - starting.length;
+        if (removedCount > 0) {
+            console.log(`Filtered out ${removedCount} unused starting shapes`);
+        }
+    }
+
+    // Validate remaining starting shapes
     for (const code of starting) {
         if (!showValidationErrors(code, 'starting shape')) return;
+    }
+
+    // Check if we have any starting shapes after filtering
+    if (starting.length === 0) {
+        alert('No valid starting shapes remain after filtering. Please add shapes that match the target.');
+        return;
     }
 
     // Start worker

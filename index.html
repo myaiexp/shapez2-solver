@@ -95,8 +95,8 @@
 
             <div class="option-group">
                 <label for="heuristic-divisor">Heuristic Divisor</label>
-                <input type="number" id="heuristic-divisor" class="wide" value="4" min="1" step="0.1">
-                <p class="option-desc">Divisor for the mismatch penalty in A* heuristic. Lower values (e.g., 1) make the heuristic stricter, potentially finding solutions faster but risking overestimation.</p>
+                <input type="number" id="heuristic-divisor" class="wide" value="0.1" min="0.1" step="0.1">
+                <p class="option-desc">Divisor for the mismatch penalty in A* heuristic. Lower values make the heuristic stricter, potentially finding simpler solutions faster. If solutions are too simple, increase this value.</p>
             </div>
 
             <div class="option-group">
@@ -121,6 +121,14 @@
                     Monolayer Painting
                 </label>
                 <p class="option-desc">Only consider painting a shape if it has one layer; for cleaner-looking solutions.</p>
+            </div>
+
+            <div class="option-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="filter-unused-shapes" checked />
+                    Filter Unused Shapes
+                </label>
+                <p class="option-desc">Automatically remove starting shapes/colors that are not needed for the target, reducing search space.</p>
             </div>
 
             <div id="separator"></div>
