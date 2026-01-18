@@ -496,6 +496,14 @@ export function genCrystal(shape, color, config = new ShapeOperationConfig()) {
     return [new Shape(newLayers)];
 }
 
+export function trash(shape, config = new ShapeOperationConfig()) {
+    return [];
+}
+
+export function beltSplit(shape, config = new ShapeOperationConfig()) {
+    return [shape, shape];
+}
+
 // Extra functions for Shape Analysis - for Solver
 export function _getAllRotations(shape, config) {
     const rotations = new Set();

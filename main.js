@@ -180,6 +180,8 @@ byId('solve-btn').addEventListener('click', () => {
     const preventWaste = byId('prevent-waste').checked;
     const orientationSensitive = byId('orientation-sensitive').checked;
     const monolayerPainting = byId('monolayer-painting').checked;
+    const heuristicDivisor = parseFloat(byId('heuristic-divisor').value) || 4;
+    const searchMethod = byId('search-method-select').value;
 
     if (!showValidationErrors(target, 'target shape')) return;
     for (const code of starting) {
@@ -226,7 +228,9 @@ byId('solve-btn').addEventListener('click', () => {
             maxStatesPerLevel: maxStates,
             preventWaste,
             orientationSensitive,
-            monolayerPainting
+            monolayerPainting,
+            heuristicDivisor,
+            searchMethod
         }
     });
 });
@@ -294,6 +298,23 @@ byId('explore-btn').addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', () => {
     initializeDefaultShapes();
     byId('color-mode-select')?.addEventListener('change', refreshShapeColors);
+
+    // Search method toggle
+    byId('search-method-select').addEventListener('change', (e) => {
+        const method = e.target.value;
+        const heuristicGroup = byId('heuristic-divisor').closest('.option-group');
+        const maxStatesGroup = byId('max-states-per-level').closest('.option-group');
+        if (method === 'A*') {
+            heuristicGroup.style.display = 'block';
+            maxStatesGroup.style.display = 'none';
+        } else {
+            heuristicGroup.style.display = 'none';
+            maxStatesGroup.style.display = 'block';
+        }
+    });
+
+    // Initial toggle
+    byId('search-method-select').dispatchEvent(new Event('change'));
 });
 
 // Graph Controls

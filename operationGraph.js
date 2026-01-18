@@ -42,11 +42,14 @@ export function renderGraph(solutionPath) {
             }
         }
 
+        let imageName = operation.toLowerCase().replace(/\s+/g, '-');
+        if (operation === 'Belt Split') imageName = 'belt';
+
         elements.push({
             data: {
                 id: opId,
                 label: opLabel,
-                image: `images/operations/${operation.toLowerCase().replace(/\s+/g, '-')}.png`,
+                image: `images/operations/${imageName}.png`,
                 backgroundColor: backgroundColor
             },
             classes: nodeClasses

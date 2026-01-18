@@ -1,8 +1,68 @@
 import {
     Shape, ShapeOperationConfig,
     _getAllRotations, _getPaintColors, _getCrystalColors, _getSimilarity,
-    halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack, topPaint, pushPin, genCrystal
+    halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack, topPaint, pushPin, genCrystal, trash, beltSplit
 } from './shapeOperations.js';
+
+class PriorityQueue {
+    constructor() {
+        this.values = [];
+    }
+    enqueue(val, priority) {
+        this.values.push({val, priority});
+        this.bubbleUp();
+    }
+    bubbleUp() {
+        let idx = this.values.length - 1;
+        const element = this.values[idx];
+        while (idx > 0) {
+            let parentIdx = Math.floor((idx - 1) / 2);
+            let parent = this.values[parentIdx];
+            if (element.priority >= parent.priority) break;
+            this.values[parentIdx] = element;
+            this.values[idx] = parent;
+            idx = parentIdx;
+        }
+    }
+    dequeue() {
+        if (this.values.length === 0) return null;
+        const min = this.values[0];
+        const end = this.values.pop();
+        if (this.values.length > 0) {
+            this.values[0] = end;
+            this.sinkDown();
+        }
+        return min;
+    }
+    sinkDown() {
+        let idx = 0;
+        const length = this.values.length;
+        const element = this.values[0];
+        while (true) {
+            let leftIdx = 2 * idx + 1;
+            let rightIdx = 2 * idx + 2;
+            let left, right;
+            let swap = null;
+            if (leftIdx < length) {
+                left = this.values[leftIdx];
+                if (left.priority < element.priority) swap = leftIdx;
+            }
+            if (rightIdx < length) {
+                right = this.values[rightIdx];
+                if ((swap !== null && right.priority < left.priority) || (swap === null && right.priority < element.priority)) {
+                    swap = rightIdx;
+                }
+            }
+            if (swap === null) break;
+            this.values[idx] = this.values[swap];
+            this.values[swap] = element;
+            idx = swap;
+        }
+    }
+    size() {
+        return this.values.length;
+    }
+}
 
 const operations = {
     "Rotator CW": { fn: rotate90CW, inputCount: 1 },
@@ -14,7 +74,9 @@ const operations = {
     "Stacker": { fn: stack, inputCount: 2 },
     "Painter": { fn: topPaint, inputCount: 1, needsColor: true },
     "Pin Pusher": { fn: pushPin, inputCount: 1 },
-    "Crystal Generator": { fn: genCrystal, inputCount: 1, needsColor: true }
+    "Crystal Generator": { fn: genCrystal, inputCount: 1, needsColor: true },
+    "Trash": { fn: trash, inputCount: 1 },
+    "Belt Split": { fn: beltSplit, inputCount: 1 }
 };
 
 let cancelled = false;
@@ -31,7 +93,9 @@ self.onmessage = async function (e) {
             maxStatesPerLevel,
             preventWaste,
             orientationSensitive,
-            monolayerPainting
+            monolayerPainting,
+            heuristicDivisor = 4,
+            searchMethod = 'A*'
         } = data;
 
         cancelled = false;
@@ -43,7 +107,9 @@ self.onmessage = async function (e) {
             maxStatesPerLevel,
             preventWaste,
             orientationSensitive,
-            monolayerPainting
+            monolayerPainting,
+            heuristicDivisor,
+            searchMethod
         );
         self.postMessage({ type: 'result', result });
     } else if (action === 'explore') {
@@ -63,7 +129,7 @@ self.onmessage = async function (e) {
     }
 };
 
-async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperations, maxLayers, maxStatesPerLevel = Infinity, preventWaste, orientationSensitive, monolayerPainting) {
+async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperations, maxLayers, maxStatesPerLevel = Infinity, preventWaste, orientationSensitive, monolayerPainting, heuristicDivisor = 4, searchMethod = 'A*') {
     const target = Shape.fromShapeCode(targetShapeCode);
     const targetCrystalColors = _getCrystalColors(target);
     const config = new ShapeOperationConfig(maxLayers);
@@ -92,6 +158,44 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
         nextId++;
     }
 
+    const maxPossibleSim = _getSimilarity(target, target);  // Precompute once
+
+    function getHeuristic(availableIds) {
+        if (availableIds.size === 0) return Infinity;
+
+        let bestSim = 0;
+        let maxL = 0;
+
+        for (const id of availableIds) {
+            const shapeCode = shapes.get(id);
+            const shape = Shape.fromShapeCode(shapeCode);
+            maxL = Math.max(maxL, shape.numLayers);
+
+            let sim = _getSimilarity(shape, target);
+            if (!orientationSensitive) {
+                const rotCodes = _getAllRotations(shape, config);
+                for (const rcode of rotCodes) {
+                    sim = Math.max(sim, _getSimilarity(Shape.fromShapeCode(rcode), target));
+                }
+            }
+            bestSim = Math.max(bestSim, sim);
+        }
+
+        let h = 0;
+        // Layer penalty (strict lower bound: at least this many stacks needed)
+        h += Math.max(0, target.numLayers - maxL);
+
+        // Mismatch penalty (admissible: no op fixes >heuristicDivisor "similarity points")
+        h += Math.ceil((maxPossibleSim - bestSim) / heuristicDivisor);
+
+        // Optional extra-shape penalty when preventWaste (conservative lower bound)
+        if (preventWaste && availableIds.size > 1) {
+            h += (availableIds.size - 1);  // At least 1 op per extra to incorporate/trash
+        }
+
+        return h;
+    }
+
     // Function to calculate similarity score for a state
     function calculateStateScore(availableIds) {
         const shapeCodes = Array.from(availableIds).map(id => shapes.get(id));
@@ -116,39 +220,206 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
         return JSON.stringify(entries);
     }
 
-    // Solver setup
+    if (searchMethod === 'A*') {
+    // A* setup
+    const open = new PriorityQueue();
+    const costSoFar = new Map();  // stateKey -> g
+    const cameFrom = new Map();   // stateKey -> {parentKey, step}
+
+    const initialKey = getStateKey(initialAvailableIds);
+    costSoFar.set(initialKey, 0);
+    open.enqueue({availableIds: new Set(initialAvailableIds), stateKey: initialKey}, 0 + getHeuristic(initialAvailableIds));
+
+    let statesExplored = 0;
+
+    while (open.size() > 0 && !cancelled) {
+        const currentItem = open.dequeue();
+        if (!currentItem) break;
+        statesExplored++;
+
+        const {availableIds, stateKey} = currentItem.val;
+        const g = costSoFar.get(stateKey);
+
+        // Goal check (same as before)
+        const shapeCodes = Array.from(availableIds).map(id => shapes.get(id));
+        const hasTarget = shapeCodes.some(code => acceptable.has(code));
+        const allTarget = preventWaste ? shapeCodes.every(code => acceptable.has(code)) : true;
+        if (hasTarget && allTarget) {
+            // Reconstruct path backward
+            const solutionPath = [];
+            let curKey = stateKey;
+            while (curKey !== initialKey) {
+                const {parentKey, step} = cameFrom.get(curKey);
+                solutionPath.push({
+                    operation: step.type,
+                    inputs: step.inputIds.map(id => ({id, shape: shapes.get(id)})),
+                    outputs: step.outputIds.map(id => ({id, shape: shapes.get(id)})),
+                    params: step.color ? {color: step.color} : {}
+                });
+                curKey = parentKey;
+            }
+            solutionPath.reverse();
+            return {
+                solutionPath,
+                depth: g,
+                statesExplored
+            };
+        }
+
+        // Generate successors
+        for (const opName of enabledOperations) {
+            if (cancelled) break;
+            const op = operations[opName];
+            if (!op) continue;
+            const { fn, inputCount, needsColor } = op;
+
+            if (inputCount === 1) {
+                for (const id of availableIds) {
+                    if (cancelled) break;
+                    const inputShape = Shape.fromShapeCode(shapes.get(id));
+                    if (needsColor) {
+                        if (monolayerPainting && opName === "Painter" && inputShape.layers.length !== 1) {
+                            continue;
+                        }
+                        const colors = opName === "Painter" ? _getPaintColors(inputShape, target) : targetCrystalColors;
+                        for (const color of colors) {
+                            const outputs = fn(inputShape, color, config);
+                            const newIds = [];
+                            for (const outputShape of outputs) {
+                                if (!outputShape.isEmpty()) {
+                                    const newId = nextId++;
+                                    shapes.set(newId, outputShape.toShapeCode());
+                                    newIds.push(newId);
+                                }
+                            }
+                            if (newIds.length > 0) {
+                                const newAvailableIds = new Set(availableIds);
+                                newAvailableIds.delete(id);
+                                for (const newId of newIds) {
+                                    newAvailableIds.add(newId);
+                                }
+                                const newKey = getStateKey(newAvailableIds);
+                                const newG = g + 1;
+                                if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
+                                    costSoFar.set(newKey, newG);
+                                    const h = getHeuristic(newAvailableIds);
+                                    open.enqueue({availableIds: newAvailableIds, stateKey: newKey}, newG + h);
+                                    cameFrom.set(newKey, {
+                                        parentKey: stateKey,
+                                        step: {type: opName, inputIds: [id], outputIds: newIds, color}
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        const outputs = fn(inputShape, config);
+                        const newIds = [];
+                        for (const outputShape of outputs) {
+                            if (!outputShape.isEmpty()) {
+                                const newId = nextId++;
+                                shapes.set(newId, outputShape.toShapeCode());
+                                newIds.push(newId);
+                            }
+                        }
+                        if (newIds.length > 0) {
+                            const newAvailableIds = new Set(availableIds);
+                            newAvailableIds.delete(id);
+                            for (const newId of newIds) {
+                                newAvailableIds.add(newId);
+                            }
+                            const newKey = getStateKey(newAvailableIds);
+                            const newG = g + 1;
+                            if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
+                                costSoFar.set(newKey, newG);
+                                const h = getHeuristic(newAvailableIds);
+                                open.enqueue({availableIds: newAvailableIds, stateKey: newKey}, newG + h);
+                                cameFrom.set(newKey, {
+                                    parentKey: stateKey,
+                                    step: {type: opName, inputIds: [id], outputIds: newIds, color: null}
+                                });
+                            }
+                        }
+                    }
+                }
+            } else if (inputCount === 2) {
+                const ids = Array.from(availableIds);
+                for (let i = 0; i < ids.length && !cancelled; i++) {
+                    for (let j = 0; j < ids.length && !cancelled; j++) {
+                        if (i === j) continue;
+                        const id1 = ids[i];
+                        const id2 = ids[j];
+                        const inputShape1 = Shape.fromShapeCode(shapes.get(id1));
+                        const inputShape2 = Shape.fromShapeCode(shapes.get(id2));
+                        const outputs = fn(inputShape1, inputShape2, config);
+                        const newIds = [];
+                        for (const outputShape of outputs) {
+                            if (!outputShape.isEmpty()) {
+                                const newId = nextId++;
+                                shapes.set(newId, outputShape.toShapeCode());
+                                newIds.push(newId);
+                            }
+                        }
+                        if (newIds.length > 0) {
+                            const newAvailableIds = new Set(availableIds);
+                            newAvailableIds.delete(id1);
+                            newAvailableIds.delete(id2);
+                            for (const newId of newIds) {
+                                newAvailableIds.add(newId);
+                            }
+                            const newKey = getStateKey(newAvailableIds);
+                            const newG = g + 1;
+                            if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
+                                costSoFar.set(newKey, newG);
+                                const h = getHeuristic(newAvailableIds);
+                                open.enqueue({availableIds: newAvailableIds, stateKey: newKey}, newG + h);
+                                cameFrom.set(newKey, {
+                                    parentKey: stateKey,
+                                    step: {type: opName, inputIds: [id1, id2], outputIds: newIds, color: null}
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Status update (every ~200ms or every N states)
+        if (statesExplored % 500 === 0 || performance.now() - lastUpdate > 200) {
+            self.postMessage({
+                type: 'status',
+                message: `A* | g=${g} | Open:${open.size()} | Explored:${statesExplored} | Total visited:${costSoFar.size}`
+            });
+            lastUpdate = performance.now();
+        }
+    }
+
+    return cancelled ? null : {solutionPath: null, depth: null, statesExplored};
+    } else {
+    // BFS setup
     const queue = [{ availableIds: initialAvailableIds, path: [], depth: 0, score: calculateStateScore(initialAvailableIds) }];
     const visited = new Set();
     visited.add(getStateKey(initialAvailableIds));
-
     // Function to prune states at current depth level
     function pruneStatesAtDepth(states, maxStates) {
         if (states.length <= maxStates) {
             return states;
         }
-
         // Sort by score (higher is better)
         states.sort((a, b) => b.score - a.score);
-
         // Keep only the top maxStates
         return states.slice(0, maxStates);
     }
-
     // Solver loop
     while (queue.length > 0 && !cancelled) {
         const currentDepthStates = [];
         while (queue.length > 0 && queue[0].depth === depth) {
             currentDepthStates.push(queue.shift());
         }
-
         const nextDepthStates = [];
-
         for (const current of currentDepthStates) {
             if (cancelled) break;
-
             const availableIds = current.availableIds;
             const path = current.path;
-
             // Check if goal is reached
             const shapeCodes = Array.from(availableIds).map(id => shapes.get(id));
             const hasTarget = shapeCodes.some(code => acceptable.has(code));
@@ -166,21 +437,19 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
                     statesExplored: visited.size
                 };
             }
-
             // Generate next states
             for (const opName of enabledOperations) {
                 if (cancelled) break;
                 const op = operations[opName];
                 if (!op) continue;
                 const { fn, inputCount, needsColor } = op;
-
                 if (inputCount === 1) {
                     for (const id of availableIds) {
                         if (cancelled) break;
                         const inputShape = Shape.fromShapeCode(shapes.get(id));
                         if (needsColor) {
                             if (monolayerPainting && opName === "Painter" && inputShape.layers.length !== 1) {
-                                continue; // Skip painting this shape if it has more than one layer
+                                continue;
                             }
                             const colors = opName === "Painter" ? _getPaintColors(inputShape, target) : targetCrystalColors;
                             for (const color of colors) {
@@ -272,20 +541,16 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
                 }
             }
         }
-
         // Prune states for next depth level
         const prunedNextStates = pruneStatesAtDepth(nextDepthStates, maxStatesPerLevel);
-
         // Add pruned states back to queue
         for (const state of prunedNextStates) {
             queue.push(state);
         }
-
         // Move to next depth level
         if (queue.length > 0) {
             depth = queue[0].depth;
         }
-
         // Periodic status update
         const now = performance.now();
         if (now - lastUpdate > 200) {
@@ -293,17 +558,13 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
             const pruneInfo = prunedCount > 0 ? ` | Pruned ${prunedCount} States` : '';
             self.postMessage({
                 type: 'status',
-                message: `Solving at Depth ${depth} → ${queue.length} States | ${visited.size} Total States${pruneInfo}`
+                message: `BFS | Depth ${depth} → ${queue.length} States | ${visited.size} Total States${pruneInfo}`
             });
             lastUpdate = now;
         }
     }
-
-    if (cancelled) {
-        return null;
+    return cancelled ? null : {solutionPath: null, depth: null, statesExplored: visited.size};
     }
-    self.postMessage({ type: 'result', result: { solutionPath: null, depth, statesExplored: visited.size } });
-    return null;
 }
 
 async function shapeExplorer(startingShapeCodes, enabledOperations, depthLimit, maxLayers) {
