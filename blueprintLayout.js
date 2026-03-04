@@ -105,8 +105,11 @@ function extractTopology(solutionPath) {
                     shapeId: inp.id,
                     shapeCode: inp.shape
                 });
-            } else {
-                // No step produces this — it's a source shape
+            } else if (!producedBy.has(inp.id)) {
+                // Truly not produced by any step — it's a source shape.
+                // (Belt Split outputs that trace back to a source are NOT
+                // sources themselves — they'll be handled by Belt Split
+                // position assignment in assignPositions.)
                 sources.set(inp.id, inp.shape);
             }
 
@@ -596,7 +599,10 @@ function assignPositions(rows, solutionPath, topology) {
 
 /**
  * Route belt tiles from (fromX, fromY) to (toX, toY).
- * Uses an L-shaped path: vertical first, then horizontal.
+ * Uses an L-shaped path: horizontal first (at source row), then vertical
+ * down into the target machine's back face.  This keeps horizontal segments
+ * in the gap space between machine rows instead of overlapping machine tiles.
+ *
  * If the step has multiple inputs (merge), annotate the merge point.
  *
  * @param {PlacedBelt[]} belts - array to push belt tiles into
@@ -615,33 +621,7 @@ function routeBelt(belts, fromX, fromY, toX, toY, shapeCode, def, inputIndex) {
     let x = fromX;
     let y = fromY;
 
-    // Vertical segment: move south (increasing y) toward the target row
-    while (y < toY) {
-        belts.push({
-            x,
-            y,
-            floor: 0,
-            direction: 'S',
-            kind: 'normal',
-            shapeCode
-        });
-        y++;
-    }
-
-    // If we overshot vertically (shouldn't happen in normal layout, but guard)
-    while (y > toY) {
-        belts.push({
-            x,
-            y,
-            floor: 0,
-            direction: 'N',
-            kind: 'normal',
-            shapeCode
-        });
-        y--;
-    }
-
-    // Horizontal segment: move east or west to reach the target column
+    // Horizontal segment first: move east or west at source row
     if (x < toX) {
         while (x < toX) {
             belts.push({
@@ -668,11 +648,37 @@ function routeBelt(belts, fromX, fromY, toX, toY, shapeCode, def, inputIndex) {
         }
     }
 
-    // Place a merge belt at the final position if this feeds a multi-input machine
+    // Vertical segment: move south toward the target machine's back face
+    while (y < toY) {
+        belts.push({
+            x,
+            y,
+            floor: 0,
+            direction: 'S',
+            kind: 'normal',
+            shapeCode
+        });
+        y++;
+    }
+
+    // Guard: if we need to go north (shouldn't happen in normal layout)
+    while (y > toY) {
+        belts.push({
+            x,
+            y,
+            floor: 0,
+            direction: 'N',
+            kind: 'normal',
+            shapeCode
+        });
+        y--;
+    }
+
+    // Place a merge belt just above the target machine if this feeds a multi-input
     if (isMerge) {
         belts.push({
             x: toX,
-            y: toY,
+            y: toY - 1,
             floor: 0,
             direction: 'S',
             kind: 'merge',
