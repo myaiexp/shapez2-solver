@@ -190,6 +190,93 @@ button:hover {
     margin-bottom: 0;
 }
 
+/* View Tabs (Flowchart / Blueprint) */
+#view-tab-container {
+    display: flex;
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.view-tab-button {
+    flex: 0 0 auto;
+    background-color: var(--bg-sidebar);
+    color: var(--color-subtext);
+    border: none;
+    padding: 8px 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: var(--font-primary);
+    transition: background-color 0.3s ease;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+}
+
+.view-tab-button:hover {
+    background-color: var(--color-hover);
+}
+
+.view-tab-button.active {
+    background-color: var(--bg-box);
+    color: var(--color-heading);
+    border-bottom: 2px solid var(--color-text);
+}
+
+.view-tab-content {
+    display: none;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.view-tab-content.active {
+    display: flex;
+}
+
+/* Blueprint View */
+#blueprint-view {
+    flex-direction: column;
+}
+
+#blueprint-canvas {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    display: block;
+}
+
+#blueprint-canvas:active {
+    cursor: grabbing;
+}
+
+#blueprint-floor-controls {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(30, 30, 30, 0.9);
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    z-index: 10;
+}
+
+#blueprint-floor-controls button {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: 28px;
+}
+
+#floor-indicator {
+    color: var(--color-text);
+    font-size: 13px;
+    font-family: var(--font-primary);
+    min-width: 50px;
+    text-align: center;
+}
+
 #graph-wrapper {
     flex-grow: 1;
     position: relative;
@@ -198,7 +285,7 @@ button:hover {
 }
 
 #graph-container {
-    height: calc(100vh - 60px);
+    height: 100%;
     width: 100%;
     background-color: var(--bg-main);
     border: none;
