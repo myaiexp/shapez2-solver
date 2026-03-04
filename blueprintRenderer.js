@@ -134,7 +134,8 @@ export class BlueprintRenderer {
             this._resizeObserver.observe(parent);
         }
 
-        // Initial sizing
+        // Initial sizing and cursor
+        this._canvas.style.cursor = "grab";
         this._handleResize();
         this._render();
     }
@@ -187,7 +188,9 @@ export class BlueprintRenderer {
             offscreen.height = h;
             const ctx = offscreen.getContext("2d");
 
-            // Draw at 1:1 with no pan/zoom
+            // Fill background, then draw at 1:1 with no pan/zoom
+            ctx.fillStyle = BG_COLOR;
+            ctx.fillRect(0, 0, w, h);
             this._drawScene(ctx, w, h, 0, 0, 1);
 
             offscreen.toBlob((blob) => {
@@ -438,27 +441,39 @@ export class BlueprintRenderer {
      */
     _drawPorts(ctx, machine, px, py, w, h) {
         const portSize = 6;
+        const drawPort = (port, color, index, total) => {
+            ctx.fillStyle = color;
+            const side = port.side || 'back';
+            let cx, cy;
+            if (side === 'back') {
+                // Top edge — inputs enter from the back
+                const step = w / (total + 1);
+                cx = px + step * (index + 1);
+                cy = py;
+            } else if (side === 'front') {
+                // Bottom edge — outputs exit from the front
+                const step = w / (total + 1);
+                cx = px + step * (index + 1);
+                cy = py + h;
+            } else if (side === 'left') {
+                const step = h / (total + 1);
+                cx = px;
+                cy = py + step * (index + 1);
+            } else {
+                const step = h / (total + 1);
+                cx = px + w;
+                cy = py + step * (index + 1);
+            }
+            ctx.fillRect(cx - portSize / 2, cy - portSize / 2, portSize, portSize);
+        };
 
-        // Inputs on the left edge
         const inputs = machine.def?.inputs ?? [];
-        if (inputs.length > 0) {
-            const step = h / (inputs.length + 1);
-            for (let i = 0; i < inputs.length; i++) {
-                const portY = py + step * (i + 1);
-                ctx.fillStyle = "#44cc44";
-                ctx.fillRect(px - portSize / 2, portY - portSize / 2, portSize, portSize);
-            }
+        for (let i = 0; i < inputs.length; i++) {
+            drawPort(inputs[i], "#44cc44", i, inputs.length);
         }
-
-        // Outputs on the right edge
         const outputs = machine.def?.outputs ?? [];
-        if (outputs.length > 0) {
-            const step = h / (outputs.length + 1);
-            for (let i = 0; i < outputs.length; i++) {
-                const portY = py + step * (i + 1);
-                ctx.fillStyle = "#cc4444";
-                ctx.fillRect(px + w - portSize / 2, portY - portSize / 2, portSize, portSize);
-            }
+        for (let i = 0; i < outputs.length; i++) {
+            drawPort(outputs[i], "#cc4444", i, outputs.length);
         }
     }
 
@@ -470,7 +485,6 @@ export class BlueprintRenderer {
         e.preventDefault();
         if (!this._canvas) return;
 
-        const dpr = window.devicePixelRatio || 1;
         const rect = this._canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;

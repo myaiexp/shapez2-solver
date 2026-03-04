@@ -230,11 +230,11 @@ function topoSort(topology) {
         }
     }
 
-    // If some nodes weren't reached (cycle), append them at the end
-    for (const idx of placeableSteps) {
-        if (!sorted.includes(idx)) {
-            sorted.push(idx);
-        }
+    // If some nodes weren't reached (cycle), append them and warn
+    const unreached = [...placeableSteps].filter(idx => !sorted.includes(idx));
+    if (unreached.length > 0) {
+        console.warn('Blueprint layout: cycle detected in topology, appending unreached steps:', unreached);
+        sorted.push(...unreached);
     }
 
     return sorted;
@@ -543,7 +543,13 @@ function assignPositions(rows, solutionPath, topology) {
 
         for (let ii = 0; ii < step.inputs.length; ii++) {
             const inp = step.inputs[ii];
-            const inputOffset = def.inputs[ii] ? def.inputs[ii].offset : ii;
+            // For multi-input machines with same offset on different floors (e.g. Stacker),
+            // spread inputs across columns to avoid overlapping belts in 2D layout.
+            let inputOffset = def.inputs[ii] ? def.inputs[ii].offset : ii;
+            if (ii > 0 && def.inputs[ii] && def.inputs[ii - 1] &&
+                def.inputs[ii].offset === def.inputs[ii - 1].offset) {
+                inputOffset = ii; // Use sequential offset instead
+            }
             const inputX = pos.x + inputOffset;
             const inputY = pos.y; // back face = top of machine
 
