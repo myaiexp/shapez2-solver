@@ -4,6 +4,8 @@ import { Shape, _extractLayers, _filterStartingShapes } from './shapeOperations.
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 import { SHAPE_TYPES, COLOR_TYPES, buildShapeCode, parseShapeCode, getShapeInfo, getColorInfo, createDefaultParts } from './shapeColorData.js';
+import { buildLayout } from './blueprintLayout.js';
+import { BlueprintRenderer } from './blueprintRenderer.js';
 
 // Utility Helpers
 const $ = (sel) => document.querySelector(sel);
@@ -13,6 +15,10 @@ const byId = (id) => document.getElementById(id);
 export function getCurrentColorMode() {
     return byId('color-mode-select')?.value || 'rgb';
 }
+
+// Blueprint State
+let blueprintRenderer = null;
+let currentBlueprintLayout = null;
 
 // Refresh Colors
 function refreshShapeColors() {
@@ -148,6 +154,30 @@ $all('.tab-button').forEach((btn) => {
     });
 });
 
+// View Tab Switching (Flowchart / Blueprint)
+$all('.view-tab-button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        $all('.view-tab-button').forEach((b) => b.classList.remove('active'));
+        $all('.view-tab-content').forEach((c) => c.classList.remove('active'));
+
+        btn.classList.add('active');
+        const viewId = btn.id.replace('-tab-btn', '');
+        byId(viewId).classList.add('active');
+
+        if (viewId === 'blueprint-view') {
+            if (!blueprintRenderer) {
+                blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));
+            }
+            if (currentBlueprintLayout) {
+                blueprintRenderer.setLayout(currentBlueprintLayout);
+            }
+        } else if (blueprintRenderer) {
+            blueprintRenderer.destroy();
+            blueprintRenderer = null;
+        }
+    });
+});
+
 // Operation Toggle
 $all('.operation-item').forEach((item) => {
     item.addEventListener('click', () => item.classList.toggle('enabled'));
@@ -225,9 +255,14 @@ byId('solve-btn').addEventListener('click', () => {
         if (type === 'result') {
             if (result?.solutionPath) {
                 renderGraph(result.solutionPath);
+                currentBlueprintLayout = buildLayout(result.solutionPath);
+                if (blueprintRenderer) {
+                    blueprintRenderer.setLayout(currentBlueprintLayout);
+                }
                 const t = ((performance.now() - startTime) / 1000).toFixed(2);
                 status.textContent = `Solved in ${t}s at Depth ${result.depth} → ${result.statesExplored} States`;
             } else {
+                currentBlueprintLayout = null;
                 status.textContent = 'No solution found.';
             }
 
@@ -338,11 +373,43 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Graph Controls
-byId('snapshot-btn').addEventListener('click', copyGraphToClipboard);
+byId('snapshot-btn').addEventListener('click', async () => {
+    const blueprintActive = byId('blueprint-view').classList.contains('active');
+    if (blueprintActive && blueprintRenderer) {
+        try {
+            const blob = await blueprintRenderer.exportPng();
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+            ]);
+        } catch (err) {
+            console.error('Failed to copy blueprint:', err);
+        }
+    } else {
+        copyGraphToClipboard();
+    }
+});
 byId('direction-select').addEventListener('change', (e) => {
     applyGraphLayout(e.target.value);
 });
 byId('edge-style-select').addEventListener('change', () => {
     reRenderGraph();
+});
+
+// Floor Controls
+byId('floor-up-btn').addEventListener('click', () => {
+    if (!blueprintRenderer || !currentBlueprintLayout) return;
+    const next = blueprintRenderer.currentFloor + 1;
+    if (next < currentBlueprintLayout.floorCount) {
+        blueprintRenderer.setFloor(next);
+        byId('floor-indicator').textContent = `Floor ${next}`;
+    }
+});
+byId('floor-down-btn').addEventListener('click', () => {
+    if (!blueprintRenderer) return;
+    const next = blueprintRenderer.currentFloor - 1;
+    if (next >= 0) {
+        blueprintRenderer.setFloor(next);
+        byId('floor-indicator').textContent = `Floor ${next}`;
+    }
 });
 
