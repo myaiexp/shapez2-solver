@@ -5,7 +5,7 @@ import { BUILDING_DATA } from './buildingData.js';
  * @property {string} operation
  * @property {number} x              - grid column (top-left)
  * @property {number} y              - grid row (top-left)
- * @property {number} floor          - always 0 in MVP
+ * @property {number} floor          - floor index (0 = ground)
  * @property {string[]} inputShapes  - shape codes flowing in
  * @property {string[]} outputShapes - shape codes flowing out
  * @property {Object} params         - forwarded from solutionPath (e.g. {color})
@@ -18,7 +18,7 @@ import { BUILDING_DATA } from './buildingData.js';
  * @property {number} y
  * @property {number} floor
  * @property {'N'|'S'|'E'|'W'} direction
- * @property {'normal'|'split'|'merge'} kind
+ * @property {'normal'|'split'|'merge'|'lift'} kind
  * @property {string} [shapeCode]
  */
 
@@ -437,27 +437,33 @@ function assignPositions(rows, solutionPath, topology) {
             const machineWidth = def.width || 1;
             const machineDepth = def.depth || 1;
 
+            // Determine machine floor: use floorRestriction if set, otherwise floor 0
+            const machineFloor = def.floorRestriction !== undefined ? def.floorRestriction : 0;
+
             machines.push({
                 operation: step.operation,
                 x: curX,
                 y,
-                floor: 0,
+                floor: machineFloor,
                 inputShapes: step.inputs.map(inp => inp.shape),
                 outputShapes: step.outputs.map(out => out.shape),
                 params: step.params || {},
                 def
             });
 
-            machinePos.set(stepIdx, { x: curX, y, width: machineWidth, depth: machineDepth, def });
+            machinePos.set(stepIdx, { x: curX, y, width: machineWidth, depth: machineDepth, def, floor: machineFloor });
 
-            // Record output ports
+            // Record output ports (including floor from port definition)
             const ports = [];
             for (let oi = 0; oi < step.outputs.length; oi++) {
                 const out = step.outputs[oi];
-                const portOffset = def.outputs[oi] ? def.outputs[oi].offset : oi;
+                const portDef = def.outputs[oi];
+                const portOffset = portDef ? portDef.offset : oi;
+                const portFloor = portDef?.floor ?? machineFloor;
                 ports.push({
                     x: curX + portOffset,
                     y: y + machineDepth, // front face = bottom edge + depth
+                    floor: portFloor,
                     shapeId: out.id,
                     shapeCode: out.shape
                 });
@@ -470,23 +476,25 @@ function assignPositions(rows, solutionPath, topology) {
 
     // --- Phase B: route belts between output ports and input ports ---
 
-    // Build a lookup: shapeId -> output port position
-    const outputPortLookup = new Map(); // shapeId -> { x, y, shapeCode }
+    // Build a lookup: shapeId -> output port position (including floor)
+    const outputPortLookup = new Map(); // shapeId -> { x, y, floor, shapeCode }
     for (const [stepIdx, ports] of outputPorts) {
         for (const port of ports) {
             outputPortLookup.set(port.shapeId, {
                 x: port.x,
                 y: port.y,
+                floor: port.floor,
                 shapeCode: port.shapeCode
             });
         }
     }
 
-    // Also add source entries to the lookup
+    // Also add source entries to the lookup (sources are always on floor 0)
     for (const [shapeId, entry] of sourceEntries) {
         outputPortLookup.set(shapeId, {
             x: entry.x,
             y: entry.y + 1, // belt exits from source tile going south
+            floor: 0,
             shapeCode: entry.shapeCode
         });
     }
@@ -513,7 +521,7 @@ function assignPositions(rows, solutionPath, topology) {
         belts.push({
             x: upstreamPos.x,
             y: upstreamPos.y,
-            floor: 0,
+            floor: upstreamPos.floor,
             direction: 'S',
             kind: 'split',
             shapeCode: step.inputs[0].shape
@@ -527,6 +535,7 @@ function assignPositions(rows, solutionPath, topology) {
             outputPortLookup.set(out.id, {
                 x: upstreamPos.x + offsetX,
                 y: upstreamPos.y + 1,
+                floor: upstreamPos.floor,
                 shapeCode: out.shape
             });
         }
@@ -556,14 +565,17 @@ function assignPositions(rows, solutionPath, topology) {
             const inputX = pos.x + inputOffset;
             const inputY = pos.y; // back face = top of machine
 
+            // Determine the floor this input port is on
+            const inputFloor = def.inputs[ii]?.floor ?? pos.floor;
+
             // Find where this shape comes from
             const src = outputPortLookup.get(inp.id);
             if (!src) continue;
 
-            // Route a simple belt path from src to input port
-            // Strategy: go south from src to the right y, then go east/west
-            // to the right x, or route vertically then horizontally.
-            routeBelt(belts, src.x, src.y, inputX, inputY, inp.shape, def, ii);
+            const srcFloor = src.floor ?? 0;
+
+            // Route belt path from src to input port, handling floor transitions
+            routeBelt(belts, src.x, src.y, srcFloor, inputX, inputY, inputFloor, inp.shape, def, ii);
         }
     }
 
@@ -584,12 +596,24 @@ function assignPositions(rows, solutionPath, topology) {
         if (b.y + 1 > gridHeight) gridHeight = b.y + 1;
     }
 
+    // Calculate actual floor count from placed entities
+    const usedFloors = new Set();
+    for (const m of machines) {
+        usedFloors.add(m.floor);
+        // Multi-floor machines span additional floors
+        if (m.def.floors > 1) {
+            for (let f = 0; f < m.def.floors; f++) usedFloors.add(m.floor + f);
+        }
+    }
+    for (const b of belts) usedFloors.add(b.floor);
+    const floorCount = usedFloors.size > 0 ? Math.max(...usedFloors) + 1 : 1;
+
     return {
         machines,
         belts,
         gridWidth,
         gridHeight,
-        floorCount: 1
+        floorCount
     };
 }
 
@@ -598,79 +622,66 @@ function assignPositions(rows, solutionPath, topology) {
 // ---------------------------------------------------------------------------
 
 /**
- * Route belt tiles from (fromX, fromY) to (toX, toY).
+ * Route belt tiles from (fromX, fromY, fromFloor) to (toX, toY, toFloor).
  * Uses an L-shaped path: horizontal first (at source row), then vertical
  * down into the target machine's back face.  This keeps horizontal segments
  * in the gap space between machine rows instead of overlapping machine tiles.
+ *
+ * When fromFloor !== toFloor, inserts belt lift tiles at the transition point.
  *
  * If the step has multiple inputs (merge), annotate the merge point.
  *
  * @param {PlacedBelt[]} belts - array to push belt tiles into
  * @param {number} fromX
  * @param {number} fromY
+ * @param {number} fromFloor
  * @param {number} toX
  * @param {number} toY
+ * @param {number} toFloor
  * @param {string} shapeCode
  * @param {BuildingDef} def - building definition of the target machine
  * @param {number} inputIndex - which input port this belt feeds
  */
-function routeBelt(belts, fromX, fromY, toX, toY, shapeCode, def, inputIndex) {
+function routeBelt(belts, fromX, fromY, fromFloor, toX, toY, toFloor, shapeCode, def, inputIndex) {
     // Determine if this is a merge input (machine has >1 input)
     const isMerge = def.inputs.length > 1 && inputIndex > 0;
 
     let x = fromX;
     let y = fromY;
+    let floor = fromFloor;
 
     // Horizontal segment first: move east or west at source row
     if (x < toX) {
         while (x < toX) {
-            belts.push({
-                x,
-                y,
-                floor: 0,
-                direction: 'E',
-                kind: 'normal',
-                shapeCode
-            });
+            belts.push({ x, y, floor, direction: 'E', kind: 'normal', shapeCode });
             x++;
         }
     } else if (x > toX) {
         while (x > toX) {
-            belts.push({
-                x,
-                y,
-                floor: 0,
-                direction: 'W',
-                kind: 'normal',
-                shapeCode
-            });
+            belts.push({ x, y, floor, direction: 'W', kind: 'normal', shapeCode });
             x--;
         }
     }
 
+    // If floor transition needed, insert belt lift before vertical segment
+    if (floor !== toFloor) {
+        // Place lift tile on source floor
+        belts.push({ x, y, floor, direction: 'S', kind: 'lift', shapeCode });
+        // Place lift tile on destination floor
+        belts.push({ x, y, floor: toFloor, direction: 'S', kind: 'lift', shapeCode });
+        floor = toFloor;
+        y++; // advance past the lift tile
+    }
+
     // Vertical segment: move south toward the target machine's back face
     while (y < toY) {
-        belts.push({
-            x,
-            y,
-            floor: 0,
-            direction: 'S',
-            kind: 'normal',
-            shapeCode
-        });
+        belts.push({ x, y, floor, direction: 'S', kind: 'normal', shapeCode });
         y++;
     }
 
     // Guard: if we need to go north (shouldn't happen in normal layout)
     while (y > toY) {
-        belts.push({
-            x,
-            y,
-            floor: 0,
-            direction: 'N',
-            kind: 'normal',
-            shapeCode
-        });
+        belts.push({ x, y, floor, direction: 'N', kind: 'normal', shapeCode });
         y--;
     }
 
@@ -679,7 +690,7 @@ function routeBelt(belts, fromX, fromY, toX, toY, shapeCode, def, inputIndex) {
         belts.push({
             x: toX,
             y: toY - 1,
-            floor: 0,
+            floor,
             direction: 'S',
             kind: 'merge',
             shapeCode

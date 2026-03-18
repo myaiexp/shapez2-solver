@@ -96,6 +96,41 @@ function getCachedShape(code) {
     return shape;
 }
 
+// ---------------------------------------------------------------------------
+// Optimization 7: Operation Result Cache
+// ---------------------------------------------------------------------------
+const operationResultCache = new Map();
+
+function getCachedOpResult1(opName, fn, inputShape, config) {
+    const key = `${opName}|${inputShape.toShapeCode()}`;
+    let result = operationResultCache.get(key);
+    if (!result) {
+        result = fn(inputShape, config);
+        operationResultCache.set(key, result);
+    }
+    return result;
+}
+
+function getCachedOpResult1Color(opName, fn, inputShape, color, config) {
+    const key = `${opName}|${inputShape.toShapeCode()}|${color}`;
+    let result = operationResultCache.get(key);
+    if (!result) {
+        result = fn(inputShape, color, config);
+        operationResultCache.set(key, result);
+    }
+    return result;
+}
+
+function getCachedOpResult2(opName, fn, inputShape1, inputShape2, config) {
+    const key = `${opName}|${inputShape1.toShapeCode()}|${inputShape2.toShapeCode()}`;
+    let result = operationResultCache.get(key);
+    if (!result) {
+        result = fn(inputShape1, inputShape2, config);
+        operationResultCache.set(key, result);
+    }
+    return result;
+}
+
 self.onmessage = async function (e) {
     const { action, data } = e.data;
 
@@ -114,8 +149,9 @@ self.onmessage = async function (e) {
         } = data;
 
         cancelled = false;
-        // Clear shape cache between solves to prevent unbounded memory growth
+        // Clear caches between solves to prevent unbounded memory growth
         shapeCache.clear();
+        operationResultCache.clear();
         const result = await shapeSolver(
             targetShapeCode,
             startingShapeCodes,
@@ -430,11 +466,26 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
         return count > 0 ? totalSimilarity / count : 0;
     }
 
+    // ---------------------------------------------------------------------------
+    // Optimization 4: Symmetry Canonicalization
+    // ---------------------------------------------------------------------------
+    const canonicalCache = new Map();
+
+    function getCanonicalCode(shapeCode) {
+        if (orientationSensitive) return shapeCode;
+        let canonical = canonicalCache.get(shapeCode);
+        if (canonical) return canonical;
+        const rotations = _getAllRotations(getCachedShape(shapeCode), config);
+        canonical = Array.from(rotations).sort()[0];
+        canonicalCache.set(shapeCode, canonical);
+        return canonical;
+    }
+
     // Function to turn a state's shapes into a string for visited check
     function getStateKey(availableIds) {
         const countMap = {};
         for (const id of availableIds) {
-            const code = shapes.get(id);
+            const code = getCanonicalCode(shapes.get(id));
             countMap[code] = (countMap[code] || 0) + 1;
         }
         const entries = Object.entries(countMap).sort();
@@ -450,6 +501,7 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
     }
 
     // Generate all successor states from a given state
+    // Includes Optimization 5 (operation pruning) and Optimization 7 (operation result cache)
     function* generateSuccessors(availableIds) {
         for (const opName of enabledOperations) {
             if (cancelled) return;
@@ -460,19 +512,47 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
             if (inputCount === 1) {
                 for (const id of availableIds) {
                     if (cancelled) return;
-                    const inputShape = getCachedShape(shapes.get(id));
+                    const inputCode = shapes.get(id);
+                    const inputShape = getCachedShape(inputCode);
+
+                    // --- Optimization 5: Operation Pruning ---
+
+                    // Skip trashing the last shape (always useless)
+                    if (opName === 'Trash' && availableIds.size === 1) continue;
+
+                    // Skip rotation of rotationally symmetric shapes
+                    if (opName === 'Rotator CW' || opName === 'Rotator CCW' || opName === 'Rotator 180') {
+                        const rotations = _getAllRotations(inputShape, config);
+                        if (rotations.size === 1) continue; // fully symmetric
+                        if (opName === 'Rotator 180' && rotations.size <= 2) continue; // 180° symmetric
+                    }
+
+                    // Skip cutting shapes where one half is already empty
+                    if (opName === 'Cutter' || opName === 'Half Destroyer') {
+                        const layer = inputShape.layers[0];
+                        const half = Math.floor(inputShape.numParts / 2);
+                        const leftEmpty = layer.slice(0, half).every(p => p.shape === NOTHING_CHAR);
+                        const rightEmpty = layer.slice(half).every(p => p.shape === NOTHING_CHAR);
+                        if (leftEmpty || rightEmpty) continue;
+                    }
+
+                    // --- End Pruning ---
+
                     if (needsColor) {
                         if (monolayerPainting && opName === "Painter" && inputShape.layers.length !== 1) {
                             continue;
                         }
                         const colors = opName === "Painter" ? _getPaintColors(inputShape, target) : targetCrystalColors;
                         for (const color of colors) {
-                            const outputs = fn(inputShape, color, config);
+                            const outputs = getCachedOpResult1Color(opName, fn, inputShape, color, config);
                             const newIds = [];
                             for (const outputShape of outputs) {
                                 if (!outputShape.isEmpty()) {
+                                    const outCode = outputShape.toShapeCode();
+                                    // Skip no-op: output same as input
+                                    if (outCode === inputCode) continue;
                                     const newId = nextId++;
-                                    shapes.set(newId, outputShape.toShapeCode());
+                                    shapes.set(newId, outCode);
                                     newIds.push(newId);
                                 }
                             }
@@ -489,12 +569,15 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
                             }
                         }
                     } else {
-                        const outputs = fn(inputShape, config);
+                        const outputs = getCachedOpResult1(opName, fn, inputShape, config);
                         const newIds = [];
                         for (const outputShape of outputs) {
                             if (!outputShape.isEmpty()) {
+                                const outCode = outputShape.toShapeCode();
+                                // Skip no-op: output same as input
+                                if (outCode === inputCode) continue;
                                 const newId = nextId++;
-                                shapes.set(newId, outputShape.toShapeCode());
+                                shapes.set(newId, outCode);
                                 newIds.push(newId);
                             }
                         }
@@ -518,17 +601,24 @@ async function shapeSolver(targetShapeCode, startingShapeCodes, enabledOperation
                         if (i === j) continue;
                         const id1 = ids[i];
                         const id2 = ids[j];
-                        const inputShape1 = getCachedShape(shapes.get(id1));
-                        const inputShape2 = getCachedShape(shapes.get(id2));
-                        const outputs = fn(inputShape1, inputShape2, config);
+                        const inputCode1 = shapes.get(id1);
+                        const inputCode2 = shapes.get(id2);
+                        const inputShape1 = getCachedShape(inputCode1);
+                        const inputShape2 = getCachedShape(inputCode2);
+                        const outputs = getCachedOpResult2(opName, fn, inputShape1, inputShape2, config);
                         const newIds = [];
+                        let isNoOp = true;
                         for (const outputShape of outputs) {
                             if (!outputShape.isEmpty()) {
+                                const outCode = outputShape.toShapeCode();
+                                if (outCode !== inputCode1 && outCode !== inputCode2) isNoOp = false;
                                 const newId = nextId++;
-                                shapes.set(newId, outputShape.toShapeCode());
+                                shapes.set(newId, outCode);
                                 newIds.push(newId);
                             }
                         }
+                        // Skip no-op: all outputs identical to inputs
+                        if (isNoOp && newIds.length === 2) continue;
                         if (newIds.length > 0) {
                             const newAvailableIds = new Set(availableIds);
                             newAvailableIds.delete(id1);

@@ -30,6 +30,7 @@ const MACHINE_COLORS = {
 const BELT_COLOR         = "#666666";
 const BELT_SPLIT_COLOR   = "#8888cc";
 const BELT_MERGE_COLOR   = "#cc8844";
+const BELT_LIFT_COLOR    = "#44aacc";
 const GRID_LINE_COLOR    = "#1f1f1f";
 const BG_COLOR           = "#121212";
 const LABEL_COLOR        = "#e0e0e0";
@@ -367,6 +368,8 @@ export class BlueprintRenderer {
                 bgColor = BELT_SPLIT_COLOR;
             } else if (belt.kind === "merge") {
                 bgColor = BELT_MERGE_COLOR;
+            } else if (belt.kind === "lift") {
+                bgColor = BELT_LIFT_COLOR;
             } else {
                 bgColor = BELT_COLOR;
             }
@@ -385,7 +388,7 @@ export class BlueprintRenderer {
             ctx.textBaseline = "middle";
             ctx.fillText(arrow, cx, cy);
 
-            // Fork / join icon for split / merge
+            // Fork / join / lift icon for special belt types
             if (belt.kind === "split") {
                 ctx.fillStyle = BELT_SPLIT_COLOR;
                 ctx.font = "bold 10px sans-serif";
@@ -394,6 +397,10 @@ export class BlueprintRenderer {
                 ctx.fillStyle = BELT_MERGE_COLOR;
                 ctx.font = "bold 10px sans-serif";
                 ctx.fillText("MRG", cx, cy + 14);
+            } else if (belt.kind === "lift") {
+                ctx.fillStyle = BELT_LIFT_COLOR;
+                ctx.font = "bold 10px sans-serif";
+                ctx.fillText("\u21C5", cx, cy + 14); // ⇅ up-down arrow
             }
         }
     }
