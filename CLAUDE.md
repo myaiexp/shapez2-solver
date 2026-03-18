@@ -26,17 +26,18 @@ shapeValidation.js      — Input validation (125 lines)
 shapeColorData.js       — Shape/color type constants, parsing utilities (71 lines)
 shapeBuilder.js         — Visual shape builder UI (443 lines, cut from production)
 images/                 — Operation icons for graph nodes
-docs/                   — Reference docs and design plans
+.claude/
+  ideas.md              — Feature ideas, tech debt, things worth revisiting
+  phases/               — Phase docs (current.md symlink → active phase)
   plans/                — Archived design/implementation plans for completed features
-  shapez-2-reference.md — Shapez 2 game mechanics reference
-  solver-optimization-plan.md — Performance bottleneck analysis and improvement roadmap
+  references/           — Game mechanics reference, optimization plan, blueprint reference
 ```
 
 ## Key Patterns
 
 - **No build step** — everything runs as vanilla ES modules in the browser
 - **Shape codes** use Shapez 2 notation (e.g., `CuRuSuWu`, `P-P-P-P-`, multi-layer with `:` separator)
-- **Two search algorithms**: BFS (breadth-first, exhaustive) and A* (heuristic, faster for complex shapes)
+- **Two search algorithms**: BFS (breadth-first, exhaustive) and A\* (heuristic, faster for complex shapes)
 - **Graph rendering** via Cytoscape.js with multiple edge styles (curved, straight, orthogonal, stepped)
 - **Color modes**: RGB, RYB, CMYK — affects both shape rendering and available paint colors
 - **Shape builder** was prototyped but cut from production in latest commit — lives in `shapeBuilder.js`
@@ -50,7 +51,7 @@ docs/                   — Reference docs and design plans
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
 - Building data footprints not fully verified against in-game values
 - No tests, no linter configured
-- Forked originally from another solver repo; added A* search and visual improvements
+- Forked originally from another solver repo; added A\* search and visual improvements
 
 ---
 
@@ -60,11 +61,11 @@ docs/                   — Reference docs and design plans
 
 Details: `.claude/phases/current.md`
 
-**Next up**: Solver performance optimization — see `docs/solver-optimization-plan.md` for analysis and prioritized improvements (caching, backward search, symmetry reduction, operation pruning, IDA*).
+**Next up**: Solver performance optimization — see `.claude/references/solver-optimization-plan.md` for analysis and prioritized improvements (caching, backward search, symmetry reduction, operation pruning, IDA\*).
 
 ### Decisions from previous phases
 
-- A* search algorithm added alongside BFS for faster solving
+- A\* search algorithm added alongside BFS for faster solving
 - Shape builder UI prototyped then cut from production (kept in separate module)
 - Cytoscape.js chosen for graph visualization
 - Color mode support (RGB/RYB/CMYK) added
@@ -79,24 +80,20 @@ This project splits documentation to minimize context usage. Follow these rules:
 
 ### File layout
 
-| File | Purpose | When to read |
-|------|---------|-------------|
-| `CLAUDE.md` (this file) | Project identity, structure, patterns, current phase pointer | Auto-loaded every session |
-| `.claude/phases/current.md` | Active phase: goals, requirements, architecture, implementation notes | Read when starting phase work |
-| `.claude/phases/NNN-name.md` | Archived phases (completed) | Only if you need historical context |
+| File                         | Purpose                                                        | When to read                              |
+| ---------------------------- | -------------------------------------------------------------- | ----------------------------------------- |
+| `CLAUDE.md` (this file)      | Project identity, structure, patterns, current phase pointer   | Auto-loaded every session                 |
+| `.claude/phases/current.md`  | Symlink → active phase file                                    | Read when starting phase work             |
+| `.claude/phases/NNN-name.md` | Phase files (active via symlink, completed ones local-only)    | Only if you need historical context       |
+| `.claude/ideas.md`           | Future feature ideas, tech debt, and enhancements              | When planning next phase or brainstorming |
+| `.claude/plans/`             | Design docs and implementation plans from brainstorming        | When implementing or reviewing designs    |
+| `.claude/references/`        | Domain reference material (specs, external docs, data sources) | When you need domain knowledge            |
+| `.claude/[freeform].md`      | Project-specific context docs (architecture, deployment, etc.) | As referenced from this file              |
 
 ### Phase transitions
 
-When a phase is completed:
-
-1. **Condense** — extract lasting decisions from `.claude/phases/current.md` (architecture choices, patterns established, conventions) and add them to the "Decisions from previous phases" section above. Keep each to 1-2 lines.
-2. **Archive** — rename `.claude/phases/current.md` to `.claude/phases/NNN-name.md` (e.g., `001-auth-system.md`)
-3. **Start fresh** — create a new `.claude/phases/current.md` from `~/.claude/phase-template.md`
-4. **Update this file** — update the "Current Phase" section above
-5. **Prune** — remove anything from this file that was phase-specific and no longer applies
-
-### What goes where
-
-- **This file**: project-wide truths (stack, structure, patterns, conventions). Things that are true regardless of which phase you're in.
-- **Phase doc**: goals, requirements, architecture decisions, implementation notes, and anything specific to the current body of work.
-- **Process rules**: delegation and modularization standards live in `~/.claude/process.md` (global, not per-project).
+1. **Condense** — extract lasting decisions from the active phase file and add to "Decisions from previous phases". Keep each to 1-2 lines.
+2. **Archive** — remove the `current.md` symlink. The completed phase file stays but is no longer committed.
+3. **Start fresh** — create a new numbered phase file from `~/.claude/phase-template.md`, then symlink `current.md` → it.
+4. **Update this file** — update the "Current Phase" section above.
+5. **Prune** — remove anything from this file that was phase-specific and no longer applies.
