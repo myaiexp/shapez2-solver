@@ -4,8 +4,9 @@ import { Shape, _extractLayers, _filterStartingShapes } from './shapeOperations.
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 import { SHAPE_TYPES, COLOR_TYPES, buildShapeCode, parseShapeCode, getShapeInfo, getColorInfo, createDefaultParts } from './shapeColorData.js';
-import { buildLayout } from './blueprintLayout.js';
+import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
+import { exportBlueprintString } from './blueprintExport.js';
 
 // Utility Helpers
 const $ = (sel) => document.querySelector(sel);
@@ -255,7 +256,12 @@ byId('solve-btn').addEventListener('click', () => {
         if (type === 'result') {
             if (result?.solutionPath) {
                 renderGraph(result.solutionPath);
-                currentBlueprintLayout = buildLayout(result.solutionPath);
+                let layout = buildLayout(result.solutionPath);
+                const multiplier = parseInt(byId('throughput-multiplier')?.value || '1', 10);
+                if (multiplier > 1) {
+                    layout = duplicateForThroughput(layout, multiplier);
+                }
+                currentBlueprintLayout = layout;
                 if (blueprintRenderer) {
                     blueprintRenderer.setLayout(currentBlueprintLayout);
                 }
@@ -404,6 +410,20 @@ byId('floor-up-btn').addEventListener('click', () => {
         byId('floor-indicator').textContent = `Floor ${next}`;
     }
 });
+byId('copy-blueprint-btn').addEventListener('click', async () => {
+    if (!currentBlueprintLayout || currentBlueprintLayout.machines.length === 0) return;
+    try {
+        const str = await exportBlueprintString(currentBlueprintLayout);
+        await navigator.clipboard.writeText(str);
+        const btn = byId('copy-blueprint-btn');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch (err) {
+        console.error('Blueprint export failed:', err);
+    }
+});
+
 byId('floor-down-btn').addEventListener('click', () => {
     if (!blueprintRenderer) return;
     const next = blueprintRenderer.currentFloor - 1;
