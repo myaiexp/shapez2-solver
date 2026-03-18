@@ -8,6 +8,7 @@
 
 /**
  * @typedef {Object} BuildingDef
+ * @property {string} gameId           - Shapez 2 internal variant identifier for blueprint export
  * @property {number} width
  * @property {number} depth
  * @property {number} floors
@@ -26,6 +27,7 @@
  */
 export const BUILDING_DATA = {
     "Rotator CW": {
+        gameId: "RotatorOneQuadInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -33,6 +35,7 @@ export const BUILDING_DATA = {
         outputs: [{ side: 'front', offset: 0 }]
     },
     "Rotator CCW": {
+        gameId: "RotatorOneQuadCCWInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -40,6 +43,7 @@ export const BUILDING_DATA = {
         outputs: [{ side: 'front', offset: 0 }]
     },
     "Rotator 180": {
+        gameId: "RotatorHalfInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -47,6 +51,7 @@ export const BUILDING_DATA = {
         outputs: [{ side: 'front', offset: 0 }]
     },
     "Half Destroyer": {
+        gameId: "CutterHalfInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -54,6 +59,7 @@ export const BUILDING_DATA = {
         outputs: [{ side: 'front', offset: 0 }]
     },
     "Cutter": {
+        gameId: "CutterDefaultInternalVariant",
         width: 2,
         depth: 1,
         floors: 1,
@@ -64,6 +70,7 @@ export const BUILDING_DATA = {
         ]
     },
     "Swapper": {
+        gameId: "HalvesSwapperDefaultInternalVariant",
         width: 2,
         depth: 1,
         floors: 1,
@@ -77,6 +84,7 @@ export const BUILDING_DATA = {
         ]
     },
     "Stacker": {
+        gameId: "StackerDefaultInternalVariant",
         width: 2,
         depth: 1,
         floors: 2,
@@ -87,6 +95,7 @@ export const BUILDING_DATA = {
         outputs: [{ side: 'front', offset: 0, floor: 0 }]
     },
     "Painter": {
+        gameId: "PainterDefaultInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -95,6 +104,7 @@ export const BUILDING_DATA = {
         fluidInputs: [{ side: 'left', offset: 0, label: 'paint' }]
     },
     "Pin Pusher": {
+        gameId: "PinPusherDefaultInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -102,6 +112,7 @@ export const BUILDING_DATA = {
         outputs: [{ side: 'front', offset: 0 }]
     },
     "Crystal Generator": {
+        gameId: "CrystalGeneratorDefaultInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,
@@ -110,6 +121,7 @@ export const BUILDING_DATA = {
         fluidInputs: [{ side: 'left', offset: 0, label: 'crystal fluid' }]
     },
     "Trash": {
+        gameId: "TrashDefaultInternalVariant",
         width: 1,
         depth: 1,
         floors: 1,

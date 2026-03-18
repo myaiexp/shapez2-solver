@@ -133,6 +133,16 @@
                 <p class="option-desc">Automatically remove starting shapes/colors that are not needed for the target, reducing search space.</p>
             </div>
 
+            <div class="option-group">
+                <label for="throughput-multiplier">Throughput Multiplier</label>
+                <select id="throughput-multiplier" class="wide">
+                    <option value="1" selected>1x (single machine)</option>
+                    <option value="2">2x</option>
+                    <option value="4">4x</option>
+                </select>
+                <p class="option-desc">Duplicate processing machines in the blueprint layout for higher throughput. Adds splitters and mergers automatically.</p>
+            </div>
+
             <div id="separator"></div>
 
             <h2>Shape Options</h2>
@@ -175,6 +185,7 @@
                 <button id="floor-up-btn">&#9650;</button>
                 <span id="floor-indicator">Floor 0</span>
                 <button id="floor-down-btn">&#9660;</button>
+                <button id="copy-blueprint-btn" title="Copy Shapez 2 blueprint string to clipboard">Copy Blueprint</button>
             </div>
         </div>
         <div class="graph-controls">

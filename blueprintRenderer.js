@@ -7,6 +7,8 @@
  * @module blueprintRenderer
  */
 
+import { createShapeCanvas } from './shapeRendering.js';
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -152,6 +154,7 @@ export class BlueprintRenderer {
     setLayout(layout) {
         this._layout = layout;
         this.currentFloor = 0;
+        this._shapeIconCache = new Map(); // Clear shape icon cache
         this._filterFloor();
         this._centerView();
         this._render();
@@ -402,6 +405,25 @@ export class BlueprintRenderer {
                 ctx.font = "bold 10px sans-serif";
                 ctx.fillText("\u21C5", cx, cy + 14); // ⇅ up-down arrow
             }
+
+            // Shape icon on belt tile
+            if (belt.shapeCode) {
+                if (!this._shapeIconCache) this._shapeIconCache = new Map();
+                let icon = this._shapeIconCache.get(belt.shapeCode);
+                if (!icon) {
+                    try {
+                        icon = createShapeCanvas(belt.shapeCode, 20);
+                        this._shapeIconCache.set(belt.shapeCode, icon);
+                    } catch {
+                        // Skip rendering if shape code is invalid
+                    }
+                }
+                if (icon) {
+                    ctx.globalAlpha = 0.85;
+                    ctx.drawImage(icon, cx - 10, cy - 20, 20, 20);
+                    ctx.globalAlpha = 1.0;
+                }
+            }
         }
     }
 
@@ -481,6 +503,11 @@ export class BlueprintRenderer {
         const outputs = machine.def?.outputs ?? [];
         for (let i = 0; i < outputs.length; i++) {
             drawPort(outputs[i], "#cc4444", i, outputs.length);
+        }
+        // Fluid input ports (Painter paint, Crystal Generator fluid)
+        const fluidInputs = machine.def?.fluidInputs ?? [];
+        for (let i = 0; i < fluidInputs.length; i++) {
+            drawPort(fluidInputs[i], "#4488cc", i, fluidInputs.length);
         }
     }
 
