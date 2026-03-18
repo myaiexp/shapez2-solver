@@ -359,9 +359,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const method = e.target.value;
         const heuristicGroup = byId('heuristic-divisor').closest('.option-group');
         const maxStatesGroup = byId('max-states-per-level').closest('.option-group');
-        if (method === 'A*') {
+        if (method === 'A*' || method === 'IDA*' || method === 'Bidirectional') {
             heuristicGroup.style.display = 'block';
-            maxStatesGroup.style.display = 'none';
+            maxStatesGroup.style.display = method === 'BFS' ? 'block' : 'none';
         } else {
             heuristicGroup.style.display = 'none';
             maxStatesGroup.style.display = 'block';
