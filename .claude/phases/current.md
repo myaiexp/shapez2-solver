@@ -1,1 +1,0 @@
-001-factory-blueprint-mvp.md
