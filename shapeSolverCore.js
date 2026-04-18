@@ -1,5 +1,5 @@
 import {
-    ShapeOperationConfig, NOTHING_CHAR,
+    Shape, ShapeOperationConfig, NOTHING_CHAR,
     _getAllRotations, _getPaintColors, _getCrystalColors, _getSimilarity,
     halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack, topPaint, pushPin, genCrystal, trash, beltSplit
 } from './shapeOperations.js';
