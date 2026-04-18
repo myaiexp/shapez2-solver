@@ -1,0 +1,20 @@
+{
+  "Op: cut-CuCuCuCu": [
+    "----CuCu",
+    "CuCu----"
+  ],
+  "Op: stack-CuCuCuCu+RuRuRuRu": [
+    "CuCuCuCu:RuRuRuRu"
+  ],
+  "Op: rotate90CW-CuRuSuWu": [
+    "WuCuRuSu"
+  ],
+  "Op: getSimilarity-CuCu+RuRu": 0,
+  "Layout: simple-cut-stack": {
+    "machineCount": 2,
+    "beltCount": 12,
+    "gridWidth": 2,
+    "gridHeight": 9,
+    "floorCount": 2
+  }
+}
