@@ -16,5 +16,35 @@
     "gridWidth": 2,
     "gridHeight": 9,
     "floorCount": 2
+  },
+  "Solver: simple-cut": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "----CuCu"
+  },
+  "Solver: rotate-astar": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "CuRuCuRu"
+  },
+  "Solver: stack-astar": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "CuCuCuCu:RuRuRuRu"
+  },
+  "Solver: paint-astar": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "CrCrCrCr"
+  },
+  "Solver: cut-stack-astar": {
+    "numOps": 2,
+    "depth": 2,
+    "finalShapeCode": "----CuCu:----RuRu"
+  },
+  "Solver: rotate-ida": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "CuRuCuRu"
   }
 }

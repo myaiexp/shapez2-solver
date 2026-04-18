@@ -3,7 +3,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { Shape, cut, stack, rotate90CW, _getSimilarity } from '../shapeOperations.js';
 import { buildLayout } from '../blueprintLayout.js';
-import { PURE_OP_CHECKS, LAYOUT_FIXTURES } from './fixtures.js';
+import { shapeSolver } from '../shapeSolverCore.js';
+import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SNAPSHOTS_PATH = join(__dirname, 'snapshots.json');
@@ -66,6 +67,49 @@ for (const fixture of LAYOUT_FIXTURES) {
         gridWidth: layout.gridWidth,
         gridHeight: layout.gridHeight,
         floorCount: layout.floorCount,
+    };
+    if (!(key in snapshots)) {
+        snapshots[key] = actual;
+        saveSnapshots(snapshots);
+        console.log(`[baseline written] ${key}`);
+        passed++;
+    } else {
+        const expected = snapshots[key];
+        const match = JSON.stringify(actual) === JSON.stringify(expected);
+        if (match) {
+            console.log(`\u2713 ${key}`);
+            passed++;
+        } else {
+            console.log(`\u2717 ${key} \u2014 expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+            failed = true;
+        }
+    }
+}
+
+for (const fixture of SOLVER_FIXTURES) {
+    const key = `Solver: ${fixture.name}`;
+    total++;
+    const result = await shapeSolver(
+        fixture.target,
+        fixture.starting,
+        fixture.ops,
+        fixture.maxLayers,
+        fixture.maxStatesPerLevel,
+        fixture.preventWaste,
+        fixture.orientationSensitive,
+        fixture.monolayerPainting,
+        fixture.heuristicDivisor,
+        fixture.method,
+        () => false,
+        () => {}
+    );
+    const path = result?.solutionPath ?? null;
+    const actual = {
+        numOps: path ? path.length : null,
+        depth: result?.depth ?? null,
+        finalShapeCode: path && path.length > 0
+            ? path[path.length - 1].outputs[0]?.shape ?? null
+            : null,
     };
     if (!(key in snapshots)) {
         snapshots[key] = actual;
