@@ -46,5 +46,10 @@
     "numOps": 1,
     "depth": 1,
     "finalShapeCode": "CuRuCuRu"
+  },
+  "Explorer: small-explore": {
+    "shapeCount": 10,
+    "opCount": 6,
+    "edgeCount": 14
   }
 }

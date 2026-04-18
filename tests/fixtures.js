@@ -67,6 +67,16 @@ export const SOLVER_FIXTURES = [
     },
 ];
 
+export const EXPLORER_FIXTURES = [
+    {
+        name: 'small-explore',
+        starting: ['CuCuCuCu', 'RuRuRuRu'],
+        ops: ['Cutter', 'Rotator CW'],
+        depthLimit: 2,
+        maxLayers: 4,
+    },
+];
+
 export const LAYOUT_FIXTURES = [
     {
         name: 'simple-cut-stack',
