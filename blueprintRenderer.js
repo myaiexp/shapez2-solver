@@ -7,76 +7,15 @@
  * @module blueprintRenderer
  */
 
-import { createShapeCanvas } from './shapeRendering.js';
+import { drawScene, TILE_SIZE, BG_COLOR } from './blueprintDrawing.js';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const TILE_SIZE = 48;
-
-const MACHINE_COLORS = {
-    "Rotator CW":        "#4a90d9",
-    "Rotator CCW":       "#4a90d9",
-    "Rotator 180":       "#4a90d9",
-    "Half Destroyer":    "#d94a4a",
-    "Cutter":            "#d9a04a",
-    "Swapper":           "#8b4ad9",
-    "Stacker":           "#4ad98b",
-    "Painter":           "#d94a8b",
-    "Pin Pusher":        "#4ad9d9",
-    "Crystal Generator": "#d9d94a",
-    "Trash":             "#666666",
-};
-
-const BELT_COLOR         = "#666666";
-const BELT_SPLIT_COLOR   = "#8888cc";
-const BELT_MERGE_COLOR   = "#cc8844";
-const BELT_LIFT_COLOR    = "#44aacc";
-const GRID_LINE_COLOR    = "#1f1f1f";
-const BG_COLOR           = "#121212";
-const LABEL_COLOR        = "#e0e0e0";
-const LABEL_FONT         = "600 11px 'Barlow', sans-serif";
 const TOOLTIP_BG         = "rgba(30, 30, 30, 0.95)";
 const TOOLTIP_BORDER     = "#555";
 const TOOLTIP_TEXT_COLOR  = "#e0e0e0";
 const TOOLTIP_FONT       = "13px 'Barlow', sans-serif";
 
-/** Direction → Unicode arrow character */
-const DIR_ARROW = { N: "\u25B2", S: "\u25BC", E: "\u25BA", W: "\u25C4" };
-
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5.0;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Return the machine fill colour, falling back to a neutral grey.
- * @param {string} operation
- * @returns {string}
- */
-function machineColor(operation) {
-    return MACHINE_COLORS[operation] ?? "#555555";
-}
-
-/**
- * Slightly darken a hex colour for the machine border.
- * @param {string} hex
- * @returns {string}
- */
-function darken(hex, amount = 0.3) {
-    const n = parseInt(hex.slice(1), 16);
-    const r = Math.max(0, ((n >> 16) & 0xff) * (1 - amount)) | 0;
-    const g = Math.max(0, ((n >> 8)  & 0xff) * (1 - amount)) | 0;
-    const b = Math.max(0, ( n        & 0xff) * (1 - amount)) | 0;
-    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
-}
-
-// ---------------------------------------------------------------------------
-// BlueprintRenderer
-// ---------------------------------------------------------------------------
 
 export class BlueprintRenderer {
     /**
@@ -116,6 +55,9 @@ export class BlueprintRenderer {
         /** @type {PlacedBelt[]} */
         this._visibleBelts = [];
 
+        // Shape icon cache (cleared on setLayout)
+        this._shapeIconCache = new Map();
+
         // Bind handlers so we can remove them later
         this._onWheel      = this._handleWheel.bind(this);
         this._onMouseDown   = this._handleMouseDown.bind(this);
@@ -154,7 +96,7 @@ export class BlueprintRenderer {
     setLayout(layout) {
         this._layout = layout;
         this.currentFloor = 0;
-        this._shapeIconCache = new Map(); // Clear shape icon cache
+        this._shapeIconCache = new Map();
         this._filterFloor();
         this._centerView();
         this._render();
@@ -195,7 +137,7 @@ export class BlueprintRenderer {
             // Fill background, then draw at 1:1 with no pan/zoom
             ctx.fillStyle = BG_COLOR;
             ctx.fillRect(0, 0, w, h);
-            this._drawScene(ctx, w, h, 0, 0, 1);
+            drawScene(ctx, this._layout, this._visibleMachines, this._visibleBelts, this._shapeIconCache, 0, 0, 1);
 
             offscreen.toBlob((blob) => {
                 if (blob) resolve(blob);
@@ -309,206 +251,10 @@ export class BlueprintRenderer {
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, cw, ch);
 
-        // Apply pan + zoom
-        this._drawScene(ctx, cw, ch, this._panX, this._panY, this._zoom);
+        // Apply pan + zoom and draw the scene
+        drawScene(ctx, this._layout, this._visibleMachines, this._visibleBelts, this._shapeIconCache, this._panX, this._panY, this._zoom);
 
         ctx.restore();
-    }
-
-    /**
-     * Draw the full scene (grid + machines + belts) into the given context
-     * using the specified transform parameters.
-     */
-    _drawScene(ctx, viewW, viewH, panX, panY, zoom) {
-        ctx.save();
-        ctx.translate(panX, panY);
-        ctx.scale(zoom, zoom);
-
-        if (this._layout) {
-            this._drawGrid(ctx);
-            this._drawBelts(ctx);
-            this._drawMachines(ctx);
-        }
-
-        ctx.restore();
-    }
-
-    // -- Grid --
-
-    _drawGrid(ctx) {
-        const gw = this._layout.gridWidth;
-        const gh = this._layout.gridHeight;
-        const totalW = gw * TILE_SIZE;
-        const totalH = gh * TILE_SIZE;
-
-        ctx.strokeStyle = GRID_LINE_COLOR;
-        ctx.lineWidth = 1;
-
-        ctx.beginPath();
-        for (let x = 0; x <= gw; x++) {
-            const px = x * TILE_SIZE;
-            ctx.moveTo(px, 0);
-            ctx.lineTo(px, totalH);
-        }
-        for (let y = 0; y <= gh; y++) {
-            const py = y * TILE_SIZE;
-            ctx.moveTo(0, py);
-            ctx.lineTo(totalW, py);
-        }
-        ctx.stroke();
-    }
-
-    // -- Belts --
-
-    _drawBelts(ctx) {
-        for (const belt of this._visibleBelts) {
-            const cx = belt.x * TILE_SIZE + TILE_SIZE / 2;
-            const cy = belt.y * TILE_SIZE + TILE_SIZE / 2;
-
-            // Background tile
-            let bgColor;
-            if (belt.kind === "split") {
-                bgColor = BELT_SPLIT_COLOR;
-            } else if (belt.kind === "merge") {
-                bgColor = BELT_MERGE_COLOR;
-            } else if (belt.kind === "lift") {
-                bgColor = BELT_LIFT_COLOR;
-            } else {
-                bgColor = BELT_COLOR;
-            }
-
-            ctx.fillStyle = bgColor;
-            ctx.globalAlpha = 0.25;
-            ctx.fillRect(belt.x * TILE_SIZE + 1, belt.y * TILE_SIZE + 1,
-                         TILE_SIZE - 2, TILE_SIZE - 2);
-            ctx.globalAlpha = 1.0;
-
-            // Arrow character
-            const arrow = DIR_ARROW[belt.direction] ?? "?";
-            ctx.fillStyle = bgColor;
-            ctx.font = "bold 20px sans-serif";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(arrow, cx, cy);
-
-            // Fork / join / lift icon for special belt types
-            if (belt.kind === "split") {
-                ctx.fillStyle = BELT_SPLIT_COLOR;
-                ctx.font = "bold 10px sans-serif";
-                ctx.fillText("SPL", cx, cy + 14);
-            } else if (belt.kind === "merge") {
-                ctx.fillStyle = BELT_MERGE_COLOR;
-                ctx.font = "bold 10px sans-serif";
-                ctx.fillText("MRG", cx, cy + 14);
-            } else if (belt.kind === "lift") {
-                ctx.fillStyle = BELT_LIFT_COLOR;
-                ctx.font = "bold 10px sans-serif";
-                ctx.fillText("\u21C5", cx, cy + 14); // ⇅ up-down arrow
-            }
-
-            // Shape icon on belt tile
-            if (belt.shapeCode) {
-                if (!this._shapeIconCache) this._shapeIconCache = new Map();
-                let icon = this._shapeIconCache.get(belt.shapeCode);
-                if (!icon) {
-                    try {
-                        icon = createShapeCanvas(belt.shapeCode, 20);
-                        this._shapeIconCache.set(belt.shapeCode, icon);
-                    } catch {
-                        // Skip rendering if shape code is invalid
-                    }
-                }
-                if (icon) {
-                    ctx.globalAlpha = 0.85;
-                    ctx.drawImage(icon, cx - 10, cy - 20, 20, 20);
-                    ctx.globalAlpha = 1.0;
-                }
-            }
-        }
-    }
-
-    // -- Machines --
-
-    _drawMachines(ctx) {
-        for (const machine of this._visibleMachines) {
-            const w = (machine.def?.width  ?? 1) * TILE_SIZE;
-            const h = (machine.def?.depth  ?? 1) * TILE_SIZE;
-            const px = machine.x * TILE_SIZE;
-            const py = machine.y * TILE_SIZE;
-
-            const fill = machineColor(machine.operation);
-
-            // Filled rectangle
-            ctx.fillStyle = fill;
-            ctx.globalAlpha = 0.6;
-            ctx.fillRect(px + 2, py + 2, w - 4, h - 4);
-            ctx.globalAlpha = 1.0;
-
-            // Border
-            ctx.strokeStyle = darken(fill, 0.15);
-            ctx.lineWidth = 2;
-            ctx.strokeRect(px + 2, py + 2, w - 4, h - 4);
-
-            // Label (operation name)
-            ctx.fillStyle = LABEL_COLOR;
-            ctx.font = LABEL_FONT;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.shadowColor = "rgba(0,0,0,0.7)";
-            ctx.shadowBlur = 3;
-            ctx.fillText(machine.operation, px + w / 2, py + h / 2, w - 8);
-            ctx.shadowColor = "transparent";
-            ctx.shadowBlur = 0;
-
-            // Input/output port indicators (small squares)
-            this._drawPorts(ctx, machine, px, py, w, h);
-        }
-    }
-
-    /**
-     * Draw small port indicators on the edges of a machine rectangle.
-     */
-    _drawPorts(ctx, machine, px, py, w, h) {
-        const portSize = 6;
-        const drawPort = (port, color, index, total) => {
-            ctx.fillStyle = color;
-            const side = port.side || 'back';
-            let cx, cy;
-            if (side === 'back') {
-                // Top edge — inputs enter from the back
-                const step = w / (total + 1);
-                cx = px + step * (index + 1);
-                cy = py;
-            } else if (side === 'front') {
-                // Bottom edge — outputs exit from the front
-                const step = w / (total + 1);
-                cx = px + step * (index + 1);
-                cy = py + h;
-            } else if (side === 'left') {
-                const step = h / (total + 1);
-                cx = px;
-                cy = py + step * (index + 1);
-            } else {
-                const step = h / (total + 1);
-                cx = px + w;
-                cy = py + step * (index + 1);
-            }
-            ctx.fillRect(cx - portSize / 2, cy - portSize / 2, portSize, portSize);
-        };
-
-        const inputs = machine.def?.inputs ?? [];
-        for (let i = 0; i < inputs.length; i++) {
-            drawPort(inputs[i], "#44cc44", i, inputs.length);
-        }
-        const outputs = machine.def?.outputs ?? [];
-        for (let i = 0; i < outputs.length; i++) {
-            drawPort(outputs[i], "#cc4444", i, outputs.length);
-        }
-        // Fluid input ports (Painter paint, Crystal Generator fluid)
-        const fluidInputs = machine.def?.fluidInputs ?? [];
-        for (let i = 0; i < fluidInputs.length; i++) {
-            drawPort(fluidInputs[i], "#4488cc", i, fluidInputs.length);
-        }
     }
 
     // ------------------------------------------------------------------
