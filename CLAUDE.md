@@ -13,25 +13,7 @@
 
 ## Project Structure
 
-```
-index.html              — Main page, all UI markup (tabs: Flowchart + Blueprint)
-styles.css              — All styling
-main.js                 — Entry point: UI wiring, event handlers, orchestration
-shapeSolver.js          — BFS and A* search algorithms, solver logic
-shapeOperations.js      — Shape class, all operations (cut, rotate, stack, paint, etc.)
-shapeRendering.js       — Canvas-based shape rendering with color modes
-operationGraph.js       — Cytoscape.js graph: layout, rendering, export
-buildingData.js         — Building definitions for all 12 solver operations
-blueprintLayout.js      — Converts solutionPath to spatial grid layout
-blueprintRenderer.js    — Canvas renderer with pan/zoom/hover for blueprint view
-blueprintExport.js      — PNG export for blueprint view
-shapeValidation.js      — Input validation
-shapeColorData.js       — Shape/color type constants, parsing utilities
-images/                 — Operation icons for graph nodes
-.claude/plans/          — Archived design/implementation docs
-.claude/references/     — Game mechanics reference, optimization plan, blueprint reference
-.claude/phases/         — Legacy: historical phase archives (roadmap now tracked via Helm)
-```
+Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintLayout`, `blueprintRenderer` — is a public-entry-point file with a small set of sibling helper files prefixed by the same name (e.g., `shapeSolverCache.js`, `blueprintTopology.js`). `shapeSolver.js` is a thin Web Worker wrapper around the algorithm in `shapeSolverCore.js`.
 
 ## Deployment
 
@@ -52,12 +34,19 @@ images/                 — Operation icons for graph nodes
 
 ## Known Issues / Tech Debt
 
-- Several files exceed 300 lines (shapeOperations.js, blueprintLayout.js, shapeSolver.js, blueprintRenderer.js) — candidates for splitting
 - Blueprint layout is single-floor only (floor switching UI exists but all machines placed on floor 0)
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
 - Building data footprints not fully verified against in-game values
 - No tests, no linter configured
 - Forked originally from another solver repo; added A\* search and visual improvements
+
+## Conventions
+
+- **No first-line description comments on source files.** This is a public repo; filenames are descriptive enough. The auto-generated context tree convention used in private projects does not apply here.
+- **Orchestrator exception to the 300-line rule.** A few files intentionally exceed 300 lines because their job is coordinating tightly-coupled steps that don't extract cleanly:
+  - `shapeSolverCore.js` (~800 lines) — the search algorithm has many inner closures over shared state (caches, target, config, shape map). Extracting them would require passing 5–10 args per call or restructuring around a SolverContext object — both worse than the current shape.
+  - `blueprintRenderer.js` (~430 lines) — class shell that owns canvas state, event handlers, tooltip DOM, and the public API. Each method does one named thing; splitting tooltip/events into separate modules would require threading instance state through.
+- **Smoke test before commit.** Run `node tests/smoke.js` after any change to solver, layout, or shape-operations code.
 
 ## Roadmap & Ideation
 
