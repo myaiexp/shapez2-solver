@@ -102,12 +102,14 @@ export function drawBelts(ctx, visibleBelts, shapeIconCache) {
             ctx.fillText("\u21C5", cx, cy + 14); // ⇅ up-down arrow
         }
 
-        // Shape icon on belt tile
+        // Shape icon on belt tile. Cache at a higher backing resolution so it
+        // stays crisp under devicePixelRatio scaling and user zoom; drawImage
+        // downscales to the 20 CSS-pixel target.
         if (belt.shapeCode) {
             let icon = shapeIconCache.get(belt.shapeCode);
             if (!icon) {
                 try {
-                    icon = createShapeCanvas(belt.shapeCode, 20);
+                    icon = createShapeCanvas(belt.shapeCode, 80);
                     shapeIconCache.set(belt.shapeCode, icon);
                 } catch {
                     // Skip rendering if shape code is invalid
@@ -115,6 +117,7 @@ export function drawBelts(ctx, visibleBelts, shapeIconCache) {
             }
             if (icon) {
                 ctx.globalAlpha = 0.85;
+                ctx.imageSmoothingQuality = "high";
                 ctx.drawImage(icon, cx - 10, cy - 20, 20, 20);
                 ctx.globalAlpha = 1.0;
             }
