@@ -163,5 +163,52 @@ for (const fixture of EXPLORER_FIXTURES) {
     }
 }
 
+// Persistence: schema round-trips through JSON without loss.
+{
+    const key = 'Persistence: schema round-trip';
+    total++;
+    const state = {
+        version: 1,
+        inputs: {
+            target: 'CuRuSuWu:CuCuCuCu',
+            depthLimit: '10',
+            startingShapes: ['CuCuCuCu', 'RuRuRuRu'],
+            enabledOperations: ['cut', 'stack', 'paint'],
+            searchMethod: 'A*',
+            maxStatesPerLevel: '7500',
+            heuristicDivisor: '0.1',
+            preventWaste: true,
+            orientationSensitive: false,
+            monolayerPainting: false,
+            filterUnusedShapes: true,
+            throughputMultiplier: '2',
+            maxLayers: '4',
+            colorMode: 'rgb',
+        },
+        solution: {
+            solutionPath: [{ op: 'cut', inputs: ['CuCuCuCu'], outputs: [{ shape: 'Cu------' }], params: {} }],
+            depth: 1,
+            statesExplored: 42,
+            solveTimeSec: '0.05',
+        },
+        view: {
+            activeSidebarTab: 'options',
+            activeOutputView: 'blueprint',
+            graphDirection: 'TB',
+            edgeStyle: 'curved',
+            blueprintFloor: 0,
+        },
+    };
+    const roundTripped = JSON.parse(JSON.stringify(state));
+    const match = JSON.stringify(roundTripped) === JSON.stringify(state);
+    if (match) {
+        console.log(`\u2713 ${key}`);
+        passed++;
+    } else {
+        console.log(`\u2717 ${key} \u2014 round-trip mismatch`);
+        failed = true;
+    }
+}
+
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

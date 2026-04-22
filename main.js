@@ -7,6 +7,7 @@ import { SHAPE_TYPES, COLOR_TYPES, buildShapeCode, parseShapeCode, getShapeInfo,
 import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
+import { loadState, saveState, captureState, applyState, STORAGE_KEY } from './persistence.js';
 
 // Utility Helpers
 const $ = (sel) => document.querySelector(sel);
@@ -20,6 +21,17 @@ export function getCurrentColorMode() {
 // Blueprint State
 let blueprintRenderer = null;
 let currentBlueprintLayout = null;
+
+// Persistence
+let lastSolution = null;
+let suspendPersist = false;
+function persist() {
+    if (suspendPersist) return;
+    saveState(captureState({
+        currentSolution: lastSolution,
+        currentBlueprintFloor: blueprintRenderer?.currentFloor ?? 0,
+    }));
+}
 
 // Refresh Colors
 function refreshShapeColors() {
@@ -89,12 +101,14 @@ byId('add-shape-btn').addEventListener('click', () => {
 
     byId('starting-shapes').appendChild(createShapeItem(code));
     input.value = '';
+    persist();
 });
 
 // Remove Shape Button
 byId('starting-shapes').addEventListener('click', (e) => {
     if (e.target.classList.contains('remove-shape')) {
         e.target.parentElement.remove();
+        persist();
     }
 });
 
@@ -138,6 +152,7 @@ byId('extract-confirm').addEventListener('click', () => {
 
         variants.forEach((code) => container.appendChild(createShapeItem(code)));
         modal.style.display = 'none';
+        persist();
     } catch (err) {
         alert(`Failed to extract shapes: ${err.message}`);
         modal.style.display = 'none';
@@ -152,6 +167,7 @@ $all('.tab-button').forEach((btn) => {
 
         btn.classList.add('active');
         byId(btn.id.replace('-tab-btn', '-content')).classList.add('active');
+        persist();
     });
 });
 
@@ -176,12 +192,16 @@ $all('.view-tab-button').forEach((btn) => {
             blueprintRenderer.destroy();
             blueprintRenderer = null;
         }
+        persist();
     });
 });
 
 // Operation Toggle
 $all('.operation-item').forEach((item) => {
-    item.addEventListener('click', () => item.classList.toggle('enabled'));
+    item.addEventListener('click', () => {
+        item.classList.toggle('enabled');
+        persist();
+    });
 });
 
 // Solver Worker
@@ -267,14 +287,22 @@ byId('solve-btn').addEventListener('click', () => {
                 }
                 const t = ((performance.now() - startTime) / 1000).toFixed(2);
                 status.textContent = `Solved in ${t}s at Depth ${result.depth} → ${result.statesExplored} States`;
+                lastSolution = {
+                    solutionPath: result.solutionPath,
+                    depth: result.depth,
+                    statesExplored: result.statesExplored,
+                    solveTimeSec: t,
+                };
             } else {
                 currentBlueprintLayout = null;
                 status.textContent = 'No solution found.';
+                lastSolution = null;
             }
 
             btn.textContent = 'Solve';
             solverWorker.terminate();
             solverWorker = null;
+            persist();
         }
     };
 
@@ -376,6 +404,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial toggle
     byId('search-method-select').dispatchEvent(new Event('change'));
+
+    // Wire change listeners on persisted form inputs (save on every edit)
+    const persistOnChange = [
+        'target-shape', 'depth-limit-input', 'search-method-select',
+        'max-states-per-level', 'heuristic-divisor',
+        'prevent-waste', 'orientation-sensitive', 'monolayer-painting',
+        'filter-unused-shapes', 'throughput-multiplier', 'max-layers',
+        'color-mode-select',
+    ];
+    for (const id of persistOnChange) {
+        byId(id)?.addEventListener('change', persist);
+    }
+
+    // Restore saved state
+    const state = loadState();
+    if (state) {
+        suspendPersist = true;
+        try {
+            const { restoredFloor } = applyState(state, {
+                renderGraph,
+                applyGraphLayout,
+                buildLayout,
+                duplicateForThroughput,
+                BlueprintRenderer,
+                createShapeItem,
+                setBlueprintLayout: (layout) => { currentBlueprintLayout = layout; },
+            });
+            if (state.solution) {
+                lastSolution = state.solution;
+            }
+            if (state.view.activeOutputView === 'blueprint' && currentBlueprintLayout) {
+                if (!blueprintRenderer) {
+                    blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));
+                }
+                blueprintRenderer.setLayout(currentBlueprintLayout);
+                if (restoredFloor > 0 && restoredFloor < currentBlueprintLayout.floorCount) {
+                    blueprintRenderer.setFloor(restoredFloor);
+                    byId('floor-indicator').textContent = `Floor ${restoredFloor}`;
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to restore solver state, clearing.', err);
+            try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        } finally {
+            suspendPersist = false;
+        }
+    }
 });
 
 // Graph Controls
@@ -396,9 +471,11 @@ byId('snapshot-btn').addEventListener('click', async () => {
 });
 byId('direction-select').addEventListener('change', (e) => {
     applyGraphLayout(e.target.value);
+    persist();
 });
 byId('edge-style-select').addEventListener('change', () => {
     reRenderGraph();
+    persist();
 });
 
 // Floor Controls
@@ -408,6 +485,7 @@ byId('floor-up-btn').addEventListener('click', () => {
     if (next < currentBlueprintLayout.floorCount) {
         blueprintRenderer.setFloor(next);
         byId('floor-indicator').textContent = `Floor ${next}`;
+        persist();
     }
 });
 byId('copy-blueprint-btn').addEventListener('click', async () => {
@@ -430,6 +508,7 @@ byId('floor-down-btn').addEventListener('click', () => {
     if (next >= 0) {
         blueprintRenderer.setFloor(next);
         byId('floor-indicator').textContent = `Floor ${next}`;
+        persist();
     }
 });
 
