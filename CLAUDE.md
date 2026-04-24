@@ -46,6 +46,7 @@ Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintL
 - **Orchestrator exception to the 300-line rule.** A few files intentionally exceed 300 lines because their job is coordinating tightly-coupled steps that don't extract cleanly:
   - `shapeSolverCore.js` (~800 lines) — the search algorithm has many inner closures over shared state (caches, target, config, shape map). Extracting them would require passing 5–10 args per call or restructuring around a SolverContext object — both worse than the current shape.
   - `blueprintRenderer.js` (~430 lines) — class shell that owns canvas state, event handlers, tooltip DOM, and the public API. Each method does one named thing; splitting tooltip/events into separate modules would require threading instance state through.
+  - `main.js` (~515 lines) — DOM app entry point. Each handler wires one named button/event to an imported module; most lines are glue, not logic. Splitting would scatter shared module-level state (solver worker, blueprint renderer, current layout, persistence flags) across files with circular dependencies.
 - **Smoke test before commit.** Run `node tests/smoke.js` after any change to solver, layout, or shape-operations code.
 
 ## Roadmap & Ideation
