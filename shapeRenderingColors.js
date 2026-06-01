@@ -7,7 +7,8 @@ export const baseColors = {
     "m": "rgb(255,0,255)",
     "y": "rgb(255,255,0)",
     "w": "rgb(255,255,255)",
-    "k": "rgb(86,77,78)",
+    "k": "rgb(38,34,35)",        // true Black (Shapez 2 1.0 color)
+    "wInk": "rgb(86,77,78)",     // rendered shade of white 'w' in subtractive ryb/cmyk modes
     "p": "rgb(167,41,207)",
     "o": "rgb(213,133,13)",
 };
@@ -21,7 +22,8 @@ export const colorValues = {
         "c": baseColors["c"],
         "m": baseColors["m"],
         "y": baseColors["y"],
-        "w": baseColors["w"]
+        "w": baseColors["w"],
+        "k": baseColors["k"]
     },
     "ryb": {
         "u": baseColors["u"],
@@ -31,7 +33,8 @@ export const colorValues = {
         "c": baseColors["g"],
         "m": baseColors["p"],
         "y": baseColors["o"],
-        "w": baseColors["k"]
+        "w": baseColors["wInk"],
+        "k": baseColors["k"]
     },
     "cmyk": {
         "u": baseColors["u"],
@@ -41,6 +44,7 @@ export const colorValues = {
         "c": baseColors["r"],
         "m": baseColors["g"],
         "y": baseColors["b"],
-        "w": baseColors["k"]
+        "w": baseColors["wInk"],
+        "k": baseColors["k"]
     }
 };

@@ -60,5 +60,14 @@
     "numOps": 1,
     "depth": 1,
     "finalShapeCode": "----XuXu"
+  },
+  "Op: cut-CkCkCkCk": [
+    "----CkCk",
+    "CkCk----"
+  ],
+  "Solver: paint-black-astar": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "CkCkCkCk"
   }
 }

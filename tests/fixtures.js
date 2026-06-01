@@ -5,6 +5,8 @@ export const PURE_OP_CHECKS = [
     { name: 'getSimilarity-CuCu+RuRu', op: '_getSimilarity', shapeArgs: ['CuCuCuCu', 'RuRuRuRu'] },
     // 1.0 refined shape X support (basic structural ops should be generic)
     { name: 'cut-XuXuXuXu', op: 'cut', shapeArgs: ['XuXuXuXu'] },
+    // 1.0 Black (k) color: parses and survives structural ops
+    { name: 'cut-CkCkCkCk', op: 'cut', shapeArgs: ['CkCkCkCk'] },
 ];
 
 const baseSolverParams = {
@@ -74,6 +76,15 @@ export const SOLVER_FIXTURES = [
         starting: ['XuXuXuXu'],
         ops: ['Cutter'],
         method: 'BFS',
+        ...baseSolverParams,
+    },
+    // 1.0: paint a shape Black (k) — proves the new color solves end-to-end
+    {
+        name: 'paint-black-astar',
+        target: 'CkCkCkCk',
+        starting: ['CuCuCuCu'],
+        ops: ['Painter'],
+        method: 'A*',
         ...baseSolverParams,
     },
 ];

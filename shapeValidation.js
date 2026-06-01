@@ -35,6 +35,7 @@ const VALID_COLORS = [
     'c', // cyan
     'm', // magenta
     'w', // white
+    'k', // black (1.0)
 ];
 
 export function validateShapeCode(shapeCode) {

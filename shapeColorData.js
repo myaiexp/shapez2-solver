@@ -23,7 +23,8 @@ export const COLOR_TYPES = [
     { char: 'c', name: 'Cyan', emoji: '🩵', cssColor: 'rgb(0,255,255)' },
     { char: 'm', name: 'Magenta', emoji: '🩷', cssColor: 'rgb(255,0,255)' },
     { char: 'y', name: 'Yellow', emoji: '🟡', cssColor: 'rgb(255,255,0)' },
-    { char: 'w', name: 'White', emoji: '⚪', cssColor: 'rgb(255,255,255)' }
+    { char: 'w', name: 'White', emoji: '⚪', cssColor: 'rgb(255,255,255)' },
+    { char: 'k', name: 'Black', emoji: '⚫', cssColor: 'rgb(38,34,35)' }   // 1.0 color: made by white + white
 ];
 
 export function buildShapeCode(layers) {
