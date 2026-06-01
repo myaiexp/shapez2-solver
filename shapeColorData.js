@@ -8,6 +8,8 @@ export const SHAPE_TYPES = [
     { char: 'H', name: 'Hexagon', emoji: '⬡', paintable: true },
     { char: 'F', name: 'Flower', emoji: '🌸', paintable: true },
     { char: 'G', name: 'Gear', emoji: '⚙️', paintable: true },
+    { char: 'X', name: 'Refined X', emoji: '✴️', paintable: false },   // 1.0 refined/exotic — does not recolor via Painter
+    { char: 'Y', name: 'Refined Y', emoji: '🔷', paintable: false },   // 1.0 refined/exotic — does not recolor via Painter
     { char: 'P', name: 'Pin', emoji: '📍', paintable: false },
     { char: 'c', name: 'Crystal', emoji: '💠', paintable: true },
     { char: '-', name: 'Nothing', emoji: '⬜', paintable: false }

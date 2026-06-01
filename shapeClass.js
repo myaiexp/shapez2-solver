@@ -3,7 +3,18 @@ export const NOTHING_CHAR = "-";
 export const SHAPE_LAYER_SEPARATOR = ":";
 export const PIN_CHAR = "P";
 export const CRYSTAL_CHAR = "c";
-export const UNPAINTABLE_SHAPES = [CRYSTAL_CHAR, PIN_CHAR, NOTHING_CHAR];
+export const REFINED_X_CHAR = "X";
+export const REFINED_Y_CHAR = "Y";
+
+// Refined (X/Y) shapes from 1.0 do not recolor via the Painter operation
+// (their colors come from Trade Stations). Treat them as unpaintable for recoloring logic.
+export const UNPAINTABLE_SHAPES = [
+    CRYSTAL_CHAR,
+    PIN_CHAR,
+    NOTHING_CHAR,
+    REFINED_X_CHAR,
+    REFINED_Y_CHAR
+];
 export const REPLACED_BY_CRYSTAL = [PIN_CHAR, NOTHING_CHAR];
 
 // Shape Classes

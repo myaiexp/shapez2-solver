@@ -51,5 +51,14 @@
     "shapeCount": 10,
     "opCount": 6,
     "edgeCount": 14
+  },
+  "Op: cut-XuXuXuXu": [
+    "----XuXu",
+    "XuXu----"
+  ],
+  "Solver: refined-x-cut": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "----XuXu"
   }
 }

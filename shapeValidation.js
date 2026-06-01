@@ -1,7 +1,14 @@
 // Imports
-import { NOTHING_CHAR, SHAPE_LAYER_SEPARATOR, PIN_CHAR, CRYSTAL_CHAR } from './shapeOperations.js';
+import {
+    NOTHING_CHAR,
+    SHAPE_LAYER_SEPARATOR,
+    PIN_CHAR,
+    CRYSTAL_CHAR,
+    REFINED_X_CHAR,
+    REFINED_Y_CHAR
+} from './shapeOperations.js';
 
-// Valid shape characters
+// Valid shape characters (updated for Shapez 2 1.0 — includes refined X/Y)
 const VALID_SHAPES = [
     NOTHING_CHAR,
     PIN_CHAR,
@@ -12,7 +19,9 @@ const VALID_SHAPES = [
     'W', // diamond
     'H', // hexagon
     'F', // flower
-    'G' // gear
+    'G', // gear
+    REFINED_X_CHAR, // 1.0 refined/exotic X
+    REFINED_Y_CHAR  // 1.0 refined/exotic Y
 ];
 
 // Valid color characters
@@ -28,7 +37,7 @@ const VALID_COLORS = [
     'w', // white
 ];
 
-function validateShapeCode(shapeCode) {
+export function validateShapeCode(shapeCode) {
     const errors = [];
 
     // Check if shapeCode is a string

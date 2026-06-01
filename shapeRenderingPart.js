@@ -259,5 +259,32 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesConfig, 
         }
     }
 
+    // 1.0 support: Refined/Exotic shapes X and Y (from Trade Stations / Manufacture Mode)
+    // They do not recolor via Painter. Proper geometry to be added later.
+    if (partShape == "X" || partShape == "Y") {
+        function drawPath() {
+            ctx.beginPath();
+            ctx.rect(0.15, 0.15, 0.7, 0.7);
+            ctx.closePath();
+        }
+        const draws = standardDraw(drawPath);
+        const letter = partShape;
+        return [
+            ...draws,
+            (() => {
+                ctx.save();
+                ctx.fillStyle = "rgba(255,255,255,0.85)";
+                ctx.strokeStyle = "rgba(0,0,0,0.6)";
+                ctx.lineWidth = curBorderSize * 0.6;
+                ctx.font = "bold 0.85px system-ui, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.strokeText(letter, 0.5, 0.5);
+                ctx.fillText(letter, 0.5, 0.5);
+                ctx.restore();
+            })
+        ];
+    }
+
     throw new Error("Invalid shape");
 }

@@ -3,6 +3,8 @@ export const PURE_OP_CHECKS = [
     { name: 'stack-CuCuCuCu+RuRuRuRu', op: 'stack', shapeArgs: ['CuCuCuCu', 'RuRuRuRu'] },
     { name: 'rotate90CW-CuRuSuWu', op: 'rotate90CW', shapeArgs: ['CuRuSuWu'] },
     { name: 'getSimilarity-CuCu+RuRu', op: '_getSimilarity', shapeArgs: ['CuCuCuCu', 'RuRuRuRu'] },
+    // 1.0 refined shape X support (basic structural ops should be generic)
+    { name: 'cut-XuXuXuXu', op: 'cut', shapeArgs: ['XuXuXuXu'] },
 ];
 
 const baseSolverParams = {
@@ -64,6 +66,15 @@ export const SOLVER_FIXTURES = [
         method: 'IDA*',
         ...baseSolverParams,
         orientationSensitive: true,
+    },
+    // 1.0: basic production of a refined (X) shape target
+    {
+        name: 'refined-x-cut',
+        target: 'XuXu----',
+        starting: ['XuXuXuXu'],
+        ops: ['Cutter'],
+        method: 'BFS',
+        ...baseSolverParams,
     },
 ];
 
