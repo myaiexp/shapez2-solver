@@ -259,31 +259,25 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesConfig, 
         }
     }
 
-    // 1.0 support: Refined/Exotic shapes X and Y (from Trade Stations / Manufacture Mode)
-    // They do not recolor via Painter. Proper geometry to be added later.
-    if (partShape == "X" || partShape == "Y") {
+    // 1.0 support: Refined/Exotic shapes X and Y (from Trade Stations / Manufacture Mode).
+    // They do not recolor via Painter. Geometry traced from the in-game renders:
+    // (0,1) is the shape centre, (1,0) the outer diagonal corner of the quadrant.
+    // X: convex "home-plate" — full edges along both axes, outer corner pulled to a
+    //    single point; the four quadrants together read as a 4-petal shape.
+    if (partShape == "X") {
         function drawPath() {
-            ctx.beginPath();
-            ctx.rect(0.15, 0.15, 0.7, 0.7);
-            ctx.closePath();
+            drawPolygon(ctx, [[0, 1], [1, 1], [1.13, -0.13], [0, 0]]);
         }
-        const draws = standardDraw(drawPath);
-        const letter = partShape;
-        return [
-            ...draws,
-            (() => {
-                ctx.save();
-                ctx.fillStyle = "rgba(255,255,255,0.85)";
-                ctx.strokeStyle = "rgba(0,0,0,0.6)";
-                ctx.lineWidth = curBorderSize * 0.6;
-                ctx.font = "bold 0.85px system-ui, sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.strokeText(letter, 0.5, 0.5);
-                ctx.fillText(letter, 0.5, 0.5);
-                ctx.restore();
-            })
-        ];
+        return standardDraw(drawPath);
+    }
+
+    // Y: concave dart/arrowhead — a barb along each axis plus a long outer point,
+    //    with a notch between; the four quadrants together form an 8-point star.
+    if (partShape == "Y") {
+        function drawPath() {
+            drawPolygon(ctx, [[0, 1], [1, 1], [0.58, 0.42], [1.08, -0.08], [0.42, 0.58], [0, 0]]);
+        }
+        return standardDraw(drawPath);
     }
 
     throw new Error("Invalid shape");
