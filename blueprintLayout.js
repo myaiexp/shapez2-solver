@@ -1,5 +1,6 @@
 import { extractTopology, topoSort, groupIntoRows } from './blueprintTopology.js';
 import { assignPositions, MACHINE_GAP } from './blueprintPositions.js';
+import { computeGridBounds } from './blueprintUtils.js';
 
 /**
  * @typedef {Object} PlacedMachine
@@ -167,18 +168,7 @@ export function duplicateForThroughput(layout, multiplier = 1) {
     }
 
     // Recompute grid bounds
-    let gridWidth = maxWidth;
-    let gridHeight = 0;
-    for (const m of newMachines) {
-        const right = m.x + ((m.def?.width || 1));
-        const bottom = m.y + ((m.def?.depth || 1));
-        if (right > gridWidth) gridWidth = right;
-        if (bottom > gridHeight) gridHeight = bottom;
-    }
-    for (const b of newBelts) {
-        if (b.x + 1 > gridWidth) gridWidth = b.x + 1;
-        if (b.y + 1 > gridHeight) gridHeight = b.y + 1;
-    }
+    const { gridWidth, gridHeight } = computeGridBounds(newMachines, newBelts, maxWidth);
 
     return {
         machines: newMachines,

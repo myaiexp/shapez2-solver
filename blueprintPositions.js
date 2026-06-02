@@ -1,5 +1,6 @@
 import { BUILDING_DATA } from './buildingData.js';
 import { routeBelt } from './blueprintRouting.js';
+import { computeGridBounds } from './blueprintUtils.js';
 
 /** Vertical distance between machine rows in tiles */
 export const ROW_PITCH = 4;
@@ -262,20 +263,7 @@ export function assignPositions(rows, solutionPath, topology) {
 
     // --- Phase C: compute grid bounds ---
 
-    let gridWidth = maxRowWidth;
-    let gridHeight = 0;
-
-    for (const m of machines) {
-        const mDef = m.def;
-        const right = m.x + (mDef.width || 1);
-        const bottom = m.y + (mDef.depth || 1);
-        if (right > gridWidth) gridWidth = right;
-        if (bottom > gridHeight) gridHeight = bottom;
-    }
-    for (const b of belts) {
-        if (b.x + 1 > gridWidth) gridWidth = b.x + 1;
-        if (b.y + 1 > gridHeight) gridHeight = b.y + 1;
-    }
+    const { gridWidth, gridHeight } = computeGridBounds(machines, belts, maxRowWidth);
 
     // Calculate actual floor count from placed entities
     const usedFloors = new Set();
