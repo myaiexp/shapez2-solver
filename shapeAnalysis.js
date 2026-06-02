@@ -6,7 +6,7 @@ import {
     CRYSTAL_CHAR,
     UNPAINTABLE_SHAPES
 } from './shapeClass.js';
-import { rotate90CW } from './shapeOperations.js';
+import { rotate90CW } from './shapeRotation.js';
 
 export function _extractLayers(shape, mode = 'part', includePins = true, includeColor = true) {
     const numParts = shape.numParts;
