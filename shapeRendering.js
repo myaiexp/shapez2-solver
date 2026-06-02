@@ -1,5 +1,5 @@
 // Special thanks to https://github.com/Loupau38/loupau38.github.io/blob/main/assets/scripts/shapeViewer.js
-import { getCurrentColorMode } from './main.js';
+import { getCurrentColorMode } from './colorMode.js';
 import { renderPart, quadShapesConfig, hexShapesConfig } from './shapeRenderingPart.js';
 
 export { baseColors, colorValues } from './shapeRenderingColors.js';

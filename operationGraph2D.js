@@ -1,5 +1,5 @@
 import { colorValues, createShapeCanvas } from './shapeRendering.js';
-import { getCurrentColorMode } from './main.js';
+import { getCurrentColorMode } from './colorMode.js';
 import { destroySpaceGraph } from './operationGraphSpace.js';
 
 export let cyInstance = null;

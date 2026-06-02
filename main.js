@@ -8,15 +8,12 @@ import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, captureState, applyState, STORAGE_KEY } from './persistence.js';
+import { getCurrentColorMode } from './colorMode.js';
 
 // Utility Helpers
 const $ = (sel) => document.querySelector(sel);
 const $all = (sel) => Array.from(document.querySelectorAll(sel));
 const byId = (id) => document.getElementById(id);
-
-export function getCurrentColorMode() {
-    return byId('color-mode-select')?.value || 'rgb';
-}
 
 // Blueprint State
 let blueprintRenderer = null;
