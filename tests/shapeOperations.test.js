@@ -6,11 +6,12 @@
 // other unit suites already pin rotation (shapeRotation.test.js), crystals/pins
 // (shapeCrystals.test.js) and gravity (shapeGravity.test.js) with literals — but
 // the half-split geometry of cut, the layer order of stack, the Painter
-// primitive (topPaint) and the A* similarity heuristic (_getSimilarity) had no
+// primitive (topPaint), the A* similarity heuristic (_getSimilarity) and the
+// remaining structural ops (halfCut, swapHalves, trash, beltSplit) had no
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
 import { Shape } from '../shapeClass.js';
-import { cut, stack, topPaint } from '../shapeOperations.js';
+import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit } from '../shapeOperations.js';
 import { _getSimilarity } from '../shapeAnalysis.js';
 
 let passed = 0;
@@ -71,6 +72,39 @@ check('similarity of identical shapes is 1',
 // Fully disjoint shapes (no shared part type, colour, or order) score 0.
 check('similarity of fully disjoint shapes is 0',
     _getSimilarity(s('CuCuCuCu'), s('RuRuRuRu')), 0);
+
+// --- halfCut: keep one half, discard the other ---------------------------
+// halfCut is cut(...)[1] — it keeps the LEFT half (leading two quadrants) and
+// throws the right half away. An asymmetric input pins WHICH half survives:
+// CuRuSuWu -> left half CuRu----, the SuWu half is destroyed.
+check('halfCut keeps the left half and discards the right',
+    codes(halfCut(s('CuRuSuWu'))), ['CuRu----']);
+
+// --- swapHalves: exchange the trailing halves of two shapes --------------
+// Each output keeps its own leading half and takes the OTHER shape's trailing
+// half. Distinct colours per quadrant pin the quadrant mapping so a left/right
+// or A/B mix-up is caught.
+//   A=CuCuRuRu (lead CuCu | trail RuRu), B=SuSuWuWu (lead SuSu | trail WuWu)
+//   -> A keeps CuCu, takes B's WuWu; B keeps SuSu, takes A's RuRu.
+check('swapHalves exchanges trailing halves (all-distinct quadrants)',
+    codes(swapHalves(s('CuCuRuRu'), s('SuSuWuWu'))), ['CuCuWuWu', 'SuSuRuRu']);
+
+// A fully asymmetric pair (every quadrant distinct, no symmetry to hide an
+// index error) exposes both within-half order and which half is swapped.
+check('swapHalves on a fully asymmetric pair',
+    codes(swapHalves(s('CuRuSuWu'), s('WuSuRuCu'))), ['CuRuRuCu', 'WuSuSuWu']);
+
+// --- trash: destroys the shape entirely ----------------------------------
+// trash returns NO output shapes (an empty array) — not the input, not an empty
+// shape. A non-trivial multi-part input still yields nothing.
+check('trash returns no output shapes',
+    codes(trash(s('CuRuSuWu'))), []);
+
+// --- beltSplit: duplicate the shape onto two outputs ---------------------
+// beltSplit is a pass-through tee: the same shape comes out on both outputs,
+// unchanged. A multi-part input pins that nothing is dropped or altered.
+check('beltSplit duplicates the shape onto both outputs',
+    codes(beltSplit(s('CuRuSuWu'))), ['CuRuSuWu', 'CuRuSuWu']);
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);
