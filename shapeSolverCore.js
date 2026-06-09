@@ -1,6 +1,6 @@
 import {
     Shape, ShapeOperationConfig, NOTHING_CHAR,
-    _getAllRotations, _getPaintColors, _getCrystalColors, _getSimilarity,
+    _getAllRotations, _getPaintColors, _getCrystalColors,
     halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack, topPaint, pushPin, genCrystal, trash, beltSplit
 } from './shapeOperations.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
@@ -87,66 +87,121 @@ export async function shapeSolver(
         nextId++;
     }
 
-    const maxPossibleSim = _getSimilarity(target, target);  // Precompute once
-
     // ---------------------------------------------------------------------------
-    // Optimization 2: Similarity-to-Target Cache
+    // Optimization 2: Clean sub-shape coverage (idea #1677)
     // ---------------------------------------------------------------------------
-    const similarityCache = new Map();
-
-    function getCachedSimilarity(shapeCode) {
-        let sim = similarityCache.get(shapeCode);
-        if (sim !== undefined) return sim;
-
-        const shape = getCachedShape(shapeCode);
-        sim = _getSimilarity(shape, target);
-        if (!orientationSensitive) {
-            const rotCodes = _getAllRotations(shape, config);
-            for (const rcode of rotCodes) {
-                sim = Math.max(sim, _getSimilarity(getCachedShape(rcode), target));
+    // Similarity-to-target was a poor guide for ASSEMBLY targets, in two ways:
+    //   1. A single building-block quadrant (e.g. Cu------) scored the SAME as the
+    //      uniform start it came from (CuCuCuCu), so cutting toward the right piece
+    //      showed zero progress.
+    //   2. Taking the max similarity over available shapes gave NO credit for holding
+    //      several complementary pieces at once, so assembling the 2nd/3rd/4th
+    //      quadrant in parallel sat on a flat plateau — across which A* degenerates to
+    //      brute BFS and floods the state cap before it can stack them together.
+    //
+    // Instead we score each target SLOT independently by how close any held shape is to
+    // cleanly providing it, then sum — so progress on the 2nd/3rd/4th quadrant counts
+    // even while it is still being cut, leaving no plateau for the frontier to flood.
+    // Per shape, over rotations, we compute:
+    //   • slotCost: for each target (layer,quadrant) the shape can fill with the right
+    //     part, the rough ops to ISOLATE that part = conflicts (its other filled slots
+    //     that do not match the target), capped at 3. 0 when the shape is already a
+    //     clean sub-shape. So CuCuCuCu (3 conflicts) → 3, CuCu---- (1) → 1, Cu------ → 0.
+    //   • cleanSlots: target slots covered when the shape is a fully clean sub-shape
+    //     (no conflicts) — a piece that can be stacked straight in. [] otherwise.
+    // Colour is ignored: a wrong colour is one cheap Painter op, whereas STRUCTURE is
+    // what the search cannot assemble.
+    function _matchAndCoverage(shape) {
+        const rotShapes = orientationSensitive
+            ? [shape]
+            : Array.from(_getAllRotations(shape, config)).map(getCachedShape);
+        let bestClean = [];
+        const slotCost = new Map();  // "l:q" -> min isolate-cost this shape offers
+        for (const r of rotShapes) {
+            let filled = 0;
+            const matched = [];
+            for (let l = 0; l < r.numLayers; l++) {
+                const rl = r.layers[l], tl = target.layers[l];
+                const len = Math.max(rl ? rl.length : 0, tl ? tl.length : 0);
+                for (let q = 0; q < len; q++) {
+                    const rp = rl && rl[q], tp = tl && tl[q];
+                    if (!rp || rp.shape === NOTHING_CHAR) continue;
+                    filled++;
+                    if (tp && tp.shape === rp.shape) matched.push(l + ':' + q);
+                }
             }
+            const conflicts = filled - matched.length;
+            const cost = Math.min(3, conflicts);
+            for (const key of matched) {
+                const prev = slotCost.get(key);
+                if (prev === undefined || cost < prev) slotCost.set(key, cost);
+            }
+            if (conflicts === 0 && matched.length > bestClean.length) bestClean = matched;
         }
-        similarityCache.set(shapeCode, sim);
-        return sim;
+        return { cleanSlots: bestClean, slotCost };
     }
 
+    const matchCache = new Map();
+    function getCachedMatch(shapeCode) {
+        let m = matchCache.get(shapeCode);
+        if (m !== undefined) return m;
+        m = _matchAndCoverage(getCachedShape(shapeCode));
+        matchCache.set(shapeCode, m);
+        return m;
+    }
+
+    // All target slot keys, for the per-slot cost sum below.
+    const targetSlotKeys = [];
+    for (let l = 0; l < target.numLayers; l++) {
+        for (let q = 0; q < target.layers[l].length; q++) {
+            if (target.layers[l][q].shape !== NOTHING_CHAR) targetSlotKeys.push(l + ':' + q);
+        }
+    }
+
+    // Estimated ops remaining, in real op-units: for each target slot, the cheapest way
+    // any held shape can supply it (0 if a clean piece already covers it, up to 3 to
+    // isolate, 4 to fabricate from scratch); plus 1 stack to merge each clean piece
+    // beyond the first; plus 1 stack per still-missing layer. heuristicDivisor then
+    // weights this estimate (weighted A*, W = 1/divisor; default 0.1 → 10×) so h
+    // dominates g and the search descends the gradient greedily — essential at this
+    // branching factor, where a near-admissible h explores far too broadly.
     function getHeuristic(availableIds) {
         if (availableIds.size === 0) return Infinity;
 
-        let bestSim = 0;
+        const slotMin = new Map();  // target slot -> cheapest supply cost across held shapes
+        let cleanPieces = 0;
         let maxL = 0;
 
         for (const id of availableIds) {
-            const shapeCode = shapes.get(id);
-            const shape = getCachedShape(shapeCode);
-            maxL = Math.max(maxL, shape.numLayers);
-            bestSim = Math.max(bestSim, getCachedSimilarity(shapeCode));
+            const code = shapes.get(id);
+            const shape = getCachedShape(code);
+            if (shape.numLayers > maxL) maxL = shape.numLayers;
+            const m = getCachedMatch(code);
+            if (m.cleanSlots.length > 0) cleanPieces++;
+            for (const [key, cost] of m.slotCost) {
+                const prev = slotMin.get(key);
+                if (prev === undefined || cost < prev) slotMin.set(key, cost);
+            }
         }
 
-        let h = 0;
-        // Layer penalty (strict lower bound: at least this many stacks needed)
-        h += Math.max(0, target.numLayers - maxL);
+        let h = Math.max(0, cleanPieces - 1) + Math.max(0, target.numLayers - maxL);
+        for (const key of targetSlotKeys) {
+            const c = slotMin.get(key);
+            h += (c === undefined) ? 4 : c;  // 4 = no held shape has this part at all
+        }
 
-        // Mismatch penalty (admissible: no op fixes >heuristicDivisor "similarity points")
-        h += Math.ceil((maxPossibleSim - bestSim) / heuristicDivisor);
-
-        // Optional extra-shape penalty when preventWaste (conservative lower bound)
         if (preventWaste && availableIds.size > 1) {
             h += (availableIds.size - 1);  // At least 1 op per extra to incorporate/trash
         }
 
-        return h;
+        return Math.ceil(h / heuristicDivisor);
     }
 
-    // Function to calculate similarity score for a state (used by BFS)
+    // State score for BFS beam pruning: higher is kept. Uses the same coverage signal
+    // as the A* heuristic (negated), so both methods favour states that hold clean
+    // partial sub-shapes of the target over superficially-similar dead ends.
     function calculateStateScore(availableIds) {
-        let totalSimilarity = 0;
-        let count = 0;
-        for (const id of availableIds) {
-            totalSimilarity += getCachedSimilarity(shapes.get(id));
-            count++;
-        }
-        return count > 0 ? totalSimilarity / count : 0;
+        return -getHeuristic(availableIds);
     }
 
     // ---------------------------------------------------------------------------
