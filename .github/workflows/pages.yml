@@ -15,7 +15,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Zero-dependency suite — no install step. Mirrors .githooks/pre-commit.
+      - name: Run test suite
+        run: |
+          for t in tests/*.test.js; do
+            echo "::group::$t"
+            node "$t"
+            echo "::endgroup::"
+          done
+          node tests/smoke.js
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -34,6 +52,7 @@ jobs:
           rsync -a \
             --exclude='.git/' \
             --exclude='.github/' \
+            --exclude='.githooks/' \
             --exclude='.claude/' \
             --exclude='.gitignore' \
             --exclude='README.md' \
