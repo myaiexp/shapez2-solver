@@ -120,75 +120,53 @@ export function _makeLayersFall(layers) {
         return groups;
     }
 
-    function isPartSupported(layerIndex, partIndex, visitedParts, supportedPartStates) {
-        if (supportedPartStates[layerIndex][partIndex] !== null) {
-            return supportedPartStates[layerIndex][partIndex];
+    // A part is supported iff it can reach a floor anchor (a non-empty part on
+    // layer 0) through the support relations. Computing that as a monotone
+    // fixpoint — seed the floor, then propagate support outward along the
+    // reversed relations until nothing new turns on — is order-independent.
+    // The earlier path-blocked DFS memoized a context-dependent result globally,
+    // so a genuinely-supported fused crystal could be cached as unsupported
+    // depending on traversal order and then wrongly shatter (#1630).
+    function computeSupportedStates(layers) {
+        const supported = layers.map(layer => layer.map(() => false));
+        if (layers.length === 0) return supported;
+        const queue = [];
+
+        const mark = (li, pi) => {
+            if (li < 0 || li >= layers.length) return;
+            if (supported[li][pi] || layers[li][pi].shape === NOTHING_CHAR) return;
+            supported[li][pi] = true;
+            queue.push([li, pi]);
+        };
+
+        // Floor anchors: every non-empty part resting on layer 0 is supported.
+        for (let partIndex = 0; partIndex < layers[0].length; partIndex++) {
+            mark(0, partIndex);
         }
 
-        const curPart = layers[layerIndex][partIndex];
+        while (queue.length > 0) {
+            const [li, pi] = queue.pop();
+            const part = layers[li][pi];
+            const layer = layers[li];
 
-        function inner() {
-            if (layers[layerIndex][partIndex].shape === NOTHING_CHAR) {
-                return false;
-            }
+            // The part directly above rests on this one (column support).
+            mark(li + 1, pi);
 
-            if (layerIndex === 0) {
-                return true;
-            }
+            // Same-layer gravity-connected neighbours hold each other up.
+            const nextPi = _getCorrectedIndex(layer, pi + 1);
+            if (_gravityConnected(part, layer[nextPi])) mark(li, nextPi);
+            const prevPi = _getCorrectedIndex(layer, pi - 1);
+            if (_gravityConnected(part, layer[prevPi])) mark(li, prevPi);
 
-            const toGiveVisitedParts = [...visitedParts, [layerIndex, partIndex]];
-
-            const partUnderneath = [layerIndex - 1, partIndex];
-            if (
-                !visitedParts.some(([l, p]) => l === partUnderneath[0] && p === partUnderneath[1]) &&
-                isPartSupported(partUnderneath[0], partUnderneath[1], toGiveVisitedParts, supportedPartStates)
-            ) {
-                return true;
-            }
-
-            const nextPartPos = [layerIndex, _getCorrectedIndex(layers[layerIndex], partIndex + 1)];
-            if (
-                !visitedParts.some(([l, p]) => l === nextPartPos[0] && p === nextPartPos[1]) &&
-                _gravityConnected(curPart, layers[nextPartPos[0]][nextPartPos[1]]) &&
-                isPartSupported(nextPartPos[0], nextPartPos[1], toGiveVisitedParts, supportedPartStates)
-            ) {
-                return true;
-            }
-
-            const prevPartPos = [layerIndex, _getCorrectedIndex(layers[layerIndex], partIndex - 1)];
-            if (
-                !visitedParts.some(([l, p]) => l === prevPartPos[0] && p === prevPartPos[1]) &&
-                _gravityConnected(curPart, layers[prevPartPos[0]][prevPartPos[1]]) &&
-                isPartSupported(prevPartPos[0], prevPartPos[1], toGiveVisitedParts, supportedPartStates)
-            ) {
-                return true;
-            }
-
-            const partAbove = [layerIndex + 1, partIndex];
-            if (
-                partAbove[0] < layers.length &&
-                !visitedParts.some(([l, p]) => l === partAbove[0] && p === partAbove[1]) &&
-                _crystalsFused(curPart, layers[partAbove[0]][partAbove[1]]) &&
-                isPartSupported(partAbove[0], partAbove[1], toGiveVisitedParts, supportedPartStates)
-            ) {
-                return true;
-            }
-
-            return false;
+            // A fused crystal directly below hangs from this one.
+            if (li - 1 >= 0 && _crystalsFused(part, layers[li - 1][pi])) mark(li - 1, pi);
         }
 
-        const result = inner();
-        supportedPartStates[layerIndex][partIndex] = result;
-        return result;
+        return supported;
     }
 
     // First pass of calculating supported parts
-    let supportedPartStates = layers.map(layer => layer.map(() => null));
-    for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
-        for (let partIndex = 0; partIndex < layers[layerIndex].length; partIndex++) {
-            isPartSupported(layerIndex, partIndex, [], supportedPartStates);
-        }
-    }
+    let supportedPartStates = computeSupportedStates(layers);
 
     // If a crystal is marked as unsupported it will fall and thus break
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
@@ -201,12 +179,7 @@ export function _makeLayersFall(layers) {
     }
 
     // Second pass of calculating supported parts
-    supportedPartStates = layers.map(layer => layer.map(() => null));
-    for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
-        for (let partIndex = 0; partIndex < layers[layerIndex].length; partIndex++) {
-            isPartSupported(layerIndex, partIndex, [], supportedPartStates);
-        }
-    }
+    supportedPartStates = computeSupportedStates(layers);
 
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
         const layer = layers[layerIndex];

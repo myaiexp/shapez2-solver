@@ -82,5 +82,18 @@ check('crystal suspended by a fused crystal above stays',
 check('shape falls after its supporting crystal shatters',
     fall('--:cu:Cu'), 'Cu:--:--');
 
+// --- Support is order-independent (#1630) --------------------------------
+// A crystal chain anchored at a high index reaches the floor only by walking
+// the lower-index (prev) lateral branch: index3 (column-supported) -> index0
+// (via wrap-around) -> index1. The old path-blocked DFS visited index0 before
+// index1 and memoized index1's blocked route as a context-free "unsupported",
+// wrongly shattering it. Its index-rotated mirror, where support flows in the
+// outer-loop (next) direction, was always handled correctly — so the pair
+// together pins the fix: both must stay intact regardless of traversal order.
+check('prev-direction crystal chain stays supported (regression #1630)',
+    fall('------Cu:cucu--cu'), '------Cu:cucu--cu');
+check('next-direction crystal chain stays supported (mirror)',
+    fall('----Cu--:cucucu--'), '----Cu--:cucucu--');
+
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);
