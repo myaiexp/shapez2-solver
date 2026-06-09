@@ -1,0 +1,54 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Assemble only the static app into _site, then stamp the cache-buster.
+      # __COMMIT__ -> short SHA mirrors deploy.sh so ?v=<sha> assets bust on
+      # every change. Excludes mirror deploy.sh plus dev-only dirs.
+      - name: Assemble site
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          mkdir _site
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.claude/' \
+            --exclude='.gitignore' \
+            --exclude='README.md' \
+            --exclude='CLAUDE.md' \
+            --exclude='deploy.sh' \
+            --exclude='package.json' \
+            --exclude='docs/' \
+            --exclude='tests/' \
+            --exclude='_site/' \
+            ./ _site/
+          sed -i "s/__COMMIT__/${SHA::7}/g" _site/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
