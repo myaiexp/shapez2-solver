@@ -39,7 +39,8 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 - Blueprint layout is single-floor only (floor switching UI exists but all machines placed on floor 0)
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
 - Building data footprints not fully verified against in-game values
-- No tests, no linter configured
+- No linter configured (tests do exist — see Conventions below)
+- Solver A\* uses an intentionally inadmissible heuristic (`heuristicDivisor`, default 0.1) for speed, so paths aren't guaranteed shortest; hard targets (e.g. alternating quadrants like `CuRuCuRu`) can run long since the state space grows unbounded (no per-code shape dedup). Use BFS or a larger divisor for optimal/bounded search.
 - Forked originally from another solver repo; added A\* search and visual improvements
 
 ## Conventions
@@ -49,7 +50,8 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
   - `shapeSolverCore.js` (~800 lines) — the search algorithm has many inner closures over shared state (caches, target, config, shape map). Extracting them would require passing 5–10 args per call or restructuring around a SolverContext object — both worse than the current shape.
   - `blueprintRenderer.js` (~430 lines) — class shell that owns canvas state, event handlers, tooltip DOM, and the public API. Each method does one named thing; splitting tooltip/events into separate modules would require threading instance state through.
   - `main.js` (~515 lines) — DOM app entry point. Each handler wires one named button/event to an imported module; most lines are glue, not logic. Splitting would scatter shared module-level state (solver worker, blueprint renderer, current layout, persistence flags) across files with circular dependencies.
-- **Smoke test before commit.** Run `node tests/smoke.js` after any change to solver, layout, or shape-operations code.
+- **Tests are plain `node tests/*.js` scripts** (no framework, no CI runner). Before committing solver/layout/shape-operations changes, run `node tests/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/*.test.js` unit suites. Shape ops must never mutate their input `Shape` objects — the solver shares parsed shapes via `getCachedShape`, so in-place mutation corrupts the cache and yields impossible paths; `tests/shapeCacheIntegrity.test.js` guards this.
+- **Headless solve/explore harness.** `node tests/solve.mjs <target> [--start a,b,c] [--ops ...] [--method A*|BFS] [--timeout ms] [--json]` runs a solve and validates every step is a real operation; `node tests/solve.mjs --explore <depth>` does the same for the space explorer. Use it to reproduce and diagnose solver/operation bugs from the CLI without the browser.
 
 ## Roadmap & Ideation
 

@@ -38,9 +38,9 @@
     "finalShapeCode": "CrCrCrCr"
   },
   "Solver: cut-stack-astar": {
-    "numOps": 2,
-    "depth": 2,
-    "finalShapeCode": "----CuCu:----RuRu"
+    "numOps": 4,
+    "depth": 4,
+    "finalShapeCode": "CuCu----:RuRu----"
   },
   "Solver: rotate-ida": {
     "numOps": 1,

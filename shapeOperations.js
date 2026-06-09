@@ -126,10 +126,13 @@ export const swapHalves = _differentNumPartsUnsupported(function(shapeA, shapeB,
 });
 
 export const stack = _differentNumPartsUnsupported(function(bottomShape, topShape, config = new ShapeOperationConfig()) {
+    // Deep-copy input layers: _makeLayersFall mutates its `layers` argument in place,
+    // so passing the shared layer arrays from bottomShape/topShape would corrupt those
+    // (cached) shapes. cut() and pushPin() copy for the same reason.
     const newLayers = [
-        ...bottomShape.layers,
-        Array(bottomShape.numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR)),
-        ...topShape.layers
+        ...JSON.parse(JSON.stringify(bottomShape.layers)),
+        Array.from({ length: bottomShape.numParts }, () => new ShapePart(NOTHING_CHAR, NOTHING_CHAR)),
+        ...JSON.parse(JSON.stringify(topShape.layers))
     ];
     const processed = _cleanUpEmptyUpperLayers(_makeLayersFall(newLayers));
     return [new Shape(processed.slice(0, config.maxShapeLayers))];
