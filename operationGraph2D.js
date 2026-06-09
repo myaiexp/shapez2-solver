@@ -1,16 +1,8 @@
 import { colorValues, createShapeCanvas } from './shapeRendering.js';
 import { getCurrentColorMode } from './colorMode.js';
-import { destroySpaceGraph } from './operationGraphSpace.js';
+import { cyInstance, setCyInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 
-export let cyInstance = null;
 let lastSolutionPath = null;
-
-export function destroy2DGraph() {
-    if (cyInstance) {
-        cyInstance.destroy();
-        cyInstance = null;
-    }
-}
 
 export function getCyInstance() {
     return cyInstance;
@@ -156,7 +148,7 @@ export function renderGraph(solutionPath) {
         branchStyle['taxi-turn-min-distance'] = 20;
     }
 
-    cyInstance = cytoscape({
+    const cy = cytoscape({
         container,
         elements,
         style: [
@@ -250,7 +242,9 @@ export function renderGraph(solutionPath) {
         wheelSensitivity: 0.1
     });
 
-    cyInstance.on('tap', 'node.shape', async (evt) => {
+    setCyInstance(cy);
+
+    cy.on('tap', 'node.shape', async (evt) => {
         const code = evt.target.data('label');
         try {
             await navigator.clipboard.writeText(code);

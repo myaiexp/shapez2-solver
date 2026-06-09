@@ -1,14 +1,5 @@
 import { createShapeCanvas } from './shapeRendering.js';
-import { destroy2DGraph } from './operationGraph2D.js';
-
-export let graph3dInstance = null;
-
-export function destroySpaceGraph() {
-    if (graph3dInstance) {
-        graph3dInstance._destructor();
-        graph3dInstance = null;
-    }
-}
+import { setGraph3dInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 
 export function renderSpaceGraph(graph) {
     const container = document.getElementById('graph-container');
@@ -66,7 +57,7 @@ export function renderSpaceGraph(graph) {
         });
     }
 
-    graph3dInstance = ForceGraph3D()(container)
+    const g3d = ForceGraph3D()(container)
         .graphData({ nodes, links })
         .showNavInfo(false)
         .forceEngine('d3')
@@ -101,11 +92,13 @@ export function renderSpaceGraph(graph) {
         })
         .nodeLabel(node => node.label);
 
-    graph3dInstance.onNodeClick(node => {
+    setGraph3dInstance(g3d);
+
+    g3d.onNodeClick(node => {
         if (node.kind === 'shape') {
             navigator.clipboard.writeText(node.label).catch(() => {});
         }
     });
 
-    return graph3dInstance;
+    return g3d;
 }
