@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
-# Sync project files to /var/www/html/shapez/ for mase.fi/shapez
+# Deployment moved to GitHub Pages (2026-06-09). There is no VPS rsync anymore.
+#
+# Pushing to master triggers .github/workflows/pages.yml, which assembles the
+# static app and publishes it to https://myaiexp.github.io/shapez2-solver/.
+# The workflow stamps the __COMMIT__ cache-buster with the short SHA.
+# mase.fi/shapez 301-forwards there via a Cloudflare redirect rule.
+#
+# To deploy: just push to master (or run `deploy`).
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WEBROOT="/var/www/html/shapez"
-
-sudo rsync -a --delete \
-    --exclude='.git/' \
-    --exclude='.claude/' \
-    --exclude='.gitignore' \
-    --exclude='README.md' \
-    --exclude='CLAUDE.md' \
-    --exclude='deploy.sh' \
-    "$PROJECT_DIR/" "$WEBROOT/"
-
-# Stamp the cache-buster: replace __COMMIT__ in index.html asset refs with the
-# deployed commit hash. nginx then serves these ?v=<sha> assets immutable, and
-# the token bumps on every deploy so a content change is never served stale.
-# .git/ is rsync-excluded, so read the SHA from the source repo.
-SHORT_SHA=$(git -C "$PROJECT_DIR" rev-parse --short HEAD)
-sudo sed -i "s/__COMMIT__/$SHORT_SHA/g" "$WEBROOT/index.html"
-
-sudo chown -R www-data:www-data "$WEBROOT"
-echo "Synced to $WEBROOT @ $SHORT_SHA"
+cat <<'MSG'
+shapez2-solver deploys to GitHub Pages on push to master — nothing to run here.
+  Workflow:  .github/workflows/pages.yml
+  Live:      https://myaiexp.github.io/shapez2-solver/
+  Friendly:  https://mase.fi/shapez  (Cloudflare 301 -> Pages)
+Just push to master, or run `deploy`.
+MSG
