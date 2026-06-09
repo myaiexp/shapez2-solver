@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pre-commit gate — runs the full test suite before allowing a commit.
+# Activate once per clone:   git config core.hooksPath .githooks
+# Bypass a single commit:    git commit --no-verify
+#
+# Mirrors the CI `test` job in .github/workflows/pages.yml. The suite is
+# zero-dependency and runs in well under a second, so it gates every commit.
+set -uo pipefail
+
+run() {
+  local out
+  if ! out=$(node "$1" 2>&1); then
+    echo "✗ pre-commit FAILED: $1"
+    echo "$out"
+    exit 1
+  fi
+}
+
+echo "pre-commit: running test suite…"
+for t in tests/*.test.js; do run "$t"; done
+run tests/smoke.js
+echo "✓ pre-commit: all tests passed"
