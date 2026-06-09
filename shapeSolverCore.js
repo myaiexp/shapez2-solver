@@ -45,7 +45,12 @@ export async function shapeSolver(
     heuristicDivisor = 0.1,
     searchMethod = 'A*',
     shouldCancel = () => false,
-    onProgress = () => {}
+    onProgress = () => {},
+    // Hard ceiling on distinct states discovered. Hard targets (e.g. alternating
+    // quadrants like CuRuCuRu) have an effectively unbounded state space; without
+    // this the search OOMs. On the cap the search aborts gracefully and returns
+    // { ..., aborted: 'maxStates' } instead of running the process out of memory.
+    maxStates = 500000
 ) {
     // Clear caches between solves to prevent unbounded memory growth
     shapeCache.clear();
@@ -57,6 +62,7 @@ export async function shapeSolver(
     const startTime = performance.now();
     let lastUpdate = startTime;
     let depth = 0;
+    let aborted = false;  // set true when the maxStates cap is hit
 
     // Precompute acceptable shape codes
     const acceptable = new Set();
@@ -156,15 +162,52 @@ export async function shapeSolver(
         return canonical;
     }
 
-    // Function to turn a state's shapes into a string for visited check
-    function getStateKey(availableIds) {
+    // Build a state key (multiset of canonical codes) from raw codes — the visited
+    // check is order-independent, so two states with the same shapes match.
+    function stateKeyFromCodes(codes) {
         const countMap = {};
-        for (const id of availableIds) {
-            const code = getCanonicalCode(shapes.get(id));
-            countMap[code] = (countMap[code] || 0) + 1;
+        for (const code of codes) {
+            const canon = getCanonicalCode(code);
+            countMap[canon] = (countMap[canon] || 0) + 1;
         }
-        const entries = Object.entries(countMap).sort();
-        return JSON.stringify(entries);
+        return JSON.stringify(Object.entries(countMap).sort());
+    }
+
+    function getStateKey(availableIds) {
+        const codes = [];
+        for (const id of availableIds) codes.push(shapes.get(id));
+        return stateKeyFromCodes(codes);
+    }
+
+    // Resulting state key for a successor descriptor, computed from codes alone —
+    // no shape ids minted, so successors the search rejects stay cheap (this is
+    // what keeps the shapes Map from growing with every edge ever generated).
+    function successorStateKey(parentAvailableIds, desc) {
+        const codes = [];
+        for (const id of parentAvailableIds) {
+            if (desc.inputIds.includes(id)) continue;
+            codes.push(shapes.get(id));
+        }
+        for (const code of desc.outputCodes) codes.push(code);
+        return stateKeyFromCodes(codes);
+    }
+
+    // Materialize an accepted successor: mint ids for its outputs and build the
+    // real available-set + step (with concrete input/output ids the graph needs).
+    function applySuccessor(parentAvailableIds, desc) {
+        const newAvailableIds = new Set(parentAvailableIds);
+        for (const id of desc.inputIds) newAvailableIds.delete(id);
+        const outputIds = [];
+        for (const code of desc.outputCodes) {
+            const newId = nextId++;
+            shapes.set(newId, code);
+            outputIds.push(newId);
+            newAvailableIds.add(newId);
+        }
+        return {
+            availableIds: newAvailableIds,
+            step: { type: desc.type, inputIds: desc.inputIds, outputIds, color: desc.color }
+        };
     }
 
     // Goal check helper
@@ -175,7 +218,12 @@ export async function shapeSolver(
         return hasTarget && allTarget;
     }
 
-    // Generate all successor states from a given state
+    // Generate all successor descriptors from a given state.
+    // A descriptor is lightweight — { type, inputIds, outputCodes, color } — and
+    // deliberately does NOT mint shape ids or build the new available-set. That is
+    // deferred to applySuccessor() and only done for successors the caller actually
+    // accepts, so rejected successors never grow the shapes Map (the old
+    // unbounded-growth bug minted ids for every edge, kept or not).
     // Includes Optimization 5 (operation pruning) and Optimization 7 (operation result cache)
     function* generateSuccessors(availableIds) {
         for (const opName of enabledOperations) {
@@ -220,52 +268,28 @@ export async function shapeSolver(
                         const colors = opName === "Painter" ? _getPaintColors(inputShape, target) : targetCrystalColors;
                         for (const color of colors) {
                             const outputs = getCachedOpResult1Color(opName, fn, inputShape, color, config);
-                            const newIds = [];
+                            const outputCodes = [];
                             for (const outputShape of outputs) {
-                                if (!outputShape.isEmpty()) {
-                                    const outCode = outputShape.toShapeCode();
-                                    // Skip no-op: output same as input
-                                    if (outCode === inputCode) continue;
-                                    const newId = nextId++;
-                                    shapes.set(newId, outCode);
-                                    newIds.push(newId);
-                                }
+                                if (outputShape.isEmpty()) continue;
+                                const outCode = outputShape.toShapeCode();
+                                if (outCode === inputCode) continue; // skip no-op: output same as input
+                                outputCodes.push(outCode);
                             }
-                            if (newIds.length > 0) {
-                                const newAvailableIds = new Set(availableIds);
-                                newAvailableIds.delete(id);
-                                for (const newId of newIds) {
-                                    newAvailableIds.add(newId);
-                                }
-                                yield {
-                                    availableIds: newAvailableIds,
-                                    step: { type: opName, inputIds: [id], outputIds: newIds, color }
-                                };
+                            if (outputCodes.length > 0) {
+                                yield { type: opName, inputIds: [id], outputCodes, color };
                             }
                         }
                     } else {
                         const outputs = getCachedOpResult1(opName, fn, inputShape, config);
-                        const newIds = [];
+                        const outputCodes = [];
                         for (const outputShape of outputs) {
-                            if (!outputShape.isEmpty()) {
-                                const outCode = outputShape.toShapeCode();
-                                // Skip no-op: output same as input
-                                if (outCode === inputCode) continue;
-                                const newId = nextId++;
-                                shapes.set(newId, outCode);
-                                newIds.push(newId);
-                            }
+                            if (outputShape.isEmpty()) continue;
+                            const outCode = outputShape.toShapeCode();
+                            if (outCode === inputCode) continue; // skip no-op: output same as input
+                            outputCodes.push(outCode);
                         }
-                        if (newIds.length > 0) {
-                            const newAvailableIds = new Set(availableIds);
-                            newAvailableIds.delete(id);
-                            for (const newId of newIds) {
-                                newAvailableIds.add(newId);
-                            }
-                            yield {
-                                availableIds: newAvailableIds,
-                                step: { type: opName, inputIds: [id], outputIds: newIds, color: null }
-                            };
+                        if (outputCodes.length > 0) {
+                            yield { type: opName, inputIds: [id], outputCodes, color: null };
                         }
                     }
                 }
@@ -281,30 +305,18 @@ export async function shapeSolver(
                         const inputShape1 = getCachedShape(inputCode1);
                         const inputShape2 = getCachedShape(inputCode2);
                         const outputs = getCachedOpResult2(opName, fn, inputShape1, inputShape2, config);
-                        const newIds = [];
+                        const outputCodes = [];
                         let isNoOp = true;
                         for (const outputShape of outputs) {
-                            if (!outputShape.isEmpty()) {
-                                const outCode = outputShape.toShapeCode();
-                                if (outCode !== inputCode1 && outCode !== inputCode2) isNoOp = false;
-                                const newId = nextId++;
-                                shapes.set(newId, outCode);
-                                newIds.push(newId);
-                            }
+                            if (outputShape.isEmpty()) continue;
+                            const outCode = outputShape.toShapeCode();
+                            if (outCode !== inputCode1 && outCode !== inputCode2) isNoOp = false;
+                            outputCodes.push(outCode);
                         }
                         // Skip no-op: all outputs identical to inputs
-                        if (isNoOp && newIds.length === 2) continue;
-                        if (newIds.length > 0) {
-                            const newAvailableIds = new Set(availableIds);
-                            newAvailableIds.delete(id1);
-                            newAvailableIds.delete(id2);
-                            for (const newId of newIds) {
-                                newAvailableIds.add(newId);
-                            }
-                            yield {
-                                availableIds: newAvailableIds,
-                                step: { type: opName, inputIds: [id1, id2], outputIds: newIds, color: null }
-                            };
+                        if (isNoOp && outputCodes.length === 2) continue;
+                        if (outputCodes.length > 0) {
+                            yield { type: opName, inputIds: [id1, id2], outputCodes, color: null };
                         }
                     }
                 }
@@ -345,6 +357,7 @@ export async function shapeSolver(
     let statesExplored = 0;
 
     while (open.size() > 0 && !shouldCancel()) {
+        if (costSoFar.size > maxStates) { aborted = true; break; }
         const currentItem = open.dequeue();
         if (!currentItem) break;
         statesExplored++;
@@ -360,17 +373,15 @@ export async function shapeSolver(
             };
         }
 
-        for (const successor of generateSuccessors(availableIds)) {
-            const newKey = getStateKey(successor.availableIds);
+        for (const desc of generateSuccessors(availableIds)) {
+            const newKey = successorStateKey(availableIds, desc);
             const newG = g + 1;
             if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
                 costSoFar.set(newKey, newG);
-                const h = getHeuristic(successor.availableIds);
-                open.enqueue({availableIds: successor.availableIds, stateKey: newKey}, newG + h);
-                cameFrom.set(newKey, {
-                    parentKey: stateKey,
-                    step: successor.step
-                });
+                const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
+                const h = getHeuristic(succIds);
+                open.enqueue({availableIds: succIds, stateKey: newKey}, newG + h);
+                cameFrom.set(newKey, { parentKey: stateKey, step });
             }
         }
 
@@ -380,7 +391,8 @@ export async function shapeSolver(
         }
     }
 
-    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored};
+    if (aborted) onProgress(`A* | Aborted: hit ${maxStates}-state cap before solving (try BFS, a larger heuristic divisor, or a simpler target)`);
+    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored, aborted: aborted ? 'maxStates' : null};
 
     // -----------------------------------------------------------------------
     // IDA* Search (Optimization 8)
@@ -416,6 +428,8 @@ export async function shapeSolver(
                 nodesExplored++;
                 totalIterations++;
 
+                if (totalIterations > maxStates) { aborted = true; break; }
+
                 const f = frame.g + getHeuristic(frame.availableIds);
                 if (f > threshold) {
                     nextThreshold = Math.min(nextThreshold, f);
@@ -444,19 +458,20 @@ export async function shapeSolver(
                 continue;
             }
 
-            const successor = next.value;
-            const succKey = getStateKey(successor.availableIds);
+            const desc = next.value;
+            const succKey = successorStateKey(frame.availableIds, desc);
 
             // Cycle detection: skip if this state key is already on the path
             if (frame.pathKeys.has(succKey)) continue;
 
+            const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
             const newPathKeys = new Set(frame.pathKeys);
             newPathKeys.add(succKey);
 
             stack.push({
-                availableIds: successor.availableIds,
+                availableIds: succIds,
                 g: frame.g + 1,
-                path: [...frame.path, successor.step],
+                path: [...frame.path, step],
                 successorIterator: null,
                 pathKeys: newPathKeys
             });
@@ -472,6 +487,11 @@ export async function shapeSolver(
 
         if (found) {
             return { solutionPath, depth: solutionPath.length, statesExplored: totalIterations };
+        }
+
+        if (aborted) {
+            onProgress(`IDA* | Aborted: hit ${maxStates}-node cap before solving`);
+            return { solutionPath: null, depth: null, statesExplored: totalIterations, aborted: 'maxStates' };
         }
 
         if (nextThreshold === Infinity || shouldCancel()) {
@@ -538,6 +558,7 @@ export async function shapeSolver(
     let statesExplored = 0;
 
     while (open.size() > 0 && !shouldCancel()) {
+        if (costSoFar.size > maxStates) { aborted = true; break; }
         const currentItem = open.dequeue();
         if (!currentItem) break;
         statesExplored++;
@@ -553,17 +574,15 @@ export async function shapeSolver(
             };
         }
 
-        for (const successor of generateSuccessors(availableIds)) {
-            const newKey = getStateKey(successor.availableIds);
+        for (const desc of generateSuccessors(availableIds)) {
+            const newKey = successorStateKey(availableIds, desc);
             const newG = g + 1;
             if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
                 costSoFar.set(newKey, newG);
-                const h = getHeuristicBidirectional(successor.availableIds);
-                open.enqueue({availableIds: successor.availableIds, stateKey: newKey}, newG + h);
-                cameFrom.set(newKey, {
-                    parentKey: stateKey,
-                    step: successor.step
-                });
+                const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
+                const h = getHeuristicBidirectional(succIds);
+                open.enqueue({availableIds: succIds, stateKey: newKey}, newG + h);
+                cameFrom.set(newKey, { parentKey: stateKey, step });
             }
         }
 
@@ -573,7 +592,8 @@ export async function shapeSolver(
         }
     }
 
-    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored};
+    if (aborted) onProgress(`Bidirectional | Aborted: hit ${maxStates}-state cap before solving`);
+    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored, aborted: aborted ? 'maxStates' : null};
 
     // -----------------------------------------------------------------------
     // BFS (original)
@@ -594,6 +614,7 @@ export async function shapeSolver(
     }
     // Solver loop
     while (queue.length > 0 && !shouldCancel()) {
+        if (visited.size > maxStates) { aborted = true; break; }
         const currentDepthStates = [];
         while (queue.length > 0 && queue[0].depth === depth) {
             currentDepthStates.push(queue.shift());
@@ -618,14 +639,15 @@ export async function shapeSolver(
                 };
             }
             // Generate next states
-            for (const successor of generateSuccessors(availableIds)) {
+            for (const desc of generateSuccessors(availableIds)) {
                 if (shouldCancel()) break;
-                const stateKey = getStateKey(successor.availableIds);
+                const stateKey = successorStateKey(availableIds, desc);
                 if (!visited.has(stateKey)) {
                     visited.add(stateKey);
-                    const newPath = [...path, successor.step];
-                    const newScore = calculateStateScore(successor.availableIds);
-                    nextDepthStates.push({ availableIds: successor.availableIds, path: newPath, depth: depth + 1, score: newScore });
+                    const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
+                    const newPath = [...path, step];
+                    const newScore = calculateStateScore(succIds);
+                    nextDepthStates.push({ availableIds: succIds, path: newPath, depth: depth + 1, score: newScore });
                 }
             }
         }
@@ -648,7 +670,8 @@ export async function shapeSolver(
             lastUpdate = now;
         }
     }
-    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored: visited.size};
+    if (aborted) onProgress(`BFS | Aborted: hit ${maxStates}-state cap before solving`);
+    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored: visited.size, aborted: aborted ? 'maxStates' : null};
     }
 }
 

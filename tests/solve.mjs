@@ -11,13 +11,16 @@
 //   node tests/solve.mjs --explore 2 --start CuCuCuCu,RuRuRuRu,SuSuSuSu
 //
 // Options:
-//   --start a,b,c        starting shape codes (default CuCuCuCu,RuRuRuRu,SuSuSuSu)
+//   --start a,b,c        starting shape codes (default matches the app's default
+//                        starts: CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu)
 //   --ops a,b,...        enabled operations (default: all)
 //   --method M           A* | BFS | IDA* | Bidirectional (default A*)
 //   --max-layers N       (default 4)
 //   --prevent-waste      enable preventWaste
 //   --orientation        orientation-sensitive search
 //   --timeout MS         abort the search after MS ms (default 20000)
+//   --max-states N       abort once N distinct states are discovered (default 100000;
+//                        bounds memory so hard targets fail gracefully instead of OOM)
 //   --explore N          run the space explorer to depth N instead of solving
 //   --json               emit machine-readable JSON
 //
@@ -27,7 +30,7 @@ import { shapeSolver, shapeExplorer, operations } from '../shapeSolverCore.js';
 import { Shape } from '../shapeClass.js';
 
 function parseArgs(argv) {
-    const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu', method: 'A*', maxLayers: 4, timeout: 20000 };
+    const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000 };
     const positional = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -39,6 +42,7 @@ function parseArgs(argv) {
         else if (a === '--method') opts.method = argv[++i];
         else if (a === '--max-layers') opts.maxLayers = parseInt(argv[++i]);
         else if (a === '--timeout') opts.timeout = parseInt(argv[++i]);
+        else if (a === '--max-states') opts.maxStates = parseInt(argv[++i]);
         else if (a === '--explore') opts.explore = parseInt(argv[++i]);
         else positional.push(a);
     }
@@ -112,13 +116,14 @@ if (!opts.target) { console.error('usage: node tests/solve.mjs <target> [options
 
 const res = await shapeSolver(
     opts.target, starting, ops, opts.maxLayers, 1000,
-    !!opts.preventWaste, !!opts.orientation, false, 0.1, opts.method, shouldCancel, () => {}
+    !!opts.preventWaste, !!opts.orientation, false, 0.1, opts.method, shouldCancel, () => {}, opts.maxStates
 );
 
 if (shouldCancel() && (!res || !res.solutionPath)) { console.error(`solve: timed out after ${opts.timeout}ms`); process.exit(2); }
 if (!res || !res.solutionPath) {
-    if (opts.json) console.log(JSON.stringify({ target: opts.target, solved: false }));
-    else console.log(`No solution for ${opts.target} (explored ${res?.statesExplored ?? '?'} states)`);
+    const cap = res?.aborted === 'maxStates' ? ` — hit ${opts.maxStates}-state cap` : '';
+    if (opts.json) console.log(JSON.stringify({ target: opts.target, solved: false, aborted: res?.aborted ?? null, statesExplored: res?.statesExplored ?? null }));
+    else console.log(`No solution for ${opts.target} (explored ${res?.statesExplored ?? '?'} states${cap})`);
     process.exit(0);
 }
 

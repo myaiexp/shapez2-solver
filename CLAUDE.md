@@ -40,7 +40,9 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
 - Building data footprints not fully verified against in-game values
 - No linter configured (tests do exist — see Conventions below)
-- Solver A\* uses an intentionally inadmissible heuristic (`heuristicDivisor`, default 0.1) for speed, so paths aren't guaranteed shortest; hard targets (e.g. alternating quadrants like `CuRuCuRu`) can run long since the state space grows unbounded (no per-code shape dedup). Use BFS or a larger divisor for optimal/bounded search.
+- Solver A\* uses an intentionally inadmissible heuristic (`heuristicDivisor`, default 0.1) for speed, so paths aren't guaranteed shortest. Use BFS or a larger divisor for optimal/bounded search.
+- Solver memory is bounded by a hard `maxStates` cap (default 500k; harness default 100k). Hard targets whose state space the search can't tame (e.g. alternating quadrants like `CuRuCuRu`) abort gracefully with `{ aborted: 'maxStates' }` instead of OOMing. Successor ids are minted lazily (only for states the search keeps), so the `shapes` Map no longer grows with every edge generated (idea #1675).
+- **Search quality is weak for multi-distinct-quadrant targets.** Even reachable, genuinely simple targets like `CuRuSuWu` (one quadrant cut from each of the four default starts, then stacked) are not found within the state cap by A\*/BFS/IDA\*: the greedy heuristic and the beam-width BFS prune away the low-similarity single-quadrant intermediates needed to assemble them. Distinct from the memory issue above.
 - Forked originally from another solver repo; added A\* search and visual improvements
 
 ## Conventions

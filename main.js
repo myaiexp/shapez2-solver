@@ -292,7 +292,9 @@ byId('solve-btn').addEventListener('click', () => {
                 };
             } else {
                 currentBlueprintLayout = null;
-                status.textContent = 'No solution found.';
+                status.textContent = result?.aborted === 'maxStates'
+                    ? `No solution found — search hit the state limit (${result.statesExplored} states). Try BFS, a larger heuristic divisor, or a simpler target.`
+                    : 'No solution found.';
                 lastSolution = null;
             }
 

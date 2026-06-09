@@ -19,7 +19,8 @@ self.onmessage = async function (e) {
             orientationSensitive,
             monolayerPainting,
             heuristicDivisor = 0.1,
-            searchMethod = 'A*'
+            searchMethod = 'A*',
+            maxStates
         } = data;
         try {
             const result = await shapeSolver(
@@ -34,7 +35,8 @@ self.onmessage = async function (e) {
                 heuristicDivisor,
                 searchMethod,
                 shouldCancel,
-                onProgress
+                onProgress,
+                maxStates
             );
             if (!cancelled) self.postMessage({ type: 'result', result });
         } catch (err) {
