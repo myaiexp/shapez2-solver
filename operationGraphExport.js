@@ -1,5 +1,4 @@
-import { cyInstance } from './operationGraph2D.js';
-import { graph3dInstance } from './operationGraphSpace.js';
+import { cyInstance, graph3dInstance } from './operationGraphInstances.js';
 
 export async function copyGraphToClipboard() {
     // --- 2D GRAPH (Cytoscape) ---
