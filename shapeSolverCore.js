@@ -46,11 +46,13 @@ export async function shapeSolver(
     searchMethod = 'A*',
     shouldCancel = () => false,
     onProgress = () => {},
-    // Hard ceiling on distinct states discovered. Hard targets (e.g. alternating
-    // quadrants like CuRuCuRu) have an effectively unbounded state space; without
-    // this the search OOMs. On the cap the search aborts gracefully and returns
+    // Optional ceiling on distinct states discovered. Default Infinity (uncapped):
+    // the browser app runs without a cap and relies on the Cancel button, since an
+    // OOM there only crashes the user's own tab. Callers running inside a memory-
+    // constrained host (e.g. the node harness in helm's cgroup) pass a finite value
+    // to bound memory; on the cap the search aborts gracefully and returns
     // { ..., aborted: 'maxStates' } instead of running the process out of memory.
-    maxStates = 500000
+    maxStates = Infinity
 ) {
     // Clear caches between solves to prevent unbounded memory growth
     shapeCache.clear();
