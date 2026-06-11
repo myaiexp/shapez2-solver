@@ -201,6 +201,26 @@ $all('.operation-item').forEach((item) => {
     });
 });
 
+// Compact one-line summary of which Constructive strategies fired, derived from
+// the strategyTrace alone: method breakdown (splits → direct-searches), total op
+// count, and how many sub-shapes were shared (reused) across the plan.
+function summarizeStrategyTrace(trace) {
+    const methodCounts = {};
+    const targetCounts = {};
+    (function walk(node) {
+        methodCounts[node.method] = (methodCounts[node.method] || 0) + 1;
+        targetCounts[node.target] = (targetCounts[node.target] || 0) + 1;
+        node.children.forEach(walk);
+    })(trace);
+    const reused = Object.values(targetCounts).filter((c) => c > 1).length;
+    const splits = Object.entries(methodCounts)
+        .filter(([m]) => m !== 'direct-search')
+        .map(([m, c]) => `${m} ×${c}`);
+    const searches = methodCounts['direct-search'] || 0;
+    const breakdown = splits.length ? `${splits.join(', ')} → ${searches} direct-searches` : 'direct-search';
+    return `Constructive: ${breakdown} | ${trace.opCount} ops | reused ${reused}`;
+}
+
 // Solver Worker
 let solverWorker = null;
 byId('solve-btn').addEventListener('click', () => {
@@ -283,7 +303,11 @@ byId('solve-btn').addEventListener('click', () => {
                     blueprintRenderer.setLayout(currentBlueprintLayout);
                 }
                 const t = ((performance.now() - startTime) / 1000).toFixed(2);
-                status.textContent = `Solved in ${t}s at Depth ${result.depth} → ${result.statesExplored} States`;
+                let statusText = `Solved in ${t}s at Depth ${result.depth} → ${result.statesExplored} States`;
+                if (result.strategyTrace) {
+                    statusText += ` | ${summarizeStrategyTrace(result.strategyTrace)}`;
+                }
+                status.textContent = statusText;
                 lastSolution = {
                     solutionPath: result.solutionPath,
                     depth: result.depth,
@@ -387,18 +411,17 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDefaultShapes();
     byId('color-mode-select')?.addEventListener('change', refreshShapeColors);
 
-    // Search method toggle
+    // Search method toggle: A*/IDA*/Bidirectional use the heuristic divisor;
+    // BFS uses the Max States cap; Constructive reuses Max States as its per-node
+    // search budget and has no heuristic divisor.
     byId('search-method-select').addEventListener('change', (e) => {
         const method = e.target.value;
         const heuristicGroup = byId('heuristic-divisor').closest('.option-group');
         const maxStatesGroup = byId('max-states-per-level').closest('.option-group');
-        if (method === 'A*' || method === 'IDA*' || method === 'Bidirectional') {
-            heuristicGroup.style.display = 'block';
-            maxStatesGroup.style.display = method === 'BFS' ? 'block' : 'none';
-        } else {
-            heuristicGroup.style.display = 'none';
-            maxStatesGroup.style.display = 'block';
-        }
+        const usesHeuristic = method === 'A*' || method === 'IDA*' || method === 'Bidirectional';
+        const usesMaxStates = method === 'BFS' || method === 'Constructive';
+        heuristicGroup.style.display = usesHeuristic ? 'block' : 'none';
+        maxStatesGroup.style.display = usesMaxStates ? 'block' : 'none';
     });
 
     // Initial toggle
