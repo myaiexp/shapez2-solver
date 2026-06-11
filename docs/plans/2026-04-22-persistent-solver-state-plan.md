@@ -23,9 +23,9 @@
 ## Task 1: Implement persistence + integration [Mode: Direct]
 
 **Files:**
-- Create: `/home/mase/Projects/solvers/shapez2-solver/persistence.js`
-- Modify: `/home/mase/Projects/solvers/shapez2-solver/main.js`
-- Modify: `/home/mase/Projects/solvers/shapez2-solver/tests/smoke.js`
+- Create: `persistence.js`
+- Modify: `main.js`
+- Modify: `tests/smoke.js`
 
 **Contracts:**
 
@@ -234,7 +234,7 @@ Manual verification (perform after smoke test passes):
 Run: `node tests/smoke.js`
 Expected: All cases pass, including new `Persistence: schema round-trip`.
 
-Then perform manual verification steps 1–6 above in browser at http://localhost:8765 (existing caxi session).
+Then perform manual verification steps 1–6 above in the browser (served locally, e.g. `python3 -m http.server` in the project dir).
 
 **Commit after passing.**
 

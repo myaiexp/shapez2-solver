@@ -20,9 +20,9 @@ Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintL
 Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/pages.yml`, which assembles the static app (excluding dev files) and publishes it.
 
 - **Canonical URL**: https://myaiexp.github.io/shapez2-solver/
-- **Friendly URL**: `mase.fi/shapez` — 301-forwards to Pages (and so do all subpaths) via a Cloudflare redirect rule on the `mase.fi` zone: rule `shapez` in the `http_request_dynamic_redirect` ruleset. Inspect/edit with the `cf` CLI's token against the Cloudflare API (`cf` has no redirect-rule verb of its own).
+- **Friendly URL**: `mase.fi/shapez` 301-forwards to Pages (including all subpaths) via a Cloudflare redirect rule.
 - **Deploy**: run `deploy` (or any push to `master`) — the Pages Action republishes. The `__COMMIT__` cache-buster is stamped to the short SHA by the workflow, so `?v=<sha>` assets bust on every change.
-- **No VPS hosting** — the old `/var/www/html/shapez/` webroot and its `/etc/nginx/sites-enabled/default` location block were removed when hosting moved to Pages (2026-06-09). `deploy.sh` is retained only as a signpost.
+- **No VPS hosting** — hosting moved to Pages (2026-06-09); there is no server webroot or nginx config to deploy into. `deploy.sh` is retained only as a signpost.
 
 ## Key Patterns
 
