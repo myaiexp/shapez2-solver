@@ -14,7 +14,8 @@
 //   --start a,b,c        starting shape codes (default matches the app's default
 //                        starts: CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu)
 //   --ops a,b,...        enabled operations (default: all)
-//   --method M           A* | BFS | IDA* | Bidirectional (default A*)
+//   --method M           A* | BFS | IDA* | Bidirectional | Constructive (default A*)
+//   --node-budget N      per-node search budget for Constructive (default 4000)
 //   --max-layers N       (default 4)
 //   --prevent-waste      enable preventWaste
 //   --orientation        orientation-sensitive search
@@ -27,10 +28,11 @@
 // Exit code is non-zero if any step/edge fails operation validation.
 
 import { shapeSolver, shapeExplorer, operations } from '../shapeSolverCore.js';
+import { solveConstructive } from '../shapeSolverConstructive.js';
 import { Shape } from '../shapeClass.js';
 
 function parseArgs(argv) {
-    const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000 };
+    const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
     const positional = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -43,6 +45,7 @@ function parseArgs(argv) {
         else if (a === '--max-layers') opts.maxLayers = parseInt(argv[++i]);
         else if (a === '--timeout') opts.timeout = parseInt(argv[++i]);
         else if (a === '--max-states') opts.maxStates = parseInt(argv[++i]);
+        else if (a === '--node-budget') opts.nodeBudget = parseInt(argv[++i]);
         else if (a === '--explore') opts.explore = parseInt(argv[++i]);
         else positional.push(a);
     }
@@ -114,10 +117,16 @@ if (opts.explore != null) {
 
 if (!opts.target) { console.error('usage: node tests/solve.mjs <target> [options]  (or --explore N)'); process.exit(2); }
 
-const res = await shapeSolver(
-    opts.target, starting, ops, opts.maxLayers, 1000,
-    !!opts.preventWaste, !!opts.orientation, false, 0.1, opts.method, shouldCancel, () => {}, opts.maxStates
-);
+const res = opts.method === 'Constructive'
+    ? await solveConstructive(
+        opts.target, starting, ops, opts.maxLayers,
+        !!opts.preventWaste, !!opts.orientation, false, 0.1,
+        shouldCancel, () => {}, opts.nodeBudget
+    )
+    : await shapeSolver(
+        opts.target, starting, ops, opts.maxLayers, 1000,
+        !!opts.preventWaste, !!opts.orientation, false, 0.1, opts.method, shouldCancel, () => {}, opts.maxStates
+    );
 
 if (shouldCancel() && (!res || !res.solutionPath)) { console.error(`solve: timed out after ${opts.timeout}ms`); process.exit(2); }
 if (!res || !res.solutionPath) {

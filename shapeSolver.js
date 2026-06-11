@@ -1,4 +1,5 @@
 import { shapeSolver, shapeExplorer } from './shapeSolverCore.js';
+import { solveConstructive } from './shapeSolverConstructive.js';
 
 let cancelled = false;
 const shouldCancel = () => cancelled;
@@ -23,21 +24,38 @@ self.onmessage = async function (e) {
             maxStates
         } = data;
         try {
-            const result = await shapeSolver(
-                targetShapeCode,
-                startingShapeCodes,
-                enabledOperations,
-                maxLayers,
-                maxStatesPerLevel,
-                preventWaste,
-                orientationSensitive,
-                monolayerPainting,
-                heuristicDivisor,
-                searchMethod,
-                shouldCancel,
-                onProgress,
-                maxStates
-            );
+            // The Constructive planner calls core shapeSolver as a bounded subroutine,
+            // so it is dispatched here (not in core) to avoid an import cycle. It reuses
+            // the Max States control as its per-node search budget (fail-fast → decompose).
+            const result = searchMethod === 'Constructive'
+                ? await solveConstructive(
+                    targetShapeCode,
+                    startingShapeCodes,
+                    enabledOperations,
+                    maxLayers,
+                    preventWaste,
+                    orientationSensitive,
+                    monolayerPainting,
+                    heuristicDivisor,
+                    shouldCancel,
+                    onProgress,
+                    maxStatesPerLevel || 4000
+                )
+                : await shapeSolver(
+                    targetShapeCode,
+                    startingShapeCodes,
+                    enabledOperations,
+                    maxLayers,
+                    maxStatesPerLevel,
+                    preventWaste,
+                    orientationSensitive,
+                    monolayerPainting,
+                    heuristicDivisor,
+                    searchMethod,
+                    shouldCancel,
+                    onProgress,
+                    maxStates
+                );
             if (!cancelled) self.postMessage({ type: 'result', result });
         } catch (err) {
             self.postMessage({ type: 'status', message: `Error: ${err.message}` });
