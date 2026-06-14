@@ -64,6 +64,25 @@ check('topPaint recolours the whole top layer',
 check('topPaint leaves empty quadrants unpainted',
     codes(topPaint(s('Cu------'), 'r')), ['Cr------']);
 
+// Multi-layer: the Painter only touches the TOP (last) layer. Lower layers must
+// be left exactly as-is. Here the bottom is uncoloured (Cu) and only the top
+// (Ru) is recoloured red -> bottom stays Cu, top becomes Rr.
+check('topPaint paints only the top layer of a multi-layer shape',
+    codes(topPaint(s('CuCuCuCu:RuRuRuRu'), 'r')), ['CuCuCuCu:RrRrRrRr']);
+
+// Contrasting case that makes "only the top layer" a meaningful claim: give the
+// bottom layer a colour DIFFERENT from the paint. If topPaint ever recoloured
+// all layers, the green bottom would turn red — so this fails loudly on that
+// regression. Correct: green bottom stays green, top is repainted red.
+check('topPaint leaves a pre-coloured lower layer untouched',
+    codes(topPaint(s('CgCgCgCg:RuRuRuRu'), 'r')), ['CgCgCgCg:RrRrRrRr']);
+
+// Three layers pins that ONLY the topmost is painted — both the middle (already
+// green) and the bottom (uncoloured) survive unchanged, only the top goes blue.
+check('topPaint on a 3-layer shape paints just the topmost layer',
+    codes(topPaint(s('CuCuCuCu:RgRgRgRg:SuSuSuSu'), 'b')),
+    ['CuCuCuCu:RgRgRgRg:SbSbSbSb']);
+
 // --- _getSimilarity: A* heuristic core -----------------------------------
 // Identical shapes are maximally similar (type+colour+order all match -> 1.0).
 check('similarity of identical shapes is 1',
