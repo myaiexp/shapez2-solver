@@ -9,6 +9,7 @@ import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, captureState, applyState, STORAGE_KEY } from './persistence.js';
 import { getCurrentColorMode } from './colorMode.js';
+import { SHAPE_LABEL_CLASS } from './domConstants.js';
 
 // Utility Helpers
 const $ = (sel) => document.querySelector(sel);
@@ -241,7 +242,7 @@ byId('solve-btn').addEventListener('click', () => {
 
     // Gather inputs
     const target = byId('target-shape').value.trim();
-    let starting = $all('#starting-shapes .shape-item .shape-label').map((x) => x.textContent);
+    let starting = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((x) => x.textContent);
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
 
     const maxLayers = parseInt(byId('max-layers').value) || 4;
@@ -365,7 +366,7 @@ byId('explore-btn').addEventListener('click', () => {
         return;
     }
 
-    const starting = $all('#starting-shapes .shape-item .shape-label').map((x) => x.textContent);
+    const starting = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((x) => x.textContent);
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
     const depthLimit = parseInt(byId('depth-limit-input').value) || 999;
     const maxLayers = parseInt(byId('max-layers').value) || 4;

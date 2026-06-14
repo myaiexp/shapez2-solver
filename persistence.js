@@ -1,3 +1,5 @@
+import { SHAPE_LABEL_CLASS } from './domConstants.js';
+
 export const STORAGE_KEY = 'shapez2-solver-state-v1';
 export const SCHEMA_VERSION = 1;
 
@@ -54,7 +56,7 @@ export function captureState(runtime) {
         if (!el) continue;
         inputs[field] = kind === 'checked' ? el.checked : el.value;
     }
-    inputs.startingShapes = $all('#starting-shapes .shape-item .shape-label').map((el) => el.textContent);
+    inputs.startingShapes = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((el) => el.textContent);
     inputs.enabledOperations = $all('#enabled-operations .operation-item.enabled').map((el) => el.dataset.operation);
 
     const sidebarBtn = $('.tab-button.active');

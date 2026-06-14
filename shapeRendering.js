@@ -1,6 +1,7 @@
 // Special thanks to https://github.com/Loupau38/loupau38.github.io/blob/main/assets/scripts/shapeViewer.js
 import { getCurrentColorMode } from './colorMode.js';
 import { renderPart, quadShapesConfig, hexShapesConfig } from './shapeRenderingPart.js';
+import { SHAPE_LABEL_CLASS } from './domConstants.js';
 
 export { baseColors, colorValues } from './shapeRenderingColors.js';
 
@@ -134,7 +135,7 @@ export function createShapeElement(shapeCode) {
     canvas.dataset.shapeCode = shapeCode;
 
     const label = document.createElement('span');
-    label.className = 'shape-label';
+    label.className = SHAPE_LABEL_CLASS;
     label.textContent = shapeCode;
 
     container.appendChild(canvas);
