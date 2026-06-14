@@ -124,7 +124,10 @@ for (const fixture of SOLVER_FIXTURES) {
         fixture.heuristicDivisor,
         fixture.method,
         () => false,
-        () => {}
+        () => {},
+        // Cap distinct states so a runaway fixture can't OOM helm's cgroup.
+        // Existing fixtures all solve in well under this; it only bounds the worst case.
+        fixture.maxStates ?? 100000
     );
     const path = result?.solutionPath ?? null;
 

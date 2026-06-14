@@ -69,5 +69,46 @@
     "numOps": 1,
     "depth": 1,
     "finalShapeCode": "CkCkCkCk"
+  },
+  "Layout: cut-paint-stack": {
+    "machineCount": 3,
+    "beltCount": 19,
+    "gridWidth": 2,
+    "gridHeight": 13,
+    "floorCount": 2
+  },
+  "Layout: belt-split-passthrough": {
+    "machineCount": 2,
+    "beltCount": 15,
+    "gridWidth": 2,
+    "gridHeight": 9,
+    "floorCount": 2
+  },
+  "Layout: multi-source-deep": {
+    "machineCount": 4,
+    "beltCount": 35,
+    "gridWidth": 5,
+    "gridHeight": 13,
+    "floorCount": 2
+  },
+  "Solver: bidi-stack": {
+    "numOps": 1,
+    "depth": 1,
+    "finalShapeCode": "CuCuCuCu:RuRuRuRu"
+  },
+  "Solver: bidi-cut-stack": {
+    "numOps": 3,
+    "depth": 3,
+    "finalShapeCode": "CuCu----:RuRu----"
+  },
+  "Solver: prevent-waste-monolayer-paint": {
+    "numOps": 2,
+    "depth": 2,
+    "finalShapeCode": "CrCr----:CuCu----"
+  },
+  "Solver: prevent-waste-blocks-waste": {
+    "numOps": null,
+    "depth": null,
+    "finalShapeCode": null
   }
 }
