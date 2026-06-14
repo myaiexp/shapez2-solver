@@ -63,7 +63,14 @@ export class Shape {
     }
 
     isEmpty() {
-        return this.toListOfLayers().join('').split('').every(c => c === NOTHING_CHAR);
+        for (const layer of this.layers) {
+            for (const part of layer) {
+                if (part.shape !== NOTHING_CHAR || part.color !== NOTHING_CHAR) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }
 
