@@ -269,4 +269,41 @@ export const LAYOUT_FIXTURES = [
             },
         ]
     },
+
+    // Belt Split fed by a *machine* (not a source): the Cutter's L half feeds a
+    // Belt Split that fans out to two downstream machines (a Rotator and the
+    // final Stacker). This is the only fixture that triggers the *forward* Belt
+    // Split walk — where a topology edge's `to` side is a Belt Split that must be
+    // resolved through to its real downstream consumers (the shared
+    // findDownstreamPlaceable helper). belt-split-passthrough only feeds its
+    // split from a source, so it never reaches that recursive branch.
+    {
+        name: 'machine-fed-belt-split',
+        solutionPath: [
+            {
+                operation: 'Cutter',
+                inputs: [{ id: 'src', shape: 'CuCuCuCu' }],
+                outputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+                params: {}
+            },
+            {
+                operation: 'Belt Split',
+                inputs: [{ id: 'L', shape: 'CuCu----' }],
+                outputs: [{ id: 'L1', shape: 'CuCu----' }, { id: 'L2', shape: 'CuCu----' }],
+                params: {}
+            },
+            {
+                operation: 'Rotator CW',
+                inputs: [{ id: 'L1', shape: 'CuCu----' }],
+                outputs: [{ id: 'rL', shape: '--CuCu--' }],
+                params: {}
+            },
+            {
+                operation: 'Stacker',
+                inputs: [{ id: 'L2', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+                outputs: [{ id: 'F', shape: 'CuCuCuCu' }],
+                params: {}
+            },
+        ]
+    },
 ];

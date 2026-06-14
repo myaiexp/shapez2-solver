@@ -8,6 +8,50 @@
  */
 
 // ---------------------------------------------------------------------------
+// 0) findDownstreamPlaceable — resolve a step's real downstream consumers
+//    forward through Belt Splits (shared by topoSort and groupIntoRows)
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk forward through Belt Splits (pass-through nodes) to the real downstream
+ * placeable (non-Belt-Split) consumer steps.
+ *
+ * A placeable step resolves to itself; a Belt Split resolves to the steps that
+ * consume each of its outputs, followed recursively since splits can chain.
+ * Missing nodes terminate the walk. `visited` guards against cycles and is
+ * mutated across the recursion.
+ *
+ * Note: a non-Belt-Split node is exactly a placeable step in both call sites
+ * (topoSort's `placeableSteps` and groupIntoRows' `placeableSteps` are each the
+ * full set of non-Belt-Split steps), so testing `!node.isBeltSplit` here is
+ * equivalent to the `placeableSteps.has(...)` check the callers used inline.
+ *
+ * @param {number} stepIdx        step to resolve
+ * @param {Set<number>} visited   cycle guard (mutated)
+ * @param {Map<number, {step: Object, isBeltSplit: boolean}>} nodes  topology.nodes
+ * @param {Array<{from: number, to: number, shapeId: string}>} edges topology.edges
+ * @returns {number[]} placeable step indices reachable downstream
+ */
+function findDownstreamPlaceable(stepIdx, visited, nodes, edges) {
+    if (visited.has(stepIdx)) return [];
+    visited.add(stepIdx);
+    const node = nodes.get(stepIdx);
+    if (!node) return [];
+    if (!node.isBeltSplit) return [stepIdx];
+
+    // Belt Split: follow each output to the steps that consume it.
+    const results = [];
+    for (const out of node.step.outputs) {
+        for (const edge of edges) {
+            if (edge.shapeId === out.id && edge.to !== stepIdx) {
+                results.push(...findDownstreamPlaceable(edge.to, visited, nodes, edges));
+            }
+        }
+    }
+    return results;
+}
+
+// ---------------------------------------------------------------------------
 // 1) extractTopology — build dependency graph from solutionPath
 // ---------------------------------------------------------------------------
 
@@ -126,34 +170,8 @@ export function topoSort(topology) {
     // could be a Belt Split consuming the output of a real machine.
     // Let's build effective edges: for each raw edge, if `from` is placeable
     // and `to` is placeable, add directly.  If `to` is a Belt Split, follow
-    // its outputs to find the real downstream consumers.
-
-    function findDownstreamPlaceable(stepIdx, visited) {
-        if (visited.has(stepIdx)) return [];
-        visited.add(stepIdx);
-        const node = nodes.get(stepIdx);
-        if (!node) return [];
-        if (!node.isBeltSplit) return [stepIdx];
-
-        // Belt Split: follow its outputs to the consumers
-        const results = [];
-        for (const out of node.step.outputs) {
-            // Find all steps that consume this output
-            for (const edge of edges) {
-                if (edge.shapeId === out.id && edge.to !== stepIdx) {
-                    results.push(...findDownstreamPlaceable(edge.to, visited));
-                }
-            }
-            // Also check: the output might be consumed by a step whose input has
-            // the same ID (direct match without going through edges — the edges
-            // were built from the `from` side resolved through Belt Splits, so
-            // a Belt Split -> real machine edge would have `from` = real machine
-            // upstream, `to` = real machine downstream.  So edges already skip
-            // Belt Splits on the `from` side.  But the `to` side Belt Splits
-            // need handling.)
-        }
-        return results;
-    }
+    // its outputs to find the real downstream consumers
+    // (findDownstreamPlaceable, shared with groupIntoRows).
 
     // Collect effective edges between placeable steps
     const effectiveEdges = [];
@@ -165,7 +183,7 @@ export function topoSort(topology) {
 
         const downstreams = placeableSteps.has(edge.to)
             ? [edge.to]
-            : findDownstreamPlaceable(edge.to, new Set());
+            : findDownstreamPlaceable(edge.to, new Set(), nodes, edges);
 
         for (const ds of downstreams) {
             const key = `${edge.from}-${ds}`;
@@ -242,27 +260,10 @@ export function groupIntoRows(sortedSteps, topology, solutionPath) {
     for (const edge of edges) {
         if (!placeableSteps.has(edge.from)) continue;
 
-        // Resolve `to` through Belt Splits
-        const resolveTo = (toIdx, visited) => {
-            if (visited.has(toIdx)) return [];
-            visited.add(toIdx);
-            if (placeableSteps.has(toIdx)) return [toIdx];
-            const node = nodes.get(toIdx);
-            if (!node || !node.isBeltSplit) return [];
-            const results = [];
-            for (const out of node.step.outputs) {
-                for (const e of edges) {
-                    if (e.shapeId === out.id && e.to !== toIdx) {
-                        results.push(...resolveTo(e.to, visited));
-                    }
-                }
-            }
-            return results;
-        };
-
+        // Resolve `to` through Belt Splits (shared with topoSort).
         const targets = placeableSteps.has(edge.to)
             ? [edge.to]
-            : resolveTo(edge.to, new Set());
+            : findDownstreamPlaceable(edge.to, new Set(), nodes, edges);
 
         for (const t of targets) {
             upstreamOf.get(t).add(edge.from);

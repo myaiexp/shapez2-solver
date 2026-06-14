@@ -110,5 +110,12 @@
     "numOps": null,
     "depth": null,
     "finalShapeCode": null
+  },
+  "Layout: machine-fed-belt-split": {
+    "machineCount": 3,
+    "beltCount": 16,
+    "gridWidth": 4,
+    "gridHeight": 9,
+    "floorCount": 2
   }
 }
