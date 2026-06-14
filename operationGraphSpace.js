@@ -1,6 +1,14 @@
 import { createShapeCanvas } from './shapeRendering.js';
 import { setGraph3dInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 
+function makeNodeSprite(image, scale) {
+    const tex = new THREE.TextureLoader().load(image, t => { t.colorSpace = THREE.SRGBColorSpace; t.premultiplyAlpha = false; });
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, premultipliedAlpha: false, depthTest: true, depthWrite: false, });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(scale, scale, 1);
+    return sprite;
+}
+
 export function renderSpaceGraph(graph) {
     const container = document.getElementById('graph-container');
     container.replaceChildren();
@@ -73,21 +81,7 @@ export function renderSpaceGraph(graph) {
 
         .nodeThreeObject(node => {
             const group = new THREE.Group();
-            let sprite;
-
-            if (node.kind === 'shape') {
-                const tex = new THREE.TextureLoader().load(node.image, t => { t.colorSpace = THREE.SRGBColorSpace; t.premultiplyAlpha = false; });
-                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, premultipliedAlpha: false, depthTest: true, depthWrite: false, });
-                sprite = new THREE.Sprite(mat);
-                sprite.scale.set(15, 15, 1);
-            } else {
-                const tex = new THREE.TextureLoader().load(node.image, t => { t.colorSpace = THREE.SRGBColorSpace; t.premultiplyAlpha = false; });
-                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, premultipliedAlpha: false, depthTest: true, depthWrite: false, });
-                sprite = new THREE.Sprite(mat);
-                sprite.scale.set(12, 12, 1);
-            }
-
-            group.add(sprite);
+            group.add(makeNodeSprite(node.image, node.kind === 'shape' ? 15 : 12));
             return group;
         })
         .nodeLabel(node => node.label);
