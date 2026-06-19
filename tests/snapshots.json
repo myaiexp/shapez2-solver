@@ -107,8 +107,8 @@
     "finalShapeCode": "CrCr----:CuCu----"
   },
   "Solver: prevent-waste-blocks-waste": {
-    "numOps": null,
-    "depth": null,
+    "numOps": 2,
+    "depth": 2,
     "finalShapeCode": null
   },
   "Layout: machine-fed-belt-split": {

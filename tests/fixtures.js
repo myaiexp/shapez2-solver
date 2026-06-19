@@ -129,19 +129,18 @@ export const SOLVER_FIXTURES = [
         preventWaste: true,
         monolayerPainting: true,
     },
-    // (b) preventWaste is pivotal here, so the expected result is NO solution
-    //     (numOps/depth/finalShapeCode all null). Cutting CuRuSuWu yields
-    //     CuRu---- (the target) plus ----SuWu, and ----SuWu is NOT a rotation of
-    //     the target, so it is genuine waste. Trash produces no successor and the
-    //     only op is Cutter, so the waste half can never be removed — with
-    //     preventWaste on, the all-acceptable goal is unreachable. Without the
-    //     flag this same cut would solve in 1 op (cf. the simple-cut fixture),
-    //     so this guards the preventWaste branch of isGoal.
+    // (b) preventWaste + Trash: cutting CuRuSuWu yields CuRu---- (the target)
+    //     plus ----SuWu. Under preventWaste the all-acceptable goal requires
+    //     every available shape to be a rotation of the target, so ----SuWu
+    //     must be removed. Trash (gated: preventWaste && not acceptable) removes
+    //     it in 1 op, giving the 2-step solution: Cut → Trash. Without Trash in
+    //     the ops list this same cut would leave an unremovable byproduct and the
+    //     target would be unsolvable — exercising both preventWaste and Trash.
     {
         name: 'prevent-waste-blocks-waste',
         target: 'CuRu----',
         starting: ['CuRuSuWu'],
-        ops: ['Cutter'],
+        ops: ['Cutter', 'Trash'],
         method: 'BFS',
         ...baseSolverParams,
         preventWaste: true,
