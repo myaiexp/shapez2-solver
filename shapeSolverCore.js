@@ -300,6 +300,26 @@ export async function shapeSolver(
                     // Skip trashing the last shape (always useless)
                     if (opName === 'Trash' && availableIds.size === 1) continue;
 
+                    // Trash produces no output codes, so the normal outputCodes guard
+                    // below would always skip it. Model it as a real successor here:
+                    // remove the input shape from availableIds with no replacement.
+                    //
+                    // Gate: only yield when preventWaste is true AND the shape being
+                    // trashed is NOT acceptable (not a rotation of the target). Without
+                    // preventWaste, extra shapes don't block isGoal, so trashing is
+                    // always useless. Trashing an acceptable shape is counterproductive.
+                    // This prevents trash-spam on every branch while fixing the case
+                    // where the only way to satisfy the all-shapes-acceptable goal is to
+                    // discard a byproduct (e.g. cut CuRuSuWu → keep CuRu----, trash
+                    // ----SuWu). Cost is 1 per op from the g+1 increment in each search
+                    // loop — the same as every other operation, never free.
+                    if (opName === 'Trash') {
+                        if (preventWaste && !acceptable.has(inputCode)) {
+                            yield { type: opName, inputIds: [id], outputCodes: [], color: null };
+                        }
+                        continue;
+                    }
+
                     // Skip rotation of rotationally symmetric shapes
                     if (opName === 'Rotator CW' || opName === 'Rotator CCW' || opName === 'Rotator 180') {
                         const rotations = _getAllRotations(inputShape, config);
