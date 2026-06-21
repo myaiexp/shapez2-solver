@@ -1,6 +1,7 @@
 // Imports
 import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
-import { Shape, _extractLayers, _filterStartingShapes } from './shapeOperations.js';
+import { Shape, extractLayers } from './shapeOperations.js';
+import { filterStartingShapes } from './shapeAnalysis.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 import { SHAPE_TYPES, COLOR_TYPES, buildShapeCode, parseShapeCode, getShapeInfo, getColorInfo, createDefaultParts } from './shapeColorData.js';
@@ -141,7 +142,7 @@ byId('extract-confirm').addEventListener('click', () => {
         const container = byId('starting-shapes');
         container.innerHTML = '';
 
-        const variants = _extractLayers(
+        const variants = extractLayers(
             Shape.fromShapeCode(target),
             mode,
             includePins,
@@ -259,7 +260,7 @@ byId('solve-btn').addEventListener('click', () => {
     // Filter unused shapes if enabled
     if (filterUnusedShapes && starting.length > 0) {
         const originalCount = starting.length;
-        starting = _filterStartingShapes(starting, target);
+        starting = filterStartingShapes(starting, target);
         const removedCount = originalCount - starting.length;
         if (removedCount > 0) {
             console.log(`Filtered out ${removedCount} unused starting shapes`);

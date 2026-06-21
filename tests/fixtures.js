@@ -2,7 +2,7 @@ export const PURE_OP_CHECKS = [
     { name: 'cut-CuCuCuCu', op: 'cut', shapeArgs: ['CuCuCuCu'] },
     { name: 'stack-CuCuCuCu+RuRuRuRu', op: 'stack', shapeArgs: ['CuCuCuCu', 'RuRuRuRu'] },
     { name: 'rotate90CW-CuRuSuWu', op: 'rotate90CW', shapeArgs: ['CuRuSuWu'] },
-    { name: 'getSimilarity-CuCu+RuRu', op: '_getSimilarity', shapeArgs: ['CuCuCuCu', 'RuRuRuRu'] },
+    { name: 'getSimilarity-CuCu+RuRu', op: 'getSimilarity', shapeArgs: ['CuCuCuCu', 'RuRuRuRu'] },
     // 1.0 refined shape X support (basic structural ops should be generic)
     { name: 'cut-XuXuXuXu', op: 'cut', shapeArgs: ['XuXuXuXu'] },
     // 1.0 Black (k) color: parses and survives structural ops

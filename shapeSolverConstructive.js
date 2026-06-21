@@ -8,7 +8,7 @@
 
 import { shapeSolver } from './shapeSolverCore.js';
 import { splitByLayer, splitByQuadrant, splitByHalf, cost, opCountOf } from './shapeSolverDecompose.js';
-import { stack, ShapeOperationConfig, _getAllRotations } from './shapeOperations.js';
+import { stack, ShapeOperationConfig, getAllRotations } from './shapeOperations.js';
 import { getCachedShape } from './shapeSolverCache.js';
 
 export async function solveConstructive(
@@ -45,7 +45,7 @@ export async function solveConstructive(
         return res;
     }
 
-    const rotationsOf = (code) => new Set(_getAllRotations(getCachedShape(code), config));
+    const rotationsOf = (code) => new Set(getAllRotations(getCachedShape(code), config));
 
     // Local id of the shape this plan produces: the last step that outputs an
     // acceptable code, or — for a 0-step solve — the matching starting shape's id

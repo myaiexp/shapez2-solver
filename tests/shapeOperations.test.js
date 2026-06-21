@@ -6,13 +6,13 @@
 // other unit suites already pin rotation (shapeRotation.test.js), crystals/pins
 // (shapeCrystals.test.js) and gravity (shapeGravity.test.js) with literals — but
 // the half-split geometry of cut, the layer order of stack, the Painter
-// primitive (topPaint), the A* similarity heuristic (_getSimilarity) and the
+// primitive (topPaint), the A* similarity heuristic (getSimilarity) and the
 // remaining structural ops (halfCut, swapHalves, trash, beltSplit) had no
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
 import { Shape } from '../shapeClass.js';
-import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit } from '../shapeOperations.js';
-import { _getSimilarity } from '../shapeAnalysis.js';
+import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit, extractLayers } from '../shapeOperations.js';
+import { getSimilarity } from '../shapeAnalysis.js';
 
 let passed = 0;
 let total = 0;
@@ -83,14 +83,14 @@ check('topPaint on a 3-layer shape paints just the topmost layer',
     codes(topPaint(s('CuCuCuCu:RgRgRgRg:SuSuSuSu'), 'b')),
     ['CuCuCuCu:RgRgRgRg:SbSbSbSb']);
 
-// --- _getSimilarity: A* heuristic core -----------------------------------
+// --- getSimilarity: A* heuristic core -----------------------------------
 // Identical shapes are maximally similar (type+colour+order all match -> 1.0).
 check('similarity of identical shapes is 1',
-    _getSimilarity(s('CuCuCuCu'), s('CuCuCuCu')), 1);
+    getSimilarity(s('CuCuCuCu'), s('CuCuCuCu')), 1);
 
 // Fully disjoint shapes (no shared part type, colour, or order) score 0.
 check('similarity of fully disjoint shapes is 0',
-    _getSimilarity(s('CuCuCuCu'), s('RuRuRuRu')), 0);
+    getSimilarity(s('CuCuCuCu'), s('RuRuRuRu')), 0);
 
 // --- halfCut: keep one half, discard the other ---------------------------
 // halfCut is cut(...)[1] — it keeps the LEFT half (leading two quadrants) and
@@ -124,6 +124,50 @@ check('trash returns no output shapes',
 // unchanged. A multi-part input pins that nothing is dropped or altered.
 check('beltSplit duplicates the shape onto both outputs',
     codes(beltSplit(s('CuRuSuWu'))), ['CuRuSuWu', 'CuRuSuWu']);
+
+// --- extractLayers: decompose a shape into per-key sub-shape codes --------
+// Groups each layer's parts by key (mode), one grouped layer per distinct key,
+// with parts placed back at their original index. Nothing and Crystal parts are
+// always dropped; Pins drop only when includePins=false. (Moved here from the
+// shapeAnalysis suite when extractLayers became a shapeOperations transform.)
+
+// mode 'part' (default): one grouped layer per distinct shape char.
+check('extractLayers part: CuRuSuWu → one layer per shape, index-preserved',
+    extractLayers(s('CuRuSuWu')), ['Cu------', '--Ru----', '----Su--', '------Wu']);
+check('extractLayers part: repeated shapes merge into one layer (CuCuRuRu)',
+    extractLayers(s('CuCuRuRu')), ['CuCu----', '----RuRu']);
+
+// mode 'layer': single key → whole layer kept intact (Nothing/Crystal dropped).
+check('extractLayers layer: keeps each layer whole (CuRuSuWu)',
+    extractLayers(s('CuRuSuWu'), 'layer'), ['CuRuSuWu']);
+check('extractLayers layer: per-layer over multi-layer input',
+    extractLayers(s('CuRuSuWu:WuWuWuWu'), 'layer'), ['CuRuSuWu', 'WuWuWuWu']);
+
+// mode 'color': group by color, shape+color preserved.
+check('extractLayers color: groups by color char (CrCrRgRg)',
+    extractLayers(s('CrCrRgRg'), 'color'), ['CrCr----', '----RgRg']);
+
+// mode 'part-color': group by shape+color pair.
+check('extractLayers part-color: splits same shape by color (CrCuCrCu)',
+    extractLayers(s('CrCuCrCu'), 'part-color'), ['Cr--Cr--', '--Cu--Cu']);
+
+// includeColor=false → colors collapsed to 'u' in the output.
+check('extractLayers includeColor=false collapses color to u (CrCrCrCr)',
+    extractLayers(s('CrCrCrCr'), 'part', true, false), ['CuCuCuCu']);
+
+// Pins: kept by default, dropped when includePins=false.
+check('extractLayers keeps pins by default (CuP-----)',
+    extractLayers(s('CuP-----')), ['Cu------', '--P-----']);
+check('extractLayers includePins=false drops pins (CuP-----)',
+    extractLayers(s('CuP-----'), 'part', false), ['Cu------']);
+
+// Crystals are always dropped (here 'c' = crystal).
+check('extractLayers always drops crystal parts (cuCuRu--)',
+    extractLayers(s('cuCuRu--')), ['--Cu----', '----Ru--']);
+
+// A fully-empty layer contributes nothing.
+check('extractLayers skips an all-Nothing layer (--------:CuCuCuCu)',
+    extractLayers(s('--------:CuCuCuCu')), ['CuCuCuCu']);
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

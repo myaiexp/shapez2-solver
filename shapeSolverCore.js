@@ -1,8 +1,9 @@
 import {
     ShapeOperationConfig, NOTHING_CHAR,
-    _getAllRotations, _getPaintColors, _getCrystalColors,
+    getAllRotations,
     halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack, topPaint, pushPin, genCrystal, trash, beltSplit
 } from './shapeOperations.js';
+import { getPaintColors, getCrystalColors } from './shapeAnalysis.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
 import {
     shapeCache,
@@ -82,7 +83,7 @@ export async function shapeSolver(
     operationResultCache.clear();
 
     const target = getCachedShape(targetShapeCode);
-    const targetCrystalColors = _getCrystalColors(target);
+    const targetCrystalColors = getCrystalColors(target);
     const config = new ShapeOperationConfig(maxLayers);
     const startTime = performance.now();
     let lastUpdate = startTime;
@@ -94,7 +95,7 @@ export async function shapeSolver(
     if (orientationSensitive) {
         acceptable.add(targetShapeCode);
     } else {
-        const rotations = _getAllRotations(target, config);
+        const rotations = getAllRotations(target, config);
         for (const code of rotations) {
             acceptable.add(code);
         }
@@ -137,7 +138,7 @@ export async function shapeSolver(
     function _matchAndCoverage(shape) {
         const rotShapes = orientationSensitive
             ? [shape]
-            : Array.from(_getAllRotations(shape, config)).map(getCachedShape);
+            : Array.from(getAllRotations(shape, config)).map(getCachedShape);
         let bestClean = [];
         const slotCost = new Map();  // "l:q" -> min isolate-cost this shape offers
         for (const r of rotShapes) {
@@ -236,7 +237,7 @@ export async function shapeSolver(
         if (orientationSensitive) return shapeCode;
         let canonical = canonicalCache.get(shapeCode);
         if (canonical) return canonical;
-        const rotations = _getAllRotations(getCachedShape(shapeCode), config);
+        const rotations = getAllRotations(getCachedShape(shapeCode), config);
         canonical = Array.from(rotations).sort()[0];
         canonicalCache.set(shapeCode, canonical);
         return canonical;
@@ -350,7 +351,7 @@ export async function shapeSolver(
 
                     // Skip rotation of rotationally symmetric shapes
                     if (opName === 'Rotator CW' || opName === 'Rotator CCW' || opName === 'Rotator 180') {
-                        const rotations = _getAllRotations(inputShape, config);
+                        const rotations = getAllRotations(inputShape, config);
                         if (rotations.size === 1) continue; // fully symmetric
                         if (opName === 'Rotator 180' && rotations.size <= 2) continue; // 180° symmetric
                     }
@@ -370,7 +371,7 @@ export async function shapeSolver(
                         if (monolayerPainting && opName === "Painter" && inputShape.layers.length !== 1) {
                             continue;
                         }
-                        const colors = opName === "Painter" ? _getPaintColors(inputShape, target) : targetCrystalColors;
+                        const colors = opName === "Painter" ? getPaintColors(inputShape, target) : targetCrystalColors;
                         for (const color of colors) {
                             const outputs = getCachedOpResult1Color(opName, fn, inputShape, color, config);
                             const desc = buildSingleInputDescriptor(opName, id, inputCode, outputs, color);

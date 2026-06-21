@@ -1,54 +1,18 @@
 import {
     Shape,
-    ShapePart,
     NOTHING_CHAR,
-    PIN_CHAR,
     CRYSTAL_CHAR,
-    UNPAINTABLE_SHAPES
+    UNPAINTABLE_SHAPES,
+    ShapeOperationConfig
 } from './shapeClass.js';
 import { rotate90CW } from './shapeRotation.js';
 
-export function _extractLayers(shape, mode = 'part', includePins = true, includeColor = true) {
-    const numParts = shape.numParts;
-    const groupedLayers = [];
+// rotate90CW ignores its config argument, so share one instance instead of
+// allocating a fresh ShapeOperationConfig per rotation in the hot similarity
+// path (comparePartOrder rotates numParts times per call, via getSimilarity).
+const DEFAULT_CONFIG = new ShapeOperationConfig();
 
-    shape.layers.forEach((layer) => {
-        const seen = {};
-
-        layer.forEach((part, partIndex) => {
-            if (!includePins && (part.shape === PIN_CHAR)) return;
-            if (part.shape === NOTHING_CHAR || part.shape === CRYSTAL_CHAR) return;
-
-            let key;
-            if (mode === 'layer') {
-                key = "valid";
-            } else if (mode === 'part') {
-                key = part.shape;
-            } else if (mode === 'color') {
-                key = part.color;
-            } else if (mode === 'part-color') {
-                key = `${part.shape}-${part.color}`;
-            }
-
-            if (!seen[key]) {
-                seen[key] = [];
-            }
-            seen[key].push({ index: partIndex, shape: part.shape, color: part.color });
-        });
-
-        Object.entries(seen).forEach(([, entries]) => {
-            const newLayer = Array.from({ length: numParts }, () => new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-            entries.forEach(({ index, shape, color }) => {
-                newLayer[index] = new ShapePart(shape, includeColor ? color : 'u');
-            });
-            groupedLayers.push(newLayer);
-        });
-    });
-
-    return groupedLayers.map(layer => layer.map(part => part.shape + part.color).join(''));
-}
-
-export function _getPaintColors(inputShape, targetShape) {
+export function getPaintColors(inputShape, targetShape) {
     const targetColorMap = new Map();
     for (const layer of targetShape.layers) {
         for (const part of layer) {
@@ -81,7 +45,7 @@ export function _getPaintColors(inputShape, targetShape) {
     return Array.from(validColors);
 }
 
-export function _getCrystalColors(shape) {
+export function getCrystalColors(shape) {
     const crystalColors = new Set();
     for (const layer of shape.layers) {
         for (const part of layer) {
@@ -91,23 +55,17 @@ export function _getCrystalColors(shape) {
     return crystalColors.size > 0 ? Array.from(crystalColors) : ["u"];
 }
 
-export function _getSimilarity(shape1, shape2, weights = {type: 0.5, color: 0.3, order: 0.2}) {
-    // Part type similarity
-    const typeSim = _compareCounts(_getPartTypeCounts(shape1), _getPartTypeCounts(shape2));
+export function getSimilarity(shape1, shape2, weights = {type: 0.5, color: 0.3, order: 0.2}) {
+    const typeSim = compareCounts(getPartTypeCounts(shape1), getPartTypeCounts(shape2));
+    const colorSim = compareCounts(getPartCounts(shape1), getPartCounts(shape2));
+    const orderSim = comparePartOrder(shape1, shape2);
 
-    // Part+color similarity
-    const colorSim = _compareCounts(_getPartCounts(shape1), _getPartCounts(shape2));
-
-    // Overall similarity
-    const orderSim = _comparePartOrder(shape1, shape2);
-
-    // Final score
     return (typeSim * weights.type) +
            (colorSim * weights.color) +
            (orderSim * weights.order);
 }
 
-export function _getPartTypeCounts(shape) {
+export function getPartTypeCounts(shape) {
     const counts = new Map();
     for (const layer of shape.layers) {
         for (const part of layer) {
@@ -117,7 +75,7 @@ export function _getPartTypeCounts(shape) {
     return counts;
 }
 
-export function _getPartCounts(shape) {
+export function getPartCounts(shape) {
     const counts = new Map();
     for (const layer of shape.layers) {
         for (const part of layer) {
@@ -128,7 +86,7 @@ export function _getPartCounts(shape) {
     return counts;
 }
 
-export function _compareCounts(countsA, countsB) {
+export function compareCounts(countsA, countsB) {
     const keys = new Set([...countsA.keys(), ...countsB.keys()]);
     let total = 0;
     let match = 0;
@@ -143,7 +101,7 @@ export function _compareCounts(countsA, countsB) {
     return total === 0 ? 1 : match / total; // Handles case where both shapes are empty
 }
 
-export function _comparePartOrder(shape1, shape2) {
+export function comparePartOrder(shape1, shape2) {
     if (shape1.layers.length !== shape2.layers.length) return 0; // Different structure
 
     const rotations = [];
@@ -152,7 +110,7 @@ export function _comparePartOrder(shape1, shape2) {
     // Generate all rotations
     for (let i = 0; i < shape1.numParts; i++) {
         rotations.push(current);
-        current = rotate90CW(current)[0];
+        current = rotate90CW(current, DEFAULT_CONFIG)[0];
     }
 
     let bestMatchRatio = 0;
@@ -187,7 +145,7 @@ export function _comparePartOrder(shape1, shape2) {
 }
 
 // Shape Filtering Functions - for Solver Optimization
-export function _getRequiredColors(targetShape) {
+export function getRequiredColors(targetShape) {
     const colors = new Set();
 
     for (const layer of targetShape.layers) {
@@ -205,7 +163,7 @@ export function _getRequiredColors(targetShape) {
     return colors;
 }
 
-export function _getRequiredShapes(targetShape) {
+export function getRequiredShapes(targetShape) {
     const shapes = new Set();
 
     for (const layer of targetShape.layers) {
@@ -220,10 +178,10 @@ export function _getRequiredShapes(targetShape) {
     return shapes;
 }
 
-export function _filterStartingShapes(startingShapeCodes, targetShapeCode) {
+export function filterStartingShapes(startingShapeCodes, targetShapeCode) {
     const target = Shape.fromShapeCode(targetShapeCode);
-    const requiredColors = _getRequiredColors(target);
-    const requiredShapes = _getRequiredShapes(target);
+    const requiredColors = getRequiredColors(target);
+    const requiredShapes = getRequiredShapes(target);
 
     // If target has no specific colors or shapes, keep all starting shapes
     if (requiredColors.size === 0 && requiredShapes.size === 0) {

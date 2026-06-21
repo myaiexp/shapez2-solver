@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { Shape, cut, stack, rotate90CW, _getSimilarity } from '../shapeOperations.js';
+import { Shape, cut, stack, rotate90CW } from '../shapeOperations.js';
+import { getSimilarity } from '../shapeAnalysis.js';
 import { buildLayout } from '../blueprintLayout.js';
 import { shapeSolver, operations } from '../shapeSolverCore.js';
 import { shapeExplorer } from '../shapeExplorerCore.js';
@@ -10,7 +11,7 @@ import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } f
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SNAPSHOTS_PATH = join(__dirname, 'snapshots.json');
 
-const OPS = { cut, stack, rotate90CW, _getSimilarity };
+const OPS = { cut, stack, rotate90CW, getSimilarity };
 
 // Validate that every step in a solution path is a real operation: recompute the
 // operation on its input codes and confirm each claimed output is among the

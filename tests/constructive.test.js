@@ -7,7 +7,7 @@
 import { solveConstructive } from '../shapeSolverConstructive.js';
 import { operations } from '../shapeSolverCore.js';
 import { Shape, ShapeOperationConfig } from '../shapeClass.js';
-import { _getAllRotations } from '../shapeOperations.js';
+import { getAllRotations } from '../shapeOperations.js';
 
 const DEFAULT_STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
 const ALL_OPS = Object.keys(operations);
@@ -42,7 +42,7 @@ function everyStepValid(path) {
     });
 }
 function isAcceptableRotation(code, target) {
-    return _getAllRotations(Shape.fromShapeCode(target), cfg).has(code);
+    return getAllRotations(Shape.fromShapeCode(target), cfg).has(code);
 }
 function lastProducesTarget(path, target) {
     if (!path.length) return false;
