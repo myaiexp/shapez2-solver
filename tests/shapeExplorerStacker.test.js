@@ -6,7 +6,7 @@
 // id1 < id2 ordering; when the outputs differ it records both orderings. No
 // existing fixture or depth-limit test reaches this branch (fixtures use
 // Cutter+Rotator only; shapeExplorerDepthLimit.test.js excludes Stacker).
-import { shapeExplorer } from '../shapeSolverCore.js';
+import { shapeExplorer } from '../shapeExplorerCore.js';
 
 let passed = 0;
 let total = 0;

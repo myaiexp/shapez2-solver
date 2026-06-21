@@ -1,4 +1,5 @@
-import { shapeSolver, shapeExplorer } from './shapeSolverCore.js';
+import { shapeSolver } from './shapeSolverCore.js';
+import { shapeExplorer } from './shapeExplorerCore.js';
 import { solveConstructive } from './shapeSolverConstructive.js';
 
 let cancelled = false;

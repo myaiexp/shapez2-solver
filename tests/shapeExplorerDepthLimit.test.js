@@ -9,7 +9,7 @@
 // at depth 1 — without any failing test. We pin the zero-depth contract and
 // contrast it with a depthLimit=1 case so the "no expansion" assertion is
 // meaningful (i.e. expansion DOES happen once the limit allows it).
-import { shapeExplorer } from '../shapeSolverCore.js';
+import { shapeExplorer } from '../shapeExplorerCore.js';
 
 let passed = 0;
 let total = 0;

@@ -3,7 +3,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { Shape, cut, stack, rotate90CW, _getSimilarity } from '../shapeOperations.js';
 import { buildLayout } from '../blueprintLayout.js';
-import { shapeSolver, shapeExplorer, operations } from '../shapeSolverCore.js';
+import { shapeSolver, operations } from '../shapeSolverCore.js';
+import { shapeExplorer } from '../shapeExplorerCore.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

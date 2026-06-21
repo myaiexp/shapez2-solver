@@ -15,7 +15,8 @@
 // Bounded-by-construction: an immediate cancel never enters a search loop, and the
 // cancel-after-N tests trip far below the maxStates safety cap, so neither
 // approaches the memory ceiling an uncapped hard solve would.
-import { shapeSolver, shapeExplorer, operations } from '../shapeSolverCore.js';
+import { shapeSolver, operations } from '../shapeSolverCore.js';
+import { shapeExplorer } from '../shapeExplorerCore.js';
 import { solveConstructive } from '../shapeSolverConstructive.js';
 
 let passed = 0;

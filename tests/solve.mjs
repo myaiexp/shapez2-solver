@@ -27,7 +27,8 @@
 //
 // Exit code is non-zero if any step/edge fails operation validation.
 
-import { shapeSolver, shapeExplorer, operations } from '../shapeSolverCore.js';
+import { shapeSolver, operations } from '../shapeSolverCore.js';
+import { shapeExplorer } from '../shapeExplorerCore.js';
 import { solveConstructive } from '../shapeSolverConstructive.js';
 import { Shape } from '../shapeClass.js';
 
