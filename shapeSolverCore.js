@@ -29,6 +29,12 @@ export const operations = {
     "Belt Split": { fn: beltSplit, inputCount: 1 }
 };
 
+// Backward BFS depth for Bidirectional search: how many reverse operations to
+// precompute outward from the target before the forward A* runs. 4 trades map
+// coverage against build cost (the reverse frontier branches fast); it is fixed
+// rather than user-tunable and intentionally independent of maxLayers.
+const BIDIRECTIONAL_BACKWARD_DEPTH = 4;
+
 // Build a single-input successor descriptor from an op's raw output shapes.
 // Shared by the painter (per-colour) and non-painter paths in generateSuccessors,
 // which otherwise carried a verbatim copy of this collect/skip-empties/skip-no-op
@@ -105,7 +111,7 @@ export async function shapeSolver(
     }
 
     // ---------------------------------------------------------------------------
-    // Optimization 2: Clean sub-shape coverage (idea #1677)
+    // Clean sub-shape coverage heuristic (idea #1677)
     // ---------------------------------------------------------------------------
     // Similarity-to-target was a poor guide for ASSEMBLY targets, in two ways:
     //   1. A single building-block quadrant (e.g. Cu------) scored the SAME as the
@@ -187,12 +193,12 @@ export async function shapeSolver(
 
         const slotMin = new Map();  // target slot -> cheapest supply cost across held shapes
         let cleanPieces = 0;
-        let maxL = 0;
+        let maxLayerCount = 0;
 
         for (const id of availableIds) {
             const code = shapes.get(id);
             const shape = getCachedShape(code);
-            if (shape.numLayers > maxL) maxL = shape.numLayers;
+            if (shape.numLayers > maxLayerCount) maxLayerCount = shape.numLayers;
             const m = getCachedMatch(code);
             if (m.cleanSlots.length > 0) cleanPieces++;
             for (const [key, cost] of m.slotCost) {
@@ -201,7 +207,7 @@ export async function shapeSolver(
             }
         }
 
-        let h = Math.max(0, cleanPieces - 1) + Math.max(0, target.numLayers - maxL);
+        let h = Math.max(0, cleanPieces - 1) + Math.max(0, target.numLayers - maxLayerCount);
         for (const key of targetSlotKeys) {
             const c = slotMin.get(key);
             h += (c === undefined) ? 4 : c;  // 4 = no held shape has this part at all
@@ -222,7 +228,7 @@ export async function shapeSolver(
     }
 
     // ---------------------------------------------------------------------------
-    // Optimization 4: Symmetry Canonicalization
+    // Symmetry Canonicalization
     // ---------------------------------------------------------------------------
     const canonicalCache = new Map();
 
@@ -290,7 +296,6 @@ export async function shapeSolver(
         };
     }
 
-    // Goal check helper
     function isGoal(availableIds) {
         const shapeCodes = Array.from(availableIds).map(id => shapes.get(id));
         const hasTarget = shapeCodes.some(code => acceptable.has(code));
@@ -304,7 +309,7 @@ export async function shapeSolver(
     // deferred to applySuccessor() and only done for successors the caller actually
     // accepts, so rejected successors never grow the shapes Map (the old
     // unbounded-growth bug minted ids for every edge, kept or not).
-    // Includes Optimization 5 (operation pruning) and Optimization 7 (operation result cache)
+    // Includes operation pruning and the operation-result cache.
     function* generateSuccessors(availableIds) {
         for (const opName of enabledOperations) {
             if (shouldCancel()) return;
@@ -318,7 +323,7 @@ export async function shapeSolver(
                     const inputCode = shapes.get(id);
                     const inputShape = getCachedShape(inputCode);
 
-                    // --- Optimization 5: Operation Pruning ---
+                    // --- Operation Pruning ---
 
                     // Skip trashing the last shape (always useless)
                     if (opName === 'Trash' && availableIds.size === 1) continue;
@@ -408,18 +413,24 @@ export async function shapeSolver(
         }
     }
 
-    // Build solution path from cameFrom chain
+    // Map an internal step record to a public solution-path entry. Shared by
+    // reconstructPath (A*/Bidirectional/BFS, which walk a cameFrom chain) and the
+    // IDA* goal case (which already holds a forward step array in frame.path).
+    function formatStep(step) {
+        return {
+            operation: step.type,
+            inputs: step.inputIds.map(id => ({id, shape: shapes.get(id)})),
+            outputs: step.outputIds.map(id => ({id, shape: shapes.get(id)})),
+            params: step.color ? {color: step.color} : {}
+        };
+    }
+
     function reconstructPath(cameFrom, goalKey, initialKey) {
         const solutionPath = [];
         let curKey = goalKey;
         while (curKey !== initialKey) {
             const {parentKey, step} = cameFrom.get(curKey);
-            solutionPath.push({
-                operation: step.type,
-                inputs: step.inputIds.map(id => ({id, shape: shapes.get(id)})),
-                outputs: step.outputIds.map(id => ({id, shape: shapes.get(id)})),
-                params: step.color ? {color: step.color} : {}
-            });
+            solutionPath.push(formatStep(step));
             curKey = parentKey;
         }
         solutionPath.reverse();
@@ -489,17 +500,17 @@ export async function shapeSolver(
         return await runBestFirst(getHeuristic, 'A*', '', ' (try BFS, a larger heuristic divisor, or a simpler target)');
 
     // -----------------------------------------------------------------------
-    // IDA* Search (Optimization 8)
+    // IDA* Search
     // -----------------------------------------------------------------------
     } else if (searchMethod === 'IDA*') {
 
     let threshold = getHeuristic(initialAvailableIds);
-    let totalIterations = 0;
-    let iterationCount = 0;
+    let statesExplored = 0;   // cumulative nodes expanded across all threshold passes
+    let passCount = 0;        // number of threshold-bounded passes run so far
 
     while (!shouldCancel()) {
-        iterationCount++;
-        let nodesExplored = 0;
+        passCount++;
+        let nodesThisPass = 0;
 
         // Depth-limited search using explicit stack. pathKeys is a single mutable
         // Set holding the state keys currently on the stack (root → top): a key is
@@ -524,12 +535,16 @@ export async function shapeSolver(
         while (stack.length > 0 && !shouldCancel()) {
             const frame = stack[stack.length - 1];
 
-            // First visit to this frame: check goal and f-value
+            // A frame with no successorIterator is on its first visit: check its
+            // goal/f-value, then lazily attach the iterator below. On later visits the
+            // iterator is present, so this block is skipped and we pull the next
+            // successor — the iterator's presence is what distinguishes a frame being
+            // re-expanded from one being visited for the first time.
             if (!frame.successorIterator) {
-                nodesExplored++;
-                totalIterations++;
+                nodesThisPass++;
+                statesExplored++;
 
-                if (totalIterations > maxStates) { aborted = true; break; }
+                if (statesExplored > maxStates) { aborted = true; break; }
 
                 const f = frame.g + getHeuristic(frame.availableIds);
                 if (f > threshold) {
@@ -540,12 +555,7 @@ export async function shapeSolver(
                 }
 
                 if (isGoal(frame.availableIds)) {
-                    solutionPath = frame.path.map(step => ({
-                        operation: step.type,
-                        inputs: step.inputIds.map(id => ({id, shape: shapes.get(id)})),
-                        outputs: step.outputIds.map(id => ({id, shape: shapes.get(id)})),
-                        params: step.color ? {color: step.color} : {}
-                    }));
+                    solutionPath = frame.path.map(formatStep);
                     found = true;
                     break;
                 }
@@ -579,8 +589,8 @@ export async function shapeSolver(
             });
 
             // Status update
-            if (totalIterations % 1000 === 0 || performance.now() - lastUpdate > 200) {
-                onProgress(`IDA* | Iter:${iterationCount} | Threshold:${threshold} | Nodes:${nodesExplored} | Stack:${stack.length} | Total:${totalIterations}`);
+            if (statesExplored % 1000 === 0 || performance.now() - lastUpdate > 200) {
+                onProgress(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Total:${statesExplored}`);
                 lastUpdate = performance.now();
                 // Yield to event loop periodically for cancel checks
                 await new Promise(r => setTimeout(r, 0));
@@ -588,33 +598,33 @@ export async function shapeSolver(
         }
 
         if (found) {
-            return { solutionPath, depth: solutionPath.length, statesExplored: totalIterations };
+            return { solutionPath, depth: solutionPath.length, statesExplored: statesExplored };
         }
 
         if (aborted) {
             onProgress(`IDA* | Aborted: hit ${maxStates}-node cap before solving`);
-            return { solutionPath: null, depth: null, statesExplored: totalIterations, aborted: 'maxStates' };
+            return { solutionPath: null, depth: null, statesExplored: statesExplored, aborted: 'maxStates' };
         }
 
         if (nextThreshold === Infinity || shouldCancel()) {
-            return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: totalIterations };
+            return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
         }
 
-        onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Total nodes: ${totalIterations}`);
+        onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Total nodes: ${statesExplored}`);
 
         threshold = nextThreshold;
     }
 
-    return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: totalIterations };
+    return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
 
     // -----------------------------------------------------------------------
-    // Bidirectional Search (Optimization 3)
+    // Bidirectional Search
     // -----------------------------------------------------------------------
     } else if (searchMethod === 'Bidirectional') {
 
     // Phase 1: Build backward reachability map
     onProgress('Bidirectional | Building backward reachability map...');
-    const backwardDepth = 4;
+    const backwardDepth = BIDIRECTIONAL_BACKWARD_DEPTH;
     const backwardMap = buildBackwardReachability(targetShapeCode, config, enabledOperations, backwardDepth, shouldCancel);
     if (shouldCancel()) return null;
 
@@ -667,17 +677,15 @@ export async function shapeSolver(
     // accepted successor. Pruned states leave harmless unused entries — only the
     // goal's ancestor chain (all survivors) is ever walked.
     const cameFrom = new Map();
-    // Function to prune states at current depth level
+    // Beam pruning: when a depth level exceeds the cap, keep only the
+    // highest-scoring states (calculateStateScore favours clean partial pieces).
     function pruneStatesAtDepth(states, maxStates) {
         if (states.length <= maxStates) {
             return states;
         }
-        // Sort by score (higher is better)
         states.sort((a, b) => b.score - a.score);
-        // Keep only the top maxStates
         return states.slice(0, maxStates);
     }
-    // Solver loop
     while (queue.length > 0 && !shouldCancel()) {
         if (visited.size > maxStates) { aborted = true; break; }
         const currentDepthStates = [];
@@ -689,7 +697,6 @@ export async function shapeSolver(
             if (shouldCancel()) break;
             const availableIds = current.availableIds;
             const currentKey = current.stateKey;
-            // Check if goal is reached
             if (isGoal(availableIds)) {
                 return {
                     solutionPath: reconstructPath(cameFrom, currentKey, initialKey),
@@ -697,7 +704,6 @@ export async function shapeSolver(
                     statesExplored: visited.size
                 };
             }
-            // Generate next states
             for (const desc of generateSuccessors(availableIds)) {
                 if (shouldCancel()) break;
                 const stateKey = successorStateKey(availableIds, desc);
@@ -710,17 +716,13 @@ export async function shapeSolver(
                 }
             }
         }
-        // Prune states for next depth level
         const prunedNextStates = pruneStatesAtDepth(nextDepthStates, maxStatesPerLevel);
-        // Add pruned states back to queue
         for (const state of prunedNextStates) {
             queue.push(state);
         }
-        // Move to next depth level
         if (queue.length > 0) {
             depth = queue[0].depth;
         }
-        // Periodic status update
         const now = performance.now();
         if (now - lastUpdate > 200) {
             const prunedCount = nextDepthStates.length - prunedNextStates.length;

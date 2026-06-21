@@ -38,6 +38,96 @@ export async function shapeExplorer(
         return Shape.fromShapeCode(shapesList[id].code);
     }
 
+    // Record one operation node and its edges: the op node, an edge from each input
+    // shape, and an edge to each output shape (registering newly-discovered outputs
+    // into availableIds and the per-depth frontier). Shared by the unary and binary
+    // exploration paths, which previously each carried a verbatim copy of this tail.
+    function recordOperation(opName, params, inputIds, outputCodes, newlyDiscovered) {
+        const opId = `op-${nextOpId++}`;
+        opsList.push({ id: opId, type: opName, params });
+        for (const inId of inputIds) {
+            edges.push({ source: `shape-${inId}`, target: opId });
+        }
+        for (const oc of outputCodes) {
+            const { id: outId, added } = addShapeIfNew(oc);
+            if (added) {
+                availableIds.add(outId);
+                newlyDiscovered.add(outId);
+            }
+            edges.push({ source: opId, target: `shape-${outId}` });
+        }
+    }
+
+    // Apply a 1-input operation to every shape in the frontier.
+    function exploreUnaryOp(op, opName, primaryIds, newlyDiscovered) {
+        const { fn, needsColor } = op;
+        for (const id of primaryIds) {
+            if (shouldCancel()) return;
+
+            const inputShape = getShapeById(id);
+            if (inputShape.isEmpty()) continue;
+            const colors = needsColor ? ["r"] : [null];
+
+            for (const color of colors) {
+                if (shouldCancel()) return;
+
+                const outputs = needsColor ? fn(inputShape, color, config) : fn(inputShape, config);
+                const outputCodes = outputs.map(o => o.toShapeCode()).filter(Boolean);
+
+                // Skip no-ops: output identical to the input shape.
+                if (outputCodes.some(oc => oc === shapesList[id].code)) continue;
+
+                recordOperation(opName, color ? { color } : {}, [id], outputCodes, newlyDiscovered);
+            }
+        }
+    }
+
+    // Apply a 2-input operation to every ordered pair (frontier × all-so-far).
+    function exploreBinaryOp(op, opName, startIds, primaryIds, newlyDiscovered) {
+        const { fn } = op;
+        const isStacker = opName === "Stacker";
+
+        for (const id1 of startIds) {
+            if (shouldCancel()) return;
+
+            const shape1 = getShapeById(id1);
+            if (shape1.isEmpty()) continue;
+
+            for (const id2 of primaryIds) {
+                if (shouldCancel()) return;
+
+                if (id1 === id2 && !isStacker) continue;
+                if (id1 > id2 && !isStacker) continue;
+
+                const shape2 = getShapeById(id2);
+                if (shape2.isEmpty()) continue;
+
+                // Stacker is order-sensitive, so both orderings are explored — except
+                // when they yield identical outputs, in which case keep only id1 < id2.
+                // Ops never mutate their inputs, so shape1/shape2 are reused safely.
+                if (isStacker && id1 !== id2) {
+                    const outA = fn(shape1, shape2, config)
+                        .map(o => o.toShapeCode()).filter(Boolean);
+                    const outB = fn(shape2, shape1, config)
+                        .map(o => o.toShapeCode()).filter(Boolean);
+                    if (JSON.stringify(outA) === JSON.stringify(outB) && id1 > id2) {
+                        continue;
+                    }
+                }
+
+                const outputs = fn(shape1, shape2, config);
+                const outputCodes = outputs.map(o => o.toShapeCode()).filter(Boolean);
+
+                const code1 = shapesList[id1].code;
+                const code2 = shapesList[id2].code;
+                // Skip no-ops: every output is just one of the two inputs.
+                if (outputCodes.some(oc => oc === code1 || oc === code2)) continue;
+
+                recordOperation(opName, {}, [id1, id2], outputCodes, newlyDiscovered);
+            }
+        }
+    }
+
     const availableIds = new Set();
     for (const code of startingShapeCodes) {
         const { id } = addShapeIfNew(code);
@@ -53,7 +143,7 @@ export async function shapeExplorer(
 
         const newlyDiscovered = new Set();
         const startIds = Array.from(availableIds); // All shapes found so far
-        const primaryIds = Array.from(frontier); // Shapes from previous depth
+        const primaryIds = Array.from(frontier);   // Shapes from the previous depth
 
         if (primaryIds.length === 0) break;
 
@@ -65,97 +155,10 @@ export async function shapeExplorer(
             const op = operations[opName];
             if (!op) continue;
 
-            const { fn, inputCount, needsColor } = op;
-
-            if (inputCount === 1) {
-                for (const id of primaryIds) {
-                    if (shouldCancel()) break;
-
-                    const inputShape = getShapeById(id);
-                    if (inputShape.isEmpty()) continue;
-                    const colors = needsColor ? ["r"] : [null];
-
-                    for (const color of colors) {
-                        if (shouldCancel()) break;
-
-                        const outputs = needsColor ? fn(inputShape, color, config) : fn(inputShape, config);
-                        const outputCodes = outputs.map(o => o.toShapeCode()).filter(Boolean);
-
-                        if (outputCodes.some(oc => oc === shapesList[id].code)) {
-                            continue;
-                        }
-
-                        const opId = `op-${nextOpId++}`;
-                        opsList.push({ id: opId, type: opName, params: color ? { color } : {} });
-                        edges.push({ source: `shape-${id}`, target: opId });
-
-                        for (const oc of outputCodes) {
-                            const { id: outId, added } = addShapeIfNew(oc);
-                            if (added) {
-                                availableIds.add(outId);
-                                newlyDiscovered.add(outId);
-                            }
-                            edges.push({ source: opId, target: `shape-${outId}` });
-                        }
-                    }
-                }
-            } else if (inputCount === 2) {
-                const isStacker = opName === "Stacker";
-
-                for (const id1 of startIds) {
-                    if (shouldCancel()) break;
-
-                    const s1 = getShapeById(id1);
-                    if (s1.isEmpty()) continue;
-
-                    for (const id2 of primaryIds) {
-                        if (shouldCancel()) break;
-
-                        if (id1 === id2 && !isStacker) continue;
-                        if (id1 > id2 && !isStacker) continue;
-
-                        const s2 = getShapeById(id2);
-                        if (s2.isEmpty()) continue;
-
-                        // Extra check for Stacker: compare outputs for both orders.
-                        // Ops never mutate their inputs, so s1/s2 are reused safely.
-                        if (isStacker && id1 !== id2) {
-                            const outA = fn(s1, s2, config)
-                                .map(o => o.toShapeCode()).filter(Boolean);
-                            const outB = fn(s2, s1, config)
-                                .map(o => o.toShapeCode()).filter(Boolean);
-
-                            // If same outputs, only process one ordering (id1 < id2)
-                            if (JSON.stringify(outA) === JSON.stringify(outB) && id1 > id2) {
-                                continue;
-                            }
-                        }
-
-                        const outputs = fn(s1, s2, config);
-                        const outputCodes = outputs.map(o => o.toShapeCode()).filter(Boolean);
-
-                        const code1 = shapesList[id1].code;
-                        const code2 = shapesList[id2].code;
-
-                        if (outputCodes.some(oc => oc === code1 || oc === code2)) {
-                            continue;
-                        }
-
-                        const opId = `op-${nextOpId++}`;
-                        opsList.push({ id: opId, type: opName, params: {} });
-                        edges.push({ source: `shape-${id1}`, target: opId });
-                        edges.push({ source: `shape-${id2}`, target: opId });
-
-                        for (const oc of outputCodes) {
-                            const { id: outId, added } = addShapeIfNew(oc);
-                            if (added) {
-                                availableIds.add(outId);
-                                newlyDiscovered.add(outId);
-                            }
-                            edges.push({ source: opId, target: `shape-${outId}` });
-                        }
-                    }
-                }
+            if (op.inputCount === 1) {
+                exploreUnaryOp(op, opName, primaryIds, newlyDiscovered);
+            } else if (op.inputCount === 2) {
+                exploreBinaryOp(op, opName, startIds, primaryIds, newlyDiscovered);
             }
         }
         frontier = newlyDiscovered;
