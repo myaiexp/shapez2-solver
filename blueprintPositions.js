@@ -9,37 +9,34 @@ export const ROW_PITCH = 4;
 export const MACHINE_GAP = 1;
 
 // ---------------------------------------------------------------------------
-// 4) assignPositions — place machines and route belts on the tile grid
+// Phase A: place source entries and machine rows on the tile grid
 // ---------------------------------------------------------------------------
 
 /**
- * Assign concrete (x, y) positions to machines and generate belt tiles
- * connecting them.
+ * Place source-entry belts and machine rows, recording the positions and
+ * output ports that later phases route belts between.
  *
  * Machine flow is top-to-bottom:
  *   - Inputs enter from the back (top / North side)
  *   - Outputs exit from the front (bottom / South side)
  *
- * @returns {BlueprintLayout}
+ * @returns {{
+ *   machines: Array, belts: Array,
+ *   machinePos: Map, outputPorts: Map, sourceEntries: Map,
+ *   maxRowWidth: number
+ * }} machinePos: stepIdx -> { x, y, width, depth, def, floor };
+ *    outputPorts: stepIdx -> [{ x, y, floor, shapeId, shapeCode }];
+ *    sourceEntries: shapeId -> { x, y, shapeCode }.
  */
-export function assignPositions(rows, solutionPath, topology) {
-    const { nodes, edges, sources, producedBy } = topology;
-
+function placeMachines(rows, solutionPath, sources) {
     const machines = [];
     const belts = [];
 
     // Sort row keys numerically
     const rowKeys = Array.from(rows.keys()).sort((a, b) => a - b);
 
-    // --- Phase A: place machines row by row ---
-
-    // machinePos: stepIndex -> { x, y, width, def }
     const machinePos = new Map();
-
-    // Track the x-column of each output port: stepIndex -> [{ x, shapeId, shapeCode }]
     const outputPorts = new Map();
-
-    // Source entry belts: shapeId -> { x, y, shapeCode }
     const sourceEntries = new Map();
 
     // First, figure out how wide each row is to center everything later
@@ -59,7 +56,6 @@ export function assignPositions(rows, solutionPath, topology) {
         rowWidths.set(rowIdx, width);
     }
 
-    // Also account for source entry columns needed above row 0
     // Collect all source shapes
     const allSourceIds = Array.from(sources.keys());
 
@@ -156,11 +152,22 @@ export function assignPositions(rows, solutionPath, topology) {
         }
     }
 
-    // --- Phase B: route belts between output ports and input ports ---
+    return { machines, belts, machinePos, outputPorts, sourceEntries, maxRowWidth };
+}
 
-    // Build a lookup: shapeId -> output port position (including floor)
-    const outputPortLookup = new Map(); // shapeId -> { x, y, floor, shapeCode }
-    for (const [stepIdx, ports] of outputPorts) {
+// ---------------------------------------------------------------------------
+// Phase B: build the output-port lookup, propagate Belt Splits, route belts
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a lookup from shapeId to the physical output-port position that
+ * produces it, seeded from machine output ports and source entries.
+ *
+ * @returns {Map} shapeId -> { x, y, floor, shapeCode }
+ */
+function buildPortLookup(outputPorts, sourceEntries) {
+    const outputPortLookup = new Map();
+    for (const ports of outputPorts.values()) {
         for (const port of ports) {
             outputPortLookup.set(port.shapeId, {
                 x: port.x,
@@ -181,16 +188,16 @@ export function assignPositions(rows, solutionPath, topology) {
         });
     }
 
-    // Belt Split handling: a Belt Split step's input shape ID maps to its
-    // outputs.  We need to propagate the physical position of the upstream
-    // output through Belt Splits so that each downstream consumer can find
-    // its source position.
-    //
-    // For each Belt Split, we place a split belt at the upstream output
-    // position and create virtual output entries for each of the split's
-    // outputs.
+    return outputPortLookup;
+}
 
-    // Resolve Belt Split outputs
+/**
+ * Propagate upstream output positions through Belt Split steps. For each split
+ * we place a split belt at the upstream output position and register a virtual
+ * output position for every split output, so downstream consumers can find
+ * their source. Mutates `outputPortLookup` and appends to `belts`.
+ */
+function propagateBeltSplits(solutionPath, outputPortLookup, belts) {
     for (let i = 0; i < solutionPath.length; i++) {
         const step = solutionPath[i];
         if (step.operation !== 'Belt Split') continue;
@@ -209,8 +216,8 @@ export function assignPositions(rows, solutionPath, topology) {
             shapeCode: step.inputs[0].shape
         });
 
-        // Each output of the Belt Split gets a virtual position
-        // If multiple outputs, spread them horizontally
+        // Each output of the Belt Split gets a virtual position.
+        // If multiple outputs, spread them horizontally.
         for (let oi = 0; oi < step.outputs.length; oi++) {
             const out = step.outputs[oi];
             const offsetX = oi === 0 ? 0 : oi; // first output stays in-line
@@ -222,8 +229,14 @@ export function assignPositions(rows, solutionPath, topology) {
             });
         }
     }
+}
 
-    // Now route belts for each non-Belt-Split step's inputs
+/**
+ * Route belts from each non-Belt-Split machine's input ports back to the
+ * output ports that feed them, handling floor transitions via routeBelt.
+ * Appends routed belt tiles to `belts`.
+ */
+function routeAllBelts(solutionPath, nodes, machinePos, outputPortLookup, belts) {
     const placeableSteps = new Set();
     for (const [idx, node] of nodes) {
         if (!node.isBeltSplit) placeableSteps.add(idx);
@@ -260,12 +273,14 @@ export function assignPositions(rows, solutionPath, topology) {
             routeBelt(belts, src.x, src.y, srcFloor, inputX, inputY, inputFloor, inp.shape, def, ii);
         }
     }
+}
 
-    // --- Phase C: compute grid bounds ---
+// ---------------------------------------------------------------------------
+// Phase C: derive grid floor count from placed entities
+// ---------------------------------------------------------------------------
 
-    const { gridWidth, gridHeight } = computeGridBounds(machines, belts, maxRowWidth);
-
-    // Calculate actual floor count from placed entities
+/** Count the floors actually occupied by machines (incl. multi-floor spans) and belts. */
+function computeFloorCount(machines, belts) {
     const usedFloors = new Set();
     for (const m of machines) {
         usedFloors.add(m.floor);
@@ -275,7 +290,35 @@ export function assignPositions(rows, solutionPath, topology) {
         }
     }
     for (const b of belts) usedFloors.add(b.floor);
-    const floorCount = usedFloors.size > 0 ? Math.max(...usedFloors) + 1 : 1;
+    return usedFloors.size > 0 ? Math.max(...usedFloors) + 1 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// assignPositions — orchestrate machine placement and belt routing
+// ---------------------------------------------------------------------------
+
+/**
+ * Assign concrete (x, y) positions to machines and generate belt tiles
+ * connecting them.
+ *
+ * @returns {BlueprintLayout}
+ */
+export function assignPositions(rows, solutionPath, topology) {
+    const { nodes, sources } = topology;
+
+    // Phase A: place source entries and machine rows
+    const { machines, belts, machinePos, outputPorts, sourceEntries, maxRowWidth } =
+        placeMachines(rows, solutionPath, sources);
+
+    // Phase B: build the shape -> output-port lookup, propagate Belt Splits,
+    // then route belts from each consumer's inputs back to their sources
+    const outputPortLookup = buildPortLookup(outputPorts, sourceEntries);
+    propagateBeltSplits(solutionPath, outputPortLookup, belts);
+    routeAllBelts(solutionPath, nodes, machinePos, outputPortLookup, belts);
+
+    // Phase C: compute grid bounds and floor count
+    const { gridWidth, gridHeight } = computeGridBounds(machines, belts, maxRowWidth);
+    const floorCount = computeFloorCount(machines, belts);
 
     return {
         machines,
