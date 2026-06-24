@@ -1,11 +1,8 @@
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
+import { $, $all, byId } from './domUtils.js';
 
 export const STORAGE_KEY = 'shapez2-solver-state-v1';
 export const SCHEMA_VERSION = 1;
-
-const $ = (sel) => document.querySelector(sel);
-const $all = (sel) => Array.from(document.querySelectorAll(sel));
-const byId = (id) => document.getElementById(id);
 
 const INPUT_FIELDS = {
     target: { id: 'target-shape', kind: 'value' },

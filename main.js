@@ -12,11 +12,7 @@ import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, captureState, applyState, STORAGE_KEY } from './persistence.js';
 import { getCurrentColorMode } from './colorMode.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
-
-// Utility Helpers
-const $ = (sel) => document.querySelector(sel);
-const $all = (sel) => Array.from(document.querySelectorAll(sel));
-const byId = (id) => document.getElementById(id);
+import { $, $all, byId } from './domUtils.js';
 
 // Blueprint State
 let blueprintRenderer = null;

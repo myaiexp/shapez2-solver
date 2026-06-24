@@ -343,7 +343,7 @@ export async function shapeSolver(
 
     // Map an internal step record to a public solution-path entry. Shared by
     // reconstructPath (A*/Bidirectional/BFS, which walk a cameFrom chain) and the
-    // IDA* goal case (which already holds a forward step array in frame.path).
+    // IDA* goal case (which materializes pathStack at the goal).
     function formatStep(step) {
         return {
             operation: step.type,
@@ -444,14 +444,16 @@ export async function shapeSolver(
         // Set holding the state keys currently on the stack (root → top): a key is
         // added when its frame is pushed and deleted when the frame is popped
         // (backtracking), so cycle detection stays O(depth) total instead of copying
-        // the whole Set on every push. Cycle detection prevents a duplicate key from
-        // being on the stack at once, so each delete-on-pop is unambiguous.
+        // the whole Set on every push. pathStack mirrors the same push/pop pattern
+        // for step records; the public solution path is built from pathStack only at
+        // the goal. Cycle detection prevents a duplicate key from being on the stack
+        // at once, so each delete-on-pop is unambiguous.
         const initialKey = getStateKey(initialAvailableIds);
         const pathKeys = new Set([initialKey]);
+        const pathStack = [];
         const stack = [{
             availableIds: new Set(initialAvailableIds),
             g: 0,
-            path: [],
             successorIterator: null,
             stateKey: initialKey
         }];
@@ -479,11 +481,12 @@ export async function shapeSolver(
                     nextThreshold = Math.min(nextThreshold, f);
                     pathKeys.delete(frame.stateKey);
                     stack.pop();
+                    if (frame.g > 0) pathStack.pop();
                     continue;
                 }
 
                 if (isGoal(frame.availableIds)) {
-                    solutionPath = frame.path.map(formatStep);
+                    solutionPath = pathStack.map(formatStep);
                     found = true;
                     break;
                 }
@@ -496,6 +499,7 @@ export async function shapeSolver(
             if (next.done) {
                 pathKeys.delete(frame.stateKey);
                 stack.pop();
+                if (frame.g > 0) pathStack.pop();
                 continue;
             }
 
@@ -507,11 +511,11 @@ export async function shapeSolver(
 
             const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
             pathKeys.add(succKey);
+            pathStack.push(step);
 
             stack.push({
                 availableIds: succIds,
                 g: frame.g + 1,
-                path: [...frame.path, step],
                 successorIterator: null,
                 stateKey: succKey
             });
