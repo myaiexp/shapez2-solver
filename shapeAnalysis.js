@@ -55,6 +55,8 @@ export function getCrystalColors(shape) {
     return crystalColors.size > 0 ? Array.from(crystalColors) : ["u"];
 }
 
+// Pre-#1677 A* heuristic; solver now uses _matchAndCoverage in shapeSolverCore.js.
+// Kept as a public export for tests and smoke snapshots.
 export function getSimilarity(shape1, shape2, weights = {type: 0.5, color: 0.3, order: 0.2}) {
     const typeSim = compareCounts(getPartTypeCounts(shape1), getPartTypeCounts(shape2));
     const colorSim = compareCounts(getPartCounts(shape1), getPartCounts(shape2));

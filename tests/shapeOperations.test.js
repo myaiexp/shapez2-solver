@@ -6,7 +6,9 @@
 // other unit suites already pin rotation (shapeRotation.test.js), crystals/pins
 // (shapeCrystals.test.js) and gravity (shapeGravity.test.js) with literals — but
 // the half-split geometry of cut, the layer order of stack, the Painter
-// primitive (topPaint), the A* similarity heuristic (getSimilarity) and the
+// primitive (topPaint), getSimilarity (legacy shape-comparison metric kept for
+// tests/smoke; the solver uses _matchAndCoverage in shapeSolverCore.js since
+// idea #1677, not getSimilarity) and the
 // remaining structural ops (halfCut, swapHalves, trash, beltSplit) had no
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
@@ -83,7 +85,7 @@ check('topPaint on a 3-layer shape paints just the topmost layer',
     codes(topPaint(s('CuCuCuCu:RgRgRgRg:SuSuSuSu'), 'b')),
     ['CuCuCuCu:RgRgRgRg:SbSbSbSb']);
 
-// --- getSimilarity: A* heuristic core -----------------------------------
+// --- getSimilarity: legacy similarity metric (not solver A* heuristic) ----
 // Identical shapes are maximally similar (type+colour+order all match -> 1.0).
 check('similarity of identical shapes is 1',
     getSimilarity(s('CuCuCuCu'), s('CuCuCuCu')), 1);
