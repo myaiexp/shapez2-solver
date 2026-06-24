@@ -222,19 +222,53 @@ function summarizeStrategyTrace(trace) {
 
 // Solver Worker
 let solverWorker = null;
-byId('solve-btn').addEventListener('click', () => {
-    const btn = byId('solve-btn');
-    const status = byId('status');
 
-    const solving = btn.textContent === 'Solve';
-    if (!solving) {
+function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
+    const status = byId('status');
+    const running = btn.textContent === idleLabel;
+
+    if (!running) {
         if (solverWorker) {
             solverWorker.postMessage({ action: 'cancel' });
             solverWorker.terminate();
             solverWorker = null;
         }
-        btn.textContent = 'Solve';
+        btn.textContent = idleLabel;
         status.textContent = 'Cancelled.';
+        return;
+    }
+
+    if (solverWorker) solverWorker.terminate();
+    solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
+
+    solverWorker.onmessage = ({ data: msg }) => {
+        const { type, message, result } = msg;
+
+        if (type === 'status') {
+            status.textContent = message;
+            return;
+        }
+
+        if (type === 'result') {
+            onResult(result);
+            btn.textContent = idleLabel;
+            solverWorker.terminate();
+            solverWorker = null;
+            if (persistOnComplete) persist();
+        }
+    };
+
+    btn.textContent = 'Cancel';
+    if (startStatus) status.textContent = startStatus;
+    solverWorker.postMessage({ action, data });
+}
+
+byId('solve-btn').addEventListener('click', () => {
+    const btn = byId('solve-btn');
+    const status = byId('status');
+
+    if (btn.textContent !== 'Solve') {
+        runSolverWorker({ btn, idleLabel: 'Solve', action: 'solve', data: {} });
         return;
     }
 
@@ -275,21 +309,26 @@ byId('solve-btn').addEventListener('click', () => {
         return;
     }
 
-    // Start worker
-    if (solverWorker) solverWorker.terminate();
-    solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
-
     const startTime = performance.now();
 
-    solverWorker.onmessage = ({ data }) => {
-        const { type, message, result } = data;
-
-        if (type === 'status') {
-            status.textContent = message;
-            return;
-        }
-
-        if (type === 'result') {
+    runSolverWorker({
+        btn,
+        idleLabel: 'Solve',
+        action: 'solve',
+        persistOnComplete: true,
+        data: {
+            targetShapeCode: target,
+            startingShapeCodes: starting,
+            enabledOperations: ops,
+            maxLayers,
+            maxStatesPerLevel: maxStates,
+            preventWaste,
+            orientationSensitive,
+            monolayerPainting,
+            heuristicDivisor,
+            searchMethod
+        },
+        onResult(result) {
             if (result?.solutionPath) {
                 renderGraph(result.solutionPath);
                 let layout = buildLayout(result.solutionPath);
@@ -320,47 +359,16 @@ byId('solve-btn').addEventListener('click', () => {
                     : 'No solution found.';
                 lastSolution = null;
             }
-
-            btn.textContent = 'Solve';
-            solverWorker.terminate();
-            solverWorker = null;
-            persist();
-        }
-    };
-
-    btn.textContent = 'Cancel';
-    solverWorker.postMessage({
-        action: 'solve',
-        data: {
-            targetShapeCode: target,
-            startingShapeCodes: starting,
-            enabledOperations: ops,
-            maxLayers,
-            maxStatesPerLevel: maxStates,
-            preventWaste,
-            orientationSensitive,
-            monolayerPainting,
-            heuristicDivisor,
-            searchMethod
         }
     });
 });
 
 // Space Explorer
-let spaceWorker = null;
 byId('explore-btn').addEventListener('click', () => {
     const btn = byId('explore-btn');
-    const status = byId('status');
-    const exploring = btn.textContent === 'Explore';
 
-    if (!exploring) {
-        if (spaceWorker) {
-            spaceWorker.postMessage({ action: 'cancel' });
-            spaceWorker.terminate();
-            spaceWorker = null;
-        }
-        btn.textContent = 'Explore';
-        status.textContent = 'Cancelled.';
+    if (btn.textContent !== 'Explore') {
+        runSolverWorker({ btn, idleLabel: 'Explore', action: 'explore', data: {} });
         return;
     }
 
@@ -374,35 +382,17 @@ byId('explore-btn').addEventListener('click', () => {
         if (!showValidationErrors(code, 'starting shape')) return;
     }
 
-    if (spaceWorker) spaceWorker.terminate();
-    spaceWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
-
-    spaceWorker.onmessage = ({ data }) => {
-        const { type, message, result } = data;
-
-        if (type === 'status') {
-            status.textContent = message;
-            return;
-        }
-
-        if (type === 'result') {
-            btn.textContent = 'Explore';
-            
+    runSolverWorker({
+        btn,
+        idleLabel: 'Explore',
+        action: 'explore',
+        startStatus: 'Exploring...',
+        data: { startingShapeCodes: starting, enabledOperations: ops, depthLimit, maxLayers, targetShapeCode },
+        onResult(result) {
             if (result) {
                 renderSpaceGraph(result);
             }
-
-            spaceWorker.terminate();
-            spaceWorker = null;
         }
-    };
-
-    btn.textContent = 'Cancel';
-    status.textContent = 'Exploring...';
-
-    spaceWorker.postMessage({
-        action: 'explore',
-        data: { startingShapeCodes: starting, enabledOperations: ops, depthLimit, maxLayers, targetShapeCode }
     });
 });
 

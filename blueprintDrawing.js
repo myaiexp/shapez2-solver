@@ -33,7 +33,7 @@ export function drawScene(ctx, layout, visibleMachines, visibleBelts, shapeIconC
     ctx.restore();
 }
 
-export function drawGrid(ctx, layout) {
+function drawGrid(ctx, layout) {
     const gw = layout.gridWidth;
     const gh = layout.gridHeight;
     const totalW = gw * TILE_SIZE;
@@ -56,7 +56,7 @@ export function drawGrid(ctx, layout) {
     ctx.stroke();
 }
 
-export function drawBelts(ctx, visibleBelts, shapeIconCache) {
+function drawBelts(ctx, visibleBelts, shapeIconCache) {
     for (const belt of visibleBelts) {
         const cx = belt.x * TILE_SIZE + TILE_SIZE / 2;
         const cy = belt.y * TILE_SIZE + TILE_SIZE / 2;
@@ -125,7 +125,7 @@ export function drawBelts(ctx, visibleBelts, shapeIconCache) {
     }
 }
 
-export function drawMachines(ctx, visibleMachines) {
+function drawMachines(ctx, visibleMachines) {
     for (const machine of visibleMachines) {
         const w = (machine.def?.width  ?? 1) * TILE_SIZE;
         const h = (machine.def?.depth  ?? 1) * TILE_SIZE;

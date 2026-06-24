@@ -100,10 +100,6 @@ function buildGraph2DLayout(direction, extra = {}) {
     };
 }
 
-export function getCyInstance() {
-    return cyInstance;
-}
-
 export function renderGraph(solutionPath) {
     const container = document.getElementById('graph-container');
     container.replaceChildren();
