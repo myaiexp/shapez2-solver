@@ -1,8 +1,8 @@
 import {
     Shape, ShapePart, NOTHING_CHAR, SHAPE_LAYER_SEPARATOR,
     UNPAINTABLE_SHAPES,
-    rotate90CW, rotate90CCW, rotate180
-} from './shapeOperations.js';
+} from './shapeClass.js';
+import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
 
 /**
  * Unpaint: set all paintable parts on the top layer to uncolored.

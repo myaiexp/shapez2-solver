@@ -8,7 +8,8 @@
 
 import { shapeSolver } from './shapeSolverCore.js';
 import { splitByLayer, splitByQuadrant, splitByHalf, cost, opCountOf } from './shapeSolverDecompose.js';
-import { stack, ShapeOperationConfig, getAllRotations } from './shapeOperations.js';
+import { ShapeOperationConfig } from './shapeClass.js';
+import { stack, getAllRotations } from './shapeOperations.js';
 import { getCachedShape } from './shapeSolverCache.js';
 
 export async function solveConstructive(

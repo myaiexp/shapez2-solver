@@ -1,4 +1,5 @@
-import { ShapeOperationConfig, NOTHING_CHAR, getAllRotations } from './shapeOperations.js';
+import { ShapeOperationConfig, NOTHING_CHAR } from './shapeClass.js';
+import { getAllRotations } from './shapeOperations.js';
 import { getCrystalColors } from './shapeAnalysis.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
 import {

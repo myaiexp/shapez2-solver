@@ -6,7 +6,8 @@
 // spread the inputs' layer arrays into makeLayersFall — a function that mutates
 // its argument in place. Run with: node tests/shapeCacheIntegrity.test.js
 import { Shape } from '../shapeClass.js';
-import { cut, halfCut, stack, swapHalves, topPaint, pushPin, genCrystal, rotate90CW } from '../shapeOperations.js';
+import { rotate90CW } from '../shapeRotation.js';
+import { cut, halfCut, stack, swapHalves, topPaint, pushPin, genCrystal } from '../shapeOperations.js';
 
 let passed = 0;
 let total = 0;

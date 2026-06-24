@@ -108,6 +108,12 @@ export function getConnectedMultiLayer(layers, layerIndex, partIndex, connectedF
     return connected;
 }
 
+export function cloneLayers(layers) {
+    return layers.map(layer =>
+        layer.map(part => new ShapePart(part.shape, part.color))
+    );
+}
+
 export function breakCrystals(layers, layerIndex, partIndex) {
     for (const [curLayer, curPart] of getConnectedMultiLayer(layers, layerIndex, partIndex, crystalsFused)) {
         layers[curLayer][curPart] = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);

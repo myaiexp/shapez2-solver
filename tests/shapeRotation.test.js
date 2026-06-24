@@ -2,8 +2,6 @@
 import { Shape } from '../shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from '../shapeRotation.js';
 import { comparePartOrder } from '../shapeAnalysis.js';
-import { rotate90CW as opsRotate90CW } from '../shapeOperations.js';
-
 let passed = 0;
 let total = 0;
 let failed = false;
@@ -35,10 +33,6 @@ check('rotate180 shifts parts by half',
 let r = s('CuRuSuWu');
 for (let i = 0; i < 4; i++) r = rotate90CW(r)[0];
 check('rotate90CW x4 is identity', r.toShapeCode(), 'CuRuSuWu');
-
-// shapeOperations re-export is the exact same function reference (byte-identical API).
-check('shapeOperations re-exports the same rotate90CW',
-    opsRotate90CW === rotate90CW, true);
 
 // comparePartOrder ordering against a KNOWN rotation case.
 // Identity: a shape compared with itself matches fully.

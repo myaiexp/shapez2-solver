@@ -1,5 +1,6 @@
+import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
 import {
-    halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack,
+    halfCut, cut, swapHalves, stack,
     topPaint, pushPin, genCrystal, trash, beltSplit
 } from './shapeOperations.js';
 

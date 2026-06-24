@@ -6,7 +6,7 @@ import {
     CRYSTAL_CHAR,
     REFINED_X_CHAR,
     REFINED_Y_CHAR
-} from './shapeOperations.js';
+} from './shapeClass.js';
 
 // Valid shape characters (updated for Shapez 2 1.0 — includes refined X/Y)
 const VALID_SHAPES = [

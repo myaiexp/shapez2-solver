@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { Shape, cut, stack, rotate90CW } from '../shapeOperations.js';
+import { Shape } from '../shapeClass.js';
+import { cut, stack } from '../shapeOperations.js';
+import { rotate90CW } from '../shapeRotation.js';
 import { getSimilarity } from '../shapeAnalysis.js';
 import { buildLayout } from '../blueprintLayout.js';
 import { shapeSolver, operations } from '../shapeSolverCore.js';

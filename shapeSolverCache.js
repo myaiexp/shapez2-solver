@@ -1,4 +1,4 @@
-import { Shape } from './shapeOperations.js';
+import { Shape } from './shapeClass.js';
 
 // ---------------------------------------------------------------------------
 // Optimization 1: Shape Parsing Cache

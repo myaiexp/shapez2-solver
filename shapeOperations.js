@@ -13,39 +13,18 @@ import {
 import {
     crystalsFused,
     breakCrystals,
+    cloneLayers,
     makeLayersFall,
     cleanUpEmptyUpperLayers,
     differentNumPartsUnsupported
 } from './shapeOperationsHelpers.js';
 import { rotate90CW } from './shapeRotation.js';
 
-// Re-exports for backward compatibility
-export {
-    NOTHING_CHAR,
-    SHAPE_LAYER_SEPARATOR,
-    PIN_CHAR,
-    CRYSTAL_CHAR,
-    REFINED_X_CHAR,
-    REFINED_Y_CHAR,
-    UNPAINTABLE_SHAPES,
-    REPLACED_BY_CRYSTAL,
-    ShapePart,
-    Shape,
-    InvalidOperationInputs,
-    ShapeOperationConfig
-} from './shapeClass.js';
-
-export {
-    rotate90CW,
-    rotate90CCW,
-    rotate180
-} from './shapeRotation.js';
-
 // Shape Operations
 export function cut(shape, config = new ShapeOperationConfig()) {
     const takeParts = Math.ceil(shape.numParts / 2);
     const cutPoints = [[0, shape.numParts - 1], [shape.numParts - takeParts, shape.numParts - takeParts - 1]];
-    const layers = JSON.parse(JSON.stringify(shape.layers)); // Deep copy
+    const layers = cloneLayers(shape.layers);
 
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
         for (const [start, end] of cutPoints) {
@@ -116,9 +95,9 @@ export const stack = differentNumPartsUnsupported(function(bottomShape, topShape
     // so passing the shared layer arrays from bottomShape/topShape would corrupt those
     // (cached) shapes. cut() and pushPin() copy for the same reason.
     const newLayers = [
-        ...JSON.parse(JSON.stringify(bottomShape.layers)),
+        ...cloneLayers(bottomShape.layers),
         Array.from({ length: bottomShape.numParts }, () => new ShapePart(NOTHING_CHAR, NOTHING_CHAR)),
-        ...JSON.parse(JSON.stringify(topShape.layers))
+        ...cloneLayers(topShape.layers)
     ];
     const processed = cleanUpEmptyUpperLayers(makeLayersFall(newLayers));
     return [new Shape(processed.slice(0, config.maxShapeLayers))];
@@ -134,7 +113,7 @@ export function topPaint(shape, color, config = new ShapeOperationConfig()) {
 }
 
 export function pushPin(shape, config = new ShapeOperationConfig()) {
-    const layers = JSON.parse(JSON.stringify(shape.layers)); // Deep copy
+    const layers = cloneLayers(shape.layers);
     const addedPins = [];
 
     for (const part of layers[0]) {

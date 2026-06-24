@@ -1,4 +1,5 @@
-import { NOTHING_CHAR, getAllRotations } from './shapeOperations.js';
+import { NOTHING_CHAR } from './shapeClass.js';
+import { getAllRotations } from './shapeOperations.js';
 import { getPaintColors, getCrystalColors } from './shapeAnalysis.js';
 import {
     getCachedOpResult1,

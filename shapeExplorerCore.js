@@ -1,4 +1,4 @@
-import { ShapeOperationConfig } from './shapeOperations.js';
+import { ShapeOperationConfig } from './shapeClass.js';
 import { operations } from './shapeSolverOperations.js';
 import {
     shapeCache,

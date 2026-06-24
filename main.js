@@ -1,6 +1,7 @@
 // Imports
 import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
-import { Shape, extractLayers } from './shapeOperations.js';
+import { Shape } from './shapeClass.js';
+import { extractLayers } from './shapeOperations.js';
 import { filterStartingShapes } from './shapeAnalysis.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
