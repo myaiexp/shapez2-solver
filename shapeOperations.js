@@ -11,11 +11,11 @@ import {
     CRYSTAL_CHAR
 } from './shapeClass.js';
 import {
-    _crystalsFused,
-    _breakCrystals,
-    _makeLayersFall,
-    _cleanUpEmptyUpperLayers,
-    _differentNumPartsUnsupported
+    crystalsFused,
+    breakCrystals,
+    makeLayersFall,
+    cleanUpEmptyUpperLayers,
+    differentNumPartsUnsupported
 } from './shapeOperationsHelpers.js';
 import { rotate90CW } from './shapeRotation.js';
 
@@ -49,8 +49,8 @@ export function cut(shape, config = new ShapeOperationConfig()) {
 
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
         for (const [start, end] of cutPoints) {
-            if (_crystalsFused(layers[layerIndex][start], layers[layerIndex][end])) {
-                _breakCrystals(layers, layerIndex, start);
+            if (crystalsFused(layers[layerIndex][start], layers[layerIndex][end])) {
+                breakCrystals(layers, layerIndex, start);
             }
         }
     }
@@ -69,8 +69,8 @@ export function cut(shape, config = new ShapeOperationConfig()) {
     }
 
     const [processedA, processedB] = [
-        _cleanUpEmptyUpperLayers(_makeLayersFall(shapeA)),
-        _cleanUpEmptyUpperLayers(_makeLayersFall(shapeB))
+        cleanUpEmptyUpperLayers(makeLayersFall(shapeA)),
+        cleanUpEmptyUpperLayers(makeLayersFall(shapeB))
     ];
 
     return [new Shape(processedA), new Shape(processedB)];
@@ -80,7 +80,7 @@ export function halfCut(shape, config = new ShapeOperationConfig()) {
     return [cut(shape, config)[1]];
 }
 
-export const swapHalves = _differentNumPartsUnsupported(function(shapeA, shapeB, config = new ShapeOperationConfig()) {
+export const swapHalves = differentNumPartsUnsupported(function(shapeA, shapeB, config = new ShapeOperationConfig()) {
     const numLayers = Math.max(shapeA.numLayers, shapeB.numLayers);
     const takeParts = Math.ceil(shapeA.numParts / 2);
     const [shapeACut1, shapeACut2] = cut(shapeA, config);
@@ -105,14 +105,14 @@ export const swapHalves = _differentNumPartsUnsupported(function(shapeA, shapeB,
         ]);
     }
 
-    const processedA = _cleanUpEmptyUpperLayers(returnShapeA);
-    const processedB = _cleanUpEmptyUpperLayers(returnShapeB);
+    const processedA = cleanUpEmptyUpperLayers(returnShapeA);
+    const processedB = cleanUpEmptyUpperLayers(returnShapeB);
 
     return [new Shape(processedA), new Shape(processedB)];
 });
 
-export const stack = _differentNumPartsUnsupported(function(bottomShape, topShape, config = new ShapeOperationConfig()) {
-    // Deep-copy input layers: _makeLayersFall mutates its `layers` argument in place,
+export const stack = differentNumPartsUnsupported(function(bottomShape, topShape, config = new ShapeOperationConfig()) {
+    // Deep-copy input layers: makeLayersFall mutates its `layers` argument in place,
     // so passing the shared layer arrays from bottomShape/topShape would corrupt those
     // (cached) shapes. cut() and pushPin() copy for the same reason.
     const newLayers = [
@@ -120,7 +120,7 @@ export const stack = _differentNumPartsUnsupported(function(bottomShape, topShap
         Array.from({ length: bottomShape.numParts }, () => new ShapePart(NOTHING_CHAR, NOTHING_CHAR)),
         ...JSON.parse(JSON.stringify(topShape.layers))
     ];
-    const processed = _cleanUpEmptyUpperLayers(_makeLayersFall(newLayers));
+    const processed = cleanUpEmptyUpperLayers(makeLayersFall(newLayers));
     return [new Shape(processed.slice(0, config.maxShapeLayers))];
 });
 
@@ -153,13 +153,13 @@ export function pushPin(shape, config = new ShapeOperationConfig()) {
         const removedLayer = layers[config.maxShapeLayers - 1];
         for (let partIndex = 0; partIndex < newLayers[newLayers.length - 1].length; partIndex++) {
             const part = newLayers[newLayers.length - 1][partIndex];
-            if (_crystalsFused(part, removedLayer[partIndex])) {
-                _breakCrystals(newLayers, newLayers.length - 1, partIndex);
+            if (crystalsFused(part, removedLayer[partIndex])) {
+                breakCrystals(newLayers, newLayers.length - 1, partIndex);
             }
         }
     }
 
-    const processed = _cleanUpEmptyUpperLayers(_makeLayersFall(newLayers));
+    const processed = cleanUpEmptyUpperLayers(makeLayersFall(newLayers));
     return [new Shape(processed)];
 }
 

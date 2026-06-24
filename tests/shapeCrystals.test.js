@@ -1,15 +1,15 @@
 // Unit tests for crystal mechanics — run with: node tests/shapeCrystals.test.js
 // Covers genCrystal (color assignment), pushPin (with/without maxLayers
-// overflow), _breakCrystals via a cut on a fused-crystal ring, and the
-// connected-component traversal helpers (_getConnectedSingleLayer wrap-around,
-// _getConnectedMultiLayer up/down layer linking) with the _crystalsFused predicate.
+// overflow), breakCrystals via a cut on a fused-crystal ring, and the
+// connected-component traversal helpers (getConnectedSingleLayer wrap-around,
+// getConnectedMultiLayer up/down layer linking) with the crystalsFused predicate.
 import { Shape, ShapePart, ShapeOperationConfig } from '../shapeClass.js';
 import { cut, pushPin, genCrystal } from '../shapeOperations.js';
 import {
-    _crystalsFused,
-    _getConnectedSingleLayer,
-    _getConnectedMultiLayer
-} from '../shapeOperationsHelpers.js';
+    crystalsFused,
+    getConnectedSingleLayer,
+    getConnectedMultiLayer
+} from '../shapeOperationsTestUtils.js';
 
 let passed = 0;
 let total = 0;
@@ -35,14 +35,14 @@ const layerOf = code => Shape.fromShapeCode(code).layers[0];
 const layersOf = code => Shape.fromShapeCode(code).layers;
 const part = (shape, color) => new ShapePart(shape, color);
 
-// --- _crystalsFused predicate --------------------------------------------
+// --- crystalsFused predicate --------------------------------------------
 // Fusion holds only when BOTH parts are crystals; colors are irrelevant.
 check('crystalsFused: two crystals fuse regardless of colour',
-    _crystalsFused(part('c', 'r'), part('c', 'b')), true);
+    crystalsFused(part('c', 'r'), part('c', 'b')), true);
 check('crystalsFused: crystal + solid shape do not fuse',
-    _crystalsFused(part('c', 'r'), part('C', 'u')), false);
+    crystalsFused(part('c', 'r'), part('C', 'u')), false);
 check('crystalsFused: crystal + empty do not fuse',
-    _crystalsFused(part('c', 'r'), part('-', '-')), false);
+    crystalsFused(part('c', 'r'), part('-', '-')), false);
 
 // --- genCrystal ----------------------------------------------------------
 // Pins and empty cells become crystals of the requested colour; existing
@@ -78,36 +78,36 @@ check('pushPin: shatters crystals fused across the dropped overflow layer',
     codes(pushPin(Shape.fromShapeCode('cr--:cr--'), new ShapeOperationConfig(2))),
     ['P---']);
 
-// --- _breakCrystals via cut ----------------------------------------------
+// --- breakCrystals via cut ----------------------------------------------
 // A full ring of fused crystals is fused across BOTH cut seams. Cutting
-// triggers _breakCrystals, whose connected-component walk shatters the entire
+// triggers breakCrystals, whose connected-component walk shatters the entire
 // fused ring, so both halves come out empty.
 check('cut: shatters a fully-fused crystal ring on both halves',
     codes(cut(Shape.fromShapeCode('crcrcrcr'))), ['--------', '--------']);
 
-// --- _getConnectedSingleLayer (with _crystalsFused) ----------------------
+// --- getConnectedSingleLayer (with crystalsFused) ----------------------
 // A fully-fused ring links every index in one component.
 check('singleLayer: full fused ring links all four parts',
-    _getConnectedSingleLayer(layerOf('crcrcrcr'), 0, _crystalsFused),
+    getConnectedSingleLayer(layerOf('crcrcrcr'), 0, crystalsFused),
     [0, 1, 2, 3]);
 
 // Circular wrap-around: from index 0, forward stops at the empty index 2,
 // but the backward walk wraps past the seam to reach the fused index 3.
 // [cr, cr, --, cr] starting at 0 -> {0, 1, 3} (3 found via wrap-around).
 check('singleLayer: wraps around the seam to reach a fused part',
-    _getConnectedSingleLayer(layerOf('crcr--cr'), 0, _crystalsFused),
+    getConnectedSingleLayer(layerOf('crcr--cr'), 0, crystalsFused),
     [0, 1, 3]);
 
 // Starting on an empty cell short-circuits to the empty component.
 check('singleLayer: empty start index yields no component',
-    _getConnectedSingleLayer(layerOf('--crcrcr'), 0, _crystalsFused),
+    getConnectedSingleLayer(layerOf('--crcrcr'), 0, crystalsFused),
     []);
 
-// --- _getConnectedMultiLayer (with _crystalsFused) -----------------------
+// --- getConnectedMultiLayer (with crystalsFused) -----------------------
 // Vertical fusion across three layers, walked from the MIDDLE layer: the
 // component must extend both DOWN (to layer 0) and UP (to layer 2).
 check('multiLayer: links both up and down from a middle layer',
-    _getConnectedMultiLayer(layersOf('cr:cr:cr'), 1, 0, _crystalsFused),
+    getConnectedMultiLayer(layersOf('cr:cr:cr'), 1, 0, crystalsFused),
     [[1, 0], [0, 0], [2, 0]]);
 
 // Combined topology: a bottom-layer ring that wraps the seam (0 <-> 3) plus a
@@ -115,7 +115,7 @@ check('multiLayer: links both up and down from a middle layer',
 //   layer0: cr -- -- cr   (0 and 3 fused across the seam)
 //   layer1: cr -- -- --   (fused above column 0)
 check('multiLayer: combines seam wrap-around with an upward layer link',
-    _getConnectedMultiLayer(layersOf('cr----cr:cr------'), 0, 0, _crystalsFused),
+    getConnectedMultiLayer(layersOf('cr----cr:cr------'), 0, 0, crystalsFused),
     [[0, 0], [0, 3], [1, 0]]);
 
 console.log(`[${passed}/${total} passed]`);

@@ -1,6 +1,6 @@
-// Unit tests for _makeLayersFall gravity/support physics — run with: node tests/shapeGravity.test.js
+// Unit tests for makeLayersFall gravity/support physics — run with: node tests/shapeGravity.test.js
 import { Shape } from '../shapeClass.js';
-import { _makeLayersFall } from '../shapeOperationsHelpers.js';
+import { makeLayersFall } from '../shapeOperationsTestUtils.js';
 
 let passed = 0;
 let total = 0;
@@ -18,19 +18,19 @@ function check(name, actual, expected) {
     }
 }
 
-// _makeLayersFall mutates a raw layers array in place; round-trip through shape
+// makeLayersFall mutates a raw layers array in place; round-trip through shape
 // codes so assertions read as Shapez 2 notation. First segment = bottom layer
 // (index 0 = floor); '-'=empty, 'c'=crystal, uppercase letters = solid shapes.
 const fall = code => {
     const layers = Shape.fromShapeCode(code).layers;
-    _makeLayersFall(layers);
+    makeLayersFall(layers);
     return new Shape(layers).toShapeCode();
 };
 
 // --- Fall geometry -------------------------------------------------------
 
-// An unsupported part free-falls to the floor (layer 0). _makeLayersFall does
-// NOT trim emptied upper layers (that's _cleanUpEmptyUpperLayers), so the
+// An unsupported part free-falls to the floor (layer 0). makeLayersFall does
+// NOT trim emptied upper layers (that's cleanUpEmptyUpperLayers), so the
 // vacated top layer remains as '--'.
 check('unsupported part falls to the floor',
     fall('--:Cu'), 'Cu:--');

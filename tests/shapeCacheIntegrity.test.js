@@ -3,7 +3,7 @@
 // mutation of an input corrupts every later read of that shape and produces
 // impossible solution paths (e.g. "Crystal Generator: SuSuSuSu -> cucucucu",
 // "Rotator CW: CuCuRuRu -> Ru----Ru"). The original culprit was stack(), which
-// spread the inputs' layer arrays into _makeLayersFall — a function that mutates
+// spread the inputs' layer arrays into makeLayersFall — a function that mutates
 // its argument in place. Run with: node tests/shapeCacheIntegrity.test.js
 import { Shape } from '../shapeClass.js';
 import { cut, halfCut, stack, swapHalves, topPaint, pushPin, genCrystal, rotate90CW } from '../shapeOperations.js';
@@ -37,7 +37,7 @@ const cases = [
     ['rotate90CW keeps input intact', a => rotate90CW(a),                'CuRuSuWu', null],
     // 2-input ops — the regression cases. The bottom is half-empty so gravity in
     // stack() makes the top group fall, which is exactly what reassigns layer
-    // slots inside _makeLayersFall.
+    // slots inside makeLayersFall.
     ['stack keeps bottom intact',     (a, b) => stack(a, b),             'CuCu----', 'SuSuSuSu'],
     ['stack keeps top intact (falls)',(a, b) => stack(b, a),             'SuSuSuSu', 'CuCu----'],
     ['swapHalves keeps inputs intact',(a, b) => swapHalves(a, b),        'CuCuCuCu', 'RuRuRuRu'],

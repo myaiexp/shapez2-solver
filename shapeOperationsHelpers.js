@@ -8,19 +8,23 @@ import {
     CRYSTAL_CHAR
 } from './shapeClass.js';
 
+function cellKey(layer, part) {
+    return `${layer},${part}`;
+}
+
 // Shape Logic & Utility Functions
-export function _gravityConnected(part1, part2) {
+export function gravityConnected(part1, part2) {
     if ([NOTHING_CHAR, PIN_CHAR].includes(part1.shape) || [NOTHING_CHAR, PIN_CHAR].includes(part2.shape)) {
         return false;
     }
     return true;
 }
 
-export function _crystalsFused(part1, part2) {
+export function crystalsFused(part1, part2) {
     return part1.shape === CRYSTAL_CHAR && part2.shape === CRYSTAL_CHAR;
 }
 
-export function _getCorrectedIndex(list, index) {
+function getCorrectedIndex(list, index) {
     if (index > list.length - 1) {
         return index - list.length;
     }
@@ -30,7 +34,7 @@ export function _getCorrectedIndex(list, index) {
     return index;
 }
 
-export function _getConnectedSingleLayer(layer, index, connectedFunc) {
+export function getConnectedSingleLayer(layer, index, connectedFunc) {
     if (layer[index].shape === NOTHING_CHAR) {
         return [];
     }
@@ -39,7 +43,7 @@ export function _getConnectedSingleLayer(layer, index, connectedFunc) {
     let previousIndex = index;
 
     for (let i = index + 1; i < layer.length + index; i++) {
-        const curIndex = _getCorrectedIndex(layer, i);
+        const curIndex = getCorrectedIndex(layer, i);
         if (!connectedFunc(layer[previousIndex], layer[curIndex])) {
             break;
         }
@@ -49,7 +53,7 @@ export function _getConnectedSingleLayer(layer, index, connectedFunc) {
 
     previousIndex = index;
     for (let i = index - 1; i > -layer.length + index; i--) {
-        const curIndex = _getCorrectedIndex(layer, i);
+        const curIndex = getCorrectedIndex(layer, i);
         if (connected.includes(curIndex)) {
             break;
         }
@@ -63,34 +67,39 @@ export function _getConnectedSingleLayer(layer, index, connectedFunc) {
     return connected;
 }
 
-export function _getConnectedMultiLayer(layers, layerIndex, partIndex, connectedFunc) {
+export function getConnectedMultiLayer(layers, layerIndex, partIndex, connectedFunc) {
     if (layers[layerIndex][partIndex].shape === NOTHING_CHAR) {
         return [];
     }
 
     const connected = [[layerIndex, partIndex]];
+    const seen = new Set([cellKey(layerIndex, partIndex)]);
+
     for (const [curLayer, curPart] of connected) {
-        // same layer
-        for (const partIdx of _getConnectedSingleLayer(layers[curLayer], curPart, connectedFunc)) {
-            if (!connected.some(([l, p]) => l === curLayer && p === partIdx)) {
+        for (const partIdx of getConnectedSingleLayer(layers[curLayer], curPart, connectedFunc)) {
+            const key = cellKey(curLayer, partIdx);
+            if (!seen.has(key)) {
+                seen.add(key);
                 connected.push([curLayer, partIdx]);
             }
         }
 
-        // layer below
         const toCheckLayer = curLayer - 1;
         const toCheckPart = curPart;
-        if (curLayer > 0 && !connected.some(([l, p]) => l === toCheckLayer && p === toCheckPart)) {
-            if (connectedFunc(layers[curLayer][curPart], layers[toCheckLayer][toCheckPart])) {
+        if (curLayer > 0) {
+            const key = cellKey(toCheckLayer, toCheckPart);
+            if (!seen.has(key) && connectedFunc(layers[curLayer][curPart], layers[toCheckLayer][toCheckPart])) {
+                seen.add(key);
                 connected.push([toCheckLayer, toCheckPart]);
             }
         }
 
-        // layer above
         const toCheckLayerAbove = curLayer + 1;
         const toCheckPartAbove = curPart;
-        if (curLayer < layers.length - 1 && !connected.some(([l, p]) => l === toCheckLayerAbove && p === toCheckPartAbove)) {
-            if (connectedFunc(layers[curLayer][curPart], layers[toCheckLayerAbove][toCheckPartAbove])) {
+        if (curLayer < layers.length - 1) {
+            const key = cellKey(toCheckLayerAbove, toCheckPartAbove);
+            if (!seen.has(key) && connectedFunc(layers[curLayer][curPart], layers[toCheckLayerAbove][toCheckPartAbove])) {
+                seen.add(key);
                 connected.push([toCheckLayerAbove, toCheckPartAbove]);
             }
         }
@@ -99,22 +108,22 @@ export function _getConnectedMultiLayer(layers, layerIndex, partIndex, connected
     return connected;
 }
 
-export function _breakCrystals(layers, layerIndex, partIndex) {
-    for (const [curLayer, curPart] of _getConnectedMultiLayer(layers, layerIndex, partIndex, _crystalsFused)) {
+export function breakCrystals(layers, layerIndex, partIndex) {
+    for (const [curLayer, curPart] of getConnectedMultiLayer(layers, layerIndex, partIndex, crystalsFused)) {
         layers[curLayer][curPart] = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);
     }
 }
 
-export function _makeLayersFall(layers) {
+export function makeLayersFall(layers) {
     function sepInGroups(layer) {
-        const handledIndexes = [];
+        const handledIndexes = new Set();
         const groups = [];
         for (let partIndex = 0; partIndex < layer.length; partIndex++) {
-            if (handledIndexes.includes(partIndex)) continue;
-            const group = _getConnectedSingleLayer(layer, partIndex, _gravityConnected);
+            if (handledIndexes.has(partIndex)) continue;
+            const group = getConnectedSingleLayer(layer, partIndex, gravityConnected);
             if (group.length > 0) {
                 groups.push(group);
-                handledIndexes.push(...group);
+                for (const idx of group) handledIndexes.add(idx);
             }
         }
         return groups;
@@ -153,13 +162,13 @@ export function _makeLayersFall(layers) {
             mark(li + 1, pi);
 
             // Same-layer gravity-connected neighbours hold each other up.
-            const nextPi = _getCorrectedIndex(layer, pi + 1);
-            if (_gravityConnected(part, layer[nextPi])) mark(li, nextPi);
-            const prevPi = _getCorrectedIndex(layer, pi - 1);
-            if (_gravityConnected(part, layer[prevPi])) mark(li, prevPi);
+            const nextPi = getCorrectedIndex(layer, pi + 1);
+            if (gravityConnected(part, layer[nextPi])) mark(li, nextPi);
+            const prevPi = getCorrectedIndex(layer, pi - 1);
+            if (gravityConnected(part, layer[prevPi])) mark(li, prevPi);
 
             // A fused crystal directly below hangs from this one.
-            if (li - 1 >= 0 && _crystalsFused(part, layers[li - 1][pi])) mark(li - 1, pi);
+            if (li - 1 >= 0 && crystalsFused(part, layers[li - 1][pi])) mark(li - 1, pi);
         }
 
         return supported;
@@ -211,7 +220,7 @@ export function _makeLayersFall(layers) {
     return layers;
 }
 
-export function _cleanUpEmptyUpperLayers(layers) {
+export function cleanUpEmptyUpperLayers(layers) {
     if (layers.length === 0) {
         return [];
     }
@@ -225,7 +234,7 @@ export function _cleanUpEmptyUpperLayers(layers) {
     return [layers[0]];
 }
 
-export function _differentNumPartsUnsupported(func) {
+export function differentNumPartsUnsupported(func) {
     return function(...args) {
         let config = new ShapeOperationConfig();
         let shapes = [];
