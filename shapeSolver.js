@@ -63,7 +63,7 @@ self.onmessage = async function (e) {
         }
     } else if (action === 'explore') {
         cancelled = false;
-        const { startingShapeCodes, enabledOperations, depthLimit, maxLayers } = data;
+        const { startingShapeCodes, enabledOperations, depthLimit, maxLayers, targetShapeCode } = data;
         try {
             const graph = await shapeExplorer(
                 startingShapeCodes,
@@ -71,7 +71,8 @@ self.onmessage = async function (e) {
                 depthLimit || 999,
                 maxLayers || 4,
                 shouldCancel,
-                onProgress
+                onProgress,
+                targetShapeCode || null
             );
             if (!cancelled) self.postMessage({ type: 'result', result: graph });
         } catch (err) {

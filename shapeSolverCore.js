@@ -1,57 +1,22 @@
-import {
-    ShapeOperationConfig, NOTHING_CHAR,
-    getAllRotations,
-    halfCut, cut, swapHalves, rotate90CW, rotate90CCW, rotate180, stack, topPaint, pushPin, genCrystal, trash, beltSplit
-} from './shapeOperations.js';
-import { getPaintColors, getCrystalColors } from './shapeAnalysis.js';
+import { ShapeOperationConfig, NOTHING_CHAR, getAllRotations } from './shapeOperations.js';
+import { getCrystalColors } from './shapeAnalysis.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
 import {
     shapeCache,
     operationResultCache,
     getCachedShape,
-    getCachedOpResult1,
-    getCachedOpResult1Color,
-    getCachedOpResult2
 } from './shapeSolverCache.js';
 import { buildBackwardReachability } from './shapeSolverBackward.js';
+import { operations } from './shapeSolverOperations.js';
+import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
 
-export const operations = {
-    "Rotator CW": { fn: rotate90CW, inputCount: 1 },
-    "Rotator CCW": { fn: rotate90CCW, inputCount: 1 },
-    "Rotator 180": { fn: rotate180, inputCount: 1 },
-    "Half Destroyer": { fn: halfCut, inputCount: 1 },
-    "Cutter": { fn: cut, inputCount: 1 },
-    "Swapper": { fn: swapHalves, inputCount: 2 },
-    "Stacker": { fn: stack, inputCount: 2 },
-    "Painter": { fn: topPaint, inputCount: 1, needsColor: true },
-    "Pin Pusher": { fn: pushPin, inputCount: 1 },
-    "Crystal Generator": { fn: genCrystal, inputCount: 1, needsColor: true },
-    "Trash": { fn: trash, inputCount: 1 },
-    "Belt Split": { fn: beltSplit, inputCount: 1 }
-};
+export { operations } from './shapeSolverOperations.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
 // precompute outward from the target before the forward A* runs. 4 trades map
 // coverage against build cost (the reverse frontier branches fast); it is fixed
 // rather than user-tunable and intentionally independent of maxLayers.
 const BIDIRECTIONAL_BACKWARD_DEPTH = 4;
-
-// Build a single-input successor descriptor from an op's raw output shapes.
-// Shared by the painter (per-colour) and non-painter paths in generateSuccessors,
-// which otherwise carried a verbatim copy of this collect/skip-empties/skip-no-op
-// loop. Returns null when no usable output remains, so the caller can skip it.
-function buildSingleInputDescriptor(opName, id, inputCode, outputs, color) {
-    const outputCodes = [];
-    for (const outputShape of outputs) {
-        if (outputShape.isEmpty()) continue;
-        const outCode = outputShape.toShapeCode();
-        if (outCode === inputCode) continue; // skip no-op: output same as input
-        outputCodes.push(outCode);
-    }
-    return outputCodes.length > 0
-        ? { type: opName, inputIds: [id], outputCodes, color }
-        : null;
-}
 
 // ---------------------------------------------------------------------------
 // Main solver
@@ -311,37 +276,31 @@ export async function shapeSolver(
     // accepts, so rejected successors never grow the shapes Map (the old
     // unbounded-growth bug minted ids for every edge, kept or not).
     // Includes operation pruning and the operation-result cache.
+    const expansionColorContext = {
+        target,
+        targetCrystalColors,
+        getShape: getCachedShape,
+    };
+    const expansionPruning = {
+        monolayerPainting,
+        availableIdsSize: 0,
+    };
+
     function* generateSuccessors(availableIds) {
+        expansionPruning.availableIdsSize = availableIds.size;
+        const referenceCodes = Array.from(availableIds).map(id => shapes.get(id));
+
         for (const opName of enabledOperations) {
             if (shouldCancel()) return;
             const op = operations[opName];
             if (!op) continue;
-            const { fn, inputCount, needsColor } = op;
+            const { inputCount, needsColor } = op;
 
             if (inputCount === 1) {
                 for (const id of availableIds) {
                     if (shouldCancel()) return;
                     const inputCode = shapes.get(id);
-                    const inputShape = getCachedShape(inputCode);
 
-                    // --- Operation Pruning ---
-
-                    // Skip trashing the last shape (always useless)
-                    if (opName === 'Trash' && availableIds.size === 1) continue;
-
-                    // Trash produces no output codes, so the normal outputCodes guard
-                    // below would always skip it. Model it as a real successor here:
-                    // remove the input shape from availableIds with no replacement.
-                    //
-                    // Gate: only yield when preventWaste is true AND the shape being
-                    // trashed is NOT acceptable (not a rotation of the target). Without
-                    // preventWaste, extra shapes don't block isGoal, so trashing is
-                    // always useless. Trashing an acceptable shape is counterproductive.
-                    // This prevents trash-spam on every branch while fixing the case
-                    // where the only way to satisfy the all-shapes-acceptable goal is to
-                    // discard a byproduct (e.g. cut CuRuSuWu → keep CuRu----, trash
-                    // ----SuWu). Cost is 1 per op from the g+1 increment in each search
-                    // loop — the same as every other operation, never free.
                     if (opName === 'Trash') {
                         if (preventWaste && !acceptable.has(inputCode)) {
                             yield { type: opName, inputIds: [id], outputCodes: [], color: null };
@@ -349,38 +308,14 @@ export async function shapeSolver(
                         continue;
                     }
 
-                    // Skip rotation of rotationally symmetric shapes
-                    if (opName === 'Rotator CW' || opName === 'Rotator CCW' || opName === 'Rotator 180') {
-                        const rotations = getAllRotations(inputShape, config);
-                        if (rotations.size === 1) continue; // fully symmetric
-                        if (opName === 'Rotator 180' && rotations.size <= 2) continue; // 180° symmetric
-                    }
-
-                    // Skip cutting shapes where one half is already empty
-                    if (opName === 'Cutter' || opName === 'Half Destroyer') {
-                        const layer = inputShape.layers[0];
-                        const half = Math.floor(inputShape.numParts / 2);
-                        const leftEmpty = layer.slice(0, half).every(p => p.shape === NOTHING_CHAR);
-                        const rightEmpty = layer.slice(half).every(p => p.shape === NOTHING_CHAR);
-                        if (leftEmpty || rightEmpty) continue;
-                    }
-
-                    // --- End Pruning ---
-
-                    if (needsColor) {
-                        if (monolayerPainting && opName === "Painter" && inputShape.layers.length !== 1) {
-                            continue;
-                        }
-                        const colors = opName === "Painter" ? getPaintColors(inputShape, target) : targetCrystalColors;
-                        for (const color of colors) {
-                            const outputs = getCachedOpResult1Color(opName, fn, inputShape, color, config);
-                            const desc = buildSingleInputDescriptor(opName, id, inputCode, outputs, color);
-                            if (desc) yield desc;
-                        }
-                    } else {
-                        const outputs = getCachedOpResult1(opName, fn, inputShape, config);
-                        const desc = buildSingleInputDescriptor(opName, id, inputCode, outputs, null);
-                        if (desc) yield desc;
+                    const inputShape = getCachedShape(inputCode);
+                    for (const desc of expandUnaryOp(opName, op, id, inputCode, inputShape, config, {
+                        needsColor,
+                        pruning: expansionPruning,
+                        colorContext: { ...expansionColorContext, referenceCodes },
+                        useCache: true,
+                    })) {
+                        yield desc;
                     }
                 }
             } else if (inputCount === 2) {
@@ -392,22 +327,13 @@ export async function shapeSolver(
                         const id2 = ids[j];
                         const inputCode1 = shapes.get(id1);
                         const inputCode2 = shapes.get(id2);
-                        const inputShape1 = getCachedShape(inputCode1);
-                        const inputShape2 = getCachedShape(inputCode2);
-                        const outputs = getCachedOpResult2(opName, fn, inputShape1, inputShape2, config);
-                        const outputCodes = [];
-                        let isNoOp = true;
-                        for (const outputShape of outputs) {
-                            if (outputShape.isEmpty()) continue;
-                            const outCode = outputShape.toShapeCode();
-                            if (outCode !== inputCode1 && outCode !== inputCode2) isNoOp = false;
-                            outputCodes.push(outCode);
-                        }
-                        // Skip no-op: all outputs identical to inputs
-                        if (isNoOp && outputCodes.length === 2) continue;
-                        if (outputCodes.length > 0) {
-                            yield { type: opName, inputIds: [id1, id2], outputCodes, color: null };
-                        }
+                        const desc = expandBinaryOp(
+                            opName, op, id1, id2,
+                            inputCode1, inputCode2,
+                            getCachedShape(inputCode1), getCachedShape(inputCode2),
+                            config, { useCache: true }
+                        );
+                        if (desc) yield desc;
                     }
                 }
             }

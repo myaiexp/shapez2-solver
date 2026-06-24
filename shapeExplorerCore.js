@@ -1,19 +1,32 @@
-import { Shape, ShapeOperationConfig } from './shapeOperations.js';
-import { operations } from './shapeSolverCore.js';
+import { ShapeOperationConfig } from './shapeOperations.js';
+import { operations } from './shapeSolverOperations.js';
+import {
+    shapeCache,
+    operationResultCache,
+    getCachedShape,
+} from './shapeSolverCache.js';
+import { getCrystalColors } from './shapeAnalysis.js';
+import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
 
 // Breadth-first space explorer for the visualization: starting from the given
 // shapes, repeatedly applies every enabled operation up to `depthLimit`, building
-// a graph of shape nodes / operation nodes / edges. Self-contained — it shares
-// none of the solver's search state and only reuses the `operations` table.
+// a graph of shape nodes / operation nodes / edges. Shares operation expansion
+// semantics with the solver via shapeSolverExpansion.js.
 export async function shapeExplorer(
     startingShapeCodes,
     enabledOperations,
     depthLimit,
     maxLayers,
     shouldCancel = () => false,
-    onProgress = () => {}
+    onProgress = () => {},
+    targetShapeCode = null,
 ) {
+    shapeCache.clear();
+    operationResultCache.clear();
+
     const config = new ShapeOperationConfig(maxLayers);
+    const target = targetShapeCode ? getCachedShape(targetShapeCode) : null;
+    const targetCrystalColors = target ? getCrystalColors(target) : null;
 
     let nextShapeId = 0;
     let nextOpId = 0;
@@ -32,10 +45,29 @@ export async function shapeExplorer(
         return { id: shapeCodeToId.get(code), added: false };
     }
 
-    // Shape ids are monotonically increasing indices starting at 0, so the shape
-    // at index `id` is shapesList[id] — O(1), no linear scan.
     function getShapeById(id) {
-        return Shape.fromShapeCode(shapesList[id].code);
+        return getCachedShape(shapesList[id].code);
+    }
+
+    function referenceCodes() {
+        return shapesList.map(s => s.code);
+    }
+
+    const colorContext = {
+        target,
+        targetCrystalColors,
+        referenceCodes,
+        getShape: getCachedShape,
+    };
+
+    const expansionPruning = {
+        monolayerPainting: false,
+        availableIdsSize: Infinity,
+    };
+
+    function recordDescriptor(desc, newlyDiscovered) {
+        const params = desc.color ? { color: desc.color } : {};
+        recordOperation(desc.type, params, desc.inputIds, desc.outputCodes, newlyDiscovered);
     }
 
     // Record one operation node and its edges: the op node, an edge from each input
@@ -58,40 +90,39 @@ export async function shapeExplorer(
         }
     }
 
-    // Apply a 1-input operation to every shape in the frontier.
     function exploreUnaryOp(op, opName, primaryIds, newlyDiscovered) {
-        const { fn, needsColor } = op;
         for (const id of primaryIds) {
             if (shouldCancel()) return;
 
+            const inputCode = shapesList[id].code;
             const inputShape = getShapeById(id);
-            if (inputShape.isEmpty()) continue;
-            const colors = needsColor ? ["r"] : [null];
 
-            for (const color of colors) {
-                if (shouldCancel()) return;
+            if (opName === 'Trash') {
+                if (!inputShape.isEmpty()) {
+                    recordOperation(opName, {}, [id], [], newlyDiscovered);
+                }
+                continue;
+            }
 
-                const outputs = needsColor ? fn(inputShape, color, config) : fn(inputShape, config);
-                const outputCodes = outputs.map(o => o.toShapeCode()).filter(Boolean);
-
-                // Skip no-ops: output identical to the input shape.
-                if (outputCodes.some(oc => oc === shapesList[id].code)) continue;
-
-                recordOperation(opName, color ? { color } : {}, [id], outputCodes, newlyDiscovered);
+            for (const desc of expandUnaryOp(opName, op, id, inputCode, inputShape, config, {
+                needsColor: op.needsColor,
+                pruning: expansionPruning,
+                colorContext,
+                useCache: true,
+            })) {
+                recordDescriptor(desc, newlyDiscovered);
             }
         }
     }
 
-    // Apply a 2-input operation to every ordered pair (frontier × all-so-far).
     function exploreBinaryOp(op, opName, startIds, primaryIds, newlyDiscovered) {
-        const { fn } = op;
-        const isStacker = opName === "Stacker";
+        const isStacker = opName === 'Stacker';
 
         for (const id1 of startIds) {
             if (shouldCancel()) return;
 
+            const inputCode1 = shapesList[id1].code;
             const shape1 = getShapeById(id1);
-            if (shape1.isEmpty()) continue;
 
             for (const id2 of primaryIds) {
                 if (shouldCancel()) return;
@@ -99,31 +130,28 @@ export async function shapeExplorer(
                 if (id1 === id2 && !isStacker) continue;
                 if (id1 > id2 && !isStacker) continue;
 
+                const inputCode2 = shapesList[id2].code;
                 const shape2 = getShapeById(id2);
-                if (shape2.isEmpty()) continue;
 
-                // Stacker is order-sensitive, so both orderings are explored — except
-                // when they yield identical outputs, in which case keep only id1 < id2.
-                // Ops never mutate their inputs, so shape1/shape2 are reused safely.
                 if (isStacker && id1 !== id2) {
-                    const outA = fn(shape1, shape2, config)
-                        .map(o => o.toShapeCode()).filter(Boolean);
-                    const outB = fn(shape2, shape1, config)
-                        .map(o => o.toShapeCode()).filter(Boolean);
-                    if (JSON.stringify(outA) === JSON.stringify(outB) && id1 > id2) {
-                        continue;
-                    }
+                    const descA = expandBinaryOp(
+                        opName, op, id1, id2,
+                        inputCode1, inputCode2, shape1, shape2, config, { useCache: true }
+                    );
+                    const descB = expandBinaryOp(
+                        opName, op, id2, id1,
+                        inputCode2, inputCode1, shape2, shape1, config, { useCache: true }
+                    );
+                    const same = descA && descB
+                        && JSON.stringify(descA.outputCodes) === JSON.stringify(descB.outputCodes);
+                    if (same && id1 > id2) continue;
                 }
 
-                const outputs = fn(shape1, shape2, config);
-                const outputCodes = outputs.map(o => o.toShapeCode()).filter(Boolean);
-
-                const code1 = shapesList[id1].code;
-                const code2 = shapesList[id2].code;
-                // Skip no-ops: every output is just one of the two inputs.
-                if (outputCodes.some(oc => oc === code1 || oc === code2)) continue;
-
-                recordOperation(opName, {}, [id1, id2], outputCodes, newlyDiscovered);
+                const desc = expandBinaryOp(
+                    opName, op, id1, id2,
+                    inputCode1, inputCode2, shape1, shape2, config, { useCache: true }
+                );
+                if (desc) recordDescriptor(desc, newlyDiscovered);
             }
         }
     }
@@ -142,8 +170,8 @@ export async function shapeExplorer(
         }
 
         const newlyDiscovered = new Set();
-        const startIds = Array.from(availableIds); // All shapes found so far
-        const primaryIds = Array.from(frontier);   // Shapes from the previous depth
+        const startIds = Array.from(availableIds);
+        const primaryIds = Array.from(frontier);
 
         if (primaryIds.length === 0) break;
 

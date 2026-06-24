@@ -371,6 +371,7 @@ byId('explore-btn').addEventListener('click', () => {
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
     const depthLimit = parseInt(byId('depth-limit-input').value) || 999;
     const maxLayers = parseInt(byId('max-layers').value) || 4;
+    const targetShapeCode = byId('target-shape').value.trim() || null;
 
     for (const code of starting) {
         if (!showValidationErrors(code, 'starting shape')) return;
@@ -404,7 +405,7 @@ byId('explore-btn').addEventListener('click', () => {
 
     spaceWorker.postMessage({
         action: 'explore',
-        data: { startingShapeCodes: starting, enabledOperations: ops, depthLimit, maxLayers }
+        data: { startingShapeCodes: starting, enabledOperations: ops, depthLimit, maxLayers, targetShapeCode }
     });
 });
 
