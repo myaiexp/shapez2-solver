@@ -1,6 +1,6 @@
 // Special thanks to https://github.com/Loupau38/loupau38.github.io/blob/main/assets/scripts/shapeViewer.js
 import { getCurrentColorMode } from './colorMode.js';
-import { renderPart, quadShapesConfig, hexShapesConfig } from './shapeRenderingPart.js';
+import { renderPart, QUAD_MODE, HEX_MODE } from './shapeRenderingPart.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 
 export { baseColors, colorValues } from './shapeRenderingColors.js';
@@ -33,7 +33,7 @@ function rotateContext(ctx, partIndex, numParts) {
     ctx.translate(0, -1);
 }
 
-export function renderShape(context, size, shapeCode, shapesConfig, colorMode) {
+export function renderShape(context, size, shapeCode, shapesMode, colorMode) {
 
     const layers = shapeCode.split(":");
     const numLayers = layers.length;
@@ -81,7 +81,7 @@ export function renderShape(context, size, shapeCode, shapesConfig, colorMode) {
                 partShape,
                 partColor,
                 layerIndex,
-                shapesConfig,
+                shapesMode,
                 colorMode,
                 shapeDiameter * curLayerScale * 0.5
             );
@@ -115,12 +115,12 @@ export function createShapeCanvas(shapeCode, size = 100) {
     const ctx = canvas.getContext('2d');
     const colorMode = getCurrentColorMode();
 
-    // Determine shapesConfig based on shapeCode
+    // Determine quad/hex geometry mode based on shapeCode
     const firstLayer = shapeCode.split(":")[0];
     const numParts = firstLayer.length / 2;
-    const shapesConfig = numParts === 6 ? hexShapesConfig : quadShapesConfig;
+    const shapesMode = numParts === 6 ? HEX_MODE : QUAD_MODE;
 
-    renderShape(ctx, size, shapeCode, shapesConfig, colorMode);
+    renderShape(ctx, size, shapeCode, shapesMode, colorMode);
     return canvas;
 }
 

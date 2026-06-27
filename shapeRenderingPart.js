@@ -2,8 +2,8 @@
 // with its color/border and shadow for stacked layers.
 import { colorValues } from './shapeRenderingColors.js';
 
-export const quadShapesConfig = "quad";
-export const hexShapesConfig = "hex";
+export const QUAD_MODE = "quad";
+export const HEX_MODE = "hex";
 
 const shapeBorderColor = "rgb(35,25,35)";
 const shadowColor = "rgba(50,50,50,0.5)";
@@ -40,7 +40,7 @@ function drawPolygon(ctx, points) {
     ctx.closePath();
 }
 
-export function renderPart(ctx, partShape, partColor, layerIndex, shapesConfig, colorMode, borderScale) {
+export function renderPart(ctx, partShape, partColor, layerIndex, shapesMode, colorMode, borderScale) {
 
     const drawShadow = layerIndex != 0;
     const color = colorValues[colorMode][partColor];
@@ -159,10 +159,10 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesConfig, 
     if (partShape == "P") {
         let pinCenterX;
         let pinCenterY;
-        if (shapesConfig == quadShapesConfig) {
+        if (shapesMode == QUAD_MODE) {
             pinCenterX = 1 / 3;
             pinCenterY = 2 / 3;
-        } else if (shapesConfig == hexShapesConfig) {
+        } else if (shapesMode == HEX_MODE) {
             pinCenterX = sqrt2 / 6;
             pinCenterY = 1 - (sqrt6 / 6);
         }
@@ -188,7 +188,7 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesConfig, 
 
     if (partShape == "c") {
         const darkenedColor = darkenColor(color);
-        if (shapesConfig == quadShapesConfig) {
+        if (shapesMode == QUAD_MODE) {
             const darkenedAreasOffset = layerIndex % 2 == 0 ? 0 : 22.5;
             const startAngle1 = radians(360 - (67.5 - darkenedAreasOffset));
             const stopAngle1 = radians(360 - (90 - darkenedAreasOffset));
@@ -222,7 +222,7 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesConfig, 
                 }),
                 (() => { })
             ];
-        } else if (shapesConfig == hexShapesConfig) {
+        } else if (shapesMode == HEX_MODE) {
             const points = [
                 [0, 0],
                 [sqrt3 / 2, 0.5],

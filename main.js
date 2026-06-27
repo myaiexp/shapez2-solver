@@ -1,4 +1,3 @@
-// Imports
 import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
 import { Shape } from './shapeClass.js';
 import { extractLayers } from './shapeOperations.js';
@@ -30,7 +29,6 @@ function persist() {
     }));
 }
 
-// Refresh Colors
 function refreshShapeColors() {
     const container = byId('graph-container');
     if (!container || !cyInstance) return;
@@ -65,7 +63,6 @@ function refreshShapeColors() {
     });
 }
 
-// Default Shapes
 function initializeDefaultShapes() {
     const container = byId('starting-shapes');
     ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu']
@@ -156,7 +153,6 @@ byId('extract-confirm').addEventListener('click', () => {
     }
 });
 
-// Tabs
 $all('.tab-button').forEach((btn) => {
     btn.addEventListener('click', () => {
         $all('.tab-button').forEach((b) => b.classList.remove('active'));
@@ -221,7 +217,6 @@ function summarizeStrategyTrace(trace) {
     return `Constructive: ${breakdown} | ${trace.opCount} ops | reused ${reused}`;
 }
 
-// Solver Worker
 let solverWorker = null;
 
 function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
@@ -364,7 +359,6 @@ byId('solve-btn').addEventListener('click', () => {
     });
 });
 
-// Space Explorer
 byId('explore-btn').addEventListener('click', () => {
     const btn = byId('explore-btn');
 
@@ -491,7 +485,6 @@ byId('edge-style-select').addEventListener('change', () => {
     persist();
 });
 
-// Floor Controls
 byId('floor-up-btn').addEventListener('click', () => {
     if (!blueprintRenderer || !currentBlueprintLayout) return;
     const next = blueprintRenderer.currentFloor + 1;
