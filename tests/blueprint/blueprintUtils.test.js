@@ -1,5 +1,5 @@
-// Unit tests for computeGridBounds — run with: node tests/blueprintUtils.test.js
-import { computeGridBounds } from '../blueprintUtils.js';
+// Unit tests for computeGridBounds — run with: node tests/blueprint/blueprintUtils.test.js
+import { computeGridBounds } from '../../blueprintUtils.js';
 
 let passed = 0;
 let total = 0;

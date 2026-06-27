@@ -5,10 +5,10 @@
 // what the operations actually do.
 //
 // Usage:
-//   node tests/solve.mjs <target> [options]
-//   node tests/solve.mjs CuRuCuRu
-//   node tests/solve.mjs RuCuCuRu --start CuCuCuCu,RuRuRuRu --ops Swapper,Cutter
-//   node tests/solve.mjs --explore 2 --start CuCuCuCu,RuRuRuRu,SuSuSuSu
+//   node tests/shared/solve.mjs <target> [options]
+//   node tests/shared/solve.mjs CuRuCuRu
+//   node tests/shared/solve.mjs RuCuCuRu --start CuCuCuCu,RuRuRuRu --ops Swapper,Cutter
+//   node tests/shared/solve.mjs --explore 2 --start CuCuCuCu,RuRuRuRu,SuSuSuSu
 //
 // Options:
 //   --start a,b,c        starting shape codes (default matches the app's default
@@ -27,10 +27,10 @@
 //
 // Exit code is non-zero if any step/edge fails operation validation.
 
-import { shapeSolver, operations } from '../shapeSolverCore.js';
-import { shapeExplorer } from '../shapeExplorerCore.js';
-import { solveConstructive } from '../shapeSolverConstructive.js';
-import { Shape } from '../shapeClass.js';
+import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { shapeExplorer } from '../../shapeExplorerCore.js';
+import { solveConstructive } from '../../shapeSolverConstructive.js';
+import { Shape } from '../../shapeClass.js';
 
 function parseArgs(argv) {
     const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
@@ -116,7 +116,7 @@ if (opts.explore != null) {
     process.exit(bad ? 1 : 0);
 }
 
-if (!opts.target) { console.error('usage: node tests/solve.mjs <target> [options]  (or --explore N)'); process.exit(2); }
+if (!opts.target) { console.error('usage: node tests/shared/solve.mjs <target> [options]  (or --explore N)'); process.exit(2); }
 
 const res = opts.method === 'Constructive'
     ? await solveConstructive(

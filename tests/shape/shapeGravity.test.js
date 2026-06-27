@@ -1,6 +1,6 @@
-// Unit tests for makeLayersFall gravity/support physics — run with: node tests/shapeGravity.test.js
-import { Shape } from '../shapeClass.js';
-import { makeLayersFall } from '../shapeOperationsTestUtils.js';
+// Unit tests for makeLayersFall gravity/support physics — run with: node tests/shape/shapeGravity.test.js
+import { Shape } from '../../shapeClass.js';
+import { makeLayersFall } from '../../shapeOperationsTestUtils.js';
 
 let passed = 0;
 let total = 0;

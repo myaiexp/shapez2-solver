@@ -1,5 +1,5 @@
 // Unit tests for the solver's shouldCancel cancellation path (audit #2212) — run with:
-//   node tests/solverCancellation.test.js
+//   node tests/solver/solverCancellation.test.js
 //
 // The solver threads a `shouldCancel()` callback into every search loop so a long
 // search can be aborted (the browser app wires it to the Cancel button). The
@@ -15,9 +15,9 @@
 // Bounded-by-construction: an immediate cancel never enters a search loop, and the
 // cancel-after-N tests trip far below the maxStates safety cap, so neither
 // approaches the memory ceiling an uncapped hard solve would.
-import { shapeSolver, operations } from '../shapeSolverCore.js';
-import { shapeExplorer } from '../shapeExplorerCore.js';
-import { solveConstructive } from '../shapeSolverConstructive.js';
+import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { shapeExplorer } from '../../shapeExplorerCore.js';
+import { solveConstructive } from '../../shapeSolverConstructive.js';
 
 let passed = 0;
 let total = 0;

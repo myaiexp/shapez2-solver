@@ -1,5 +1,5 @@
 // Unit tests for the pure decomposition splits + cost metric used by the
-// Constructive planner. Run with: node tests/shapeSolverDecompose.test.js
+// Constructive planner. Run with: node tests/solver/shapeSolverDecompose.test.js
 //
 // Splits take a shape-code and return piece shape-codes in fold order (or null
 // when the split does not apply). cost() scores a Plan tree by reuse-credited op
@@ -11,7 +11,7 @@ import {
     cost,
     opCountOf,
     depthOf
-} from '../shapeSolverDecompose.js';
+} from '../../shapeSolverDecompose.js';
 
 let passed = 0, total = 0, failed = false;
 

@@ -1,4 +1,4 @@
-// Standalone tests for shapeAnalysis.js — run with: node tests/shapeAnalysis.test.js
+// Standalone tests for shapeAnalysis.js — run with: node tests/shape/shapeAnalysis.test.js
 //
 // Covers the pure analysis helpers (audit #2209 — the file had zero coverage):
 // getPaintColors, getCrystalColors, the similarity stack (getSimilarity,
@@ -21,8 +21,8 @@ import {
     getRequiredColors,
     getRequiredShapes,
     filterStartingShapes,
-} from '../shapeAnalysis.js';
-import { Shape } from '../shapeClass.js';
+} from '../../shapeAnalysis.js';
+import { Shape } from '../../shapeClass.js';
 
 let passed = 0;
 let total = 0;

@@ -1,13 +1,13 @@
 // Unit tests for getConnectedSingleLayer wrap-around — run with:
-//   node tests/connectedSingleLayer.test.js
+//   node tests/shape/connectedSingleLayer.test.js
 // Covers the FORWARD wrap-around path: the forward walk overruns the end of the
 // layer and getCorrectedIndex folds the index back to the start (e.g. quadrant
 // 3 -> quadrant 0). The crystal suite only exercises the backward wrap, so this
 // guards the positive-overflow branch of getCorrectedIndex. A contrasting
 // non-wrapping case (empty cell at the seam) proves the grouping isn't
 // unconditional and that the seam is a real boundary.
-import { Shape } from '../shapeClass.js';
-import { gravityConnected, getConnectedSingleLayer } from '../shapeOperationsTestUtils.js';
+import { Shape } from '../../shapeClass.js';
+import { gravityConnected, getConnectedSingleLayer } from '../../shapeOperationsTestUtils.js';
 
 let passed = 0;
 let total = 0;

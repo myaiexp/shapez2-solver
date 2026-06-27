@@ -1,12 +1,12 @@
 // Unit tests for blueprintLayout.duplicateForThroughput (audit #3718) —
-// run with:  node tests/duplicateForThroughput.test.js
+// run with:  node tests/blueprint/duplicateForThroughput.test.js
 //
 // duplicateForThroughput post-processes a buildLayout() result to place N
 // side-by-side copies of each machine with split/merge belt routing. These
 // tests pin the no-op boundary (multiplier <= 1), copy placement/centering
 // math, distinct copy columns, belt kinds/counts, and grid expansion.
-import { buildLayout, duplicateForThroughput } from '../blueprintLayout.js';
-import { MACHINE_GAP } from '../blueprintPositions.js';
+import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
+import { MACHINE_GAP } from '../../blueprintPositions.js';
 
 let passed = 0;
 let total = 0;

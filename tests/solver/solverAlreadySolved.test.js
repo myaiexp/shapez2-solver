@@ -1,5 +1,5 @@
 // Unit tests for the solver's already-solved / zero-step case (audit #3725) —
-// run with:  node tests/solverAlreadySolved.test.js
+// run with:  node tests/solver/solverAlreadySolved.test.js
 //
 // The solver was never tested with the target already present in the starting
 // set. Every search method checks isGoal() on the INITIAL state before
@@ -9,8 +9,8 @@
 // 0, not aborted, not null. These tests pin that contract so a future refactor
 // of the goal-check / path-reconstruction can't silently regress it into a
 // spurious search (or a null "no solution").
-import { shapeSolver, operations } from '../shapeSolverCore.js';
-import { Shape } from '../shapeClass.js';
+import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { Shape } from '../../shapeClass.js';
 
 let passed = 0;
 let total = 0;

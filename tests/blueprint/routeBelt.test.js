@@ -1,5 +1,5 @@
 // Unit tests for routeBelt floor-transition (belt-lift) and northward-guard
-// branches (audit #3720) — run with:  node tests/routeBelt.test.js
+// branches (audit #3720) — run with:  node tests/blueprint/routeBelt.test.js
 //
 // blueprintRouting.js routes belts L-shaped (horizontal then vertical). Two paths
 // were untested: (1) when fromFloor !== toFloor it inserts paired lift tiles and
@@ -7,7 +7,7 @@
 // the same floor the northward guard emits N tiles (not expected in normal layout).
 // We pin exact coordinates so an off-by-one y-advance after the lift or a wrong
 // guard loop bound would fail.
-import { routeBelt } from '../blueprintRouting.js';
+import { routeBelt } from '../../blueprintRouting.js';
 
 let passed = 0;
 let total = 0;

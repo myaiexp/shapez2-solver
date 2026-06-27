@@ -1,4 +1,4 @@
-// Standalone tests for shapeValidation.js — run with: node tests/shapeValidation.test.js
+// Standalone tests for shapeValidation.js — run with: node tests/shape/shapeValidation.test.js
 //
 // Covers every rule in the pure validators validateShapeCode + validateLayer
 // (audit #2208 — the file had zero coverage). validateLayer is not exported, so
@@ -8,7 +8,7 @@
 //
 // Shape chars: - P c C R S W H F G X Y   (Nothing, Pin, Crystal, + structurals)
 // Color chars: - u r g b y c m w k
-import { validateShapeCode } from '../shapeValidation.js';
+import { validateShapeCode } from '../../shapeValidation.js';
 
 let passed = 0;
 let total = 0;

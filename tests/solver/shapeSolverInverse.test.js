@@ -1,17 +1,17 @@
 // Unit tests for the early-return branches of the inverse (predecessor) ops in
-// shapeSolverInverse.js. Run with: node tests/shapeSolverInverse.test.js
+// shapeSolverInverse.js. Run with: node tests/solver/shapeSolverInverse.test.js
 //
 // inverseUnstack / inverseUncut / inverseUnpin each bail out with an empty
 // result array on an early-exit guard (wrong layer count). This suite asserts
 // those early returns, plus one contrasting non-early-return case per function
 // so the empty result is proven to come from the guard, not from the function
 // always returning empty.
-import { Shape } from '../shapeClass.js';
+import { Shape } from '../../shapeClass.js';
 import {
     inverseUnstack,
     inverseUncut,
     inverseUnpin
-} from '../shapeSolverInverse.js';
+} from '../../shapeSolverInverse.js';
 
 let passed = 0, total = 0, failed = false;
 

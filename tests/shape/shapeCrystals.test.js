@@ -1,15 +1,15 @@
-// Unit tests for crystal mechanics — run with: node tests/shapeCrystals.test.js
+// Unit tests for crystal mechanics — run with: node tests/shape/shapeCrystals.test.js
 // Covers genCrystal (color assignment), pushPin (with/without maxLayers
 // overflow), breakCrystals via a cut on a fused-crystal ring, and the
 // connected-component traversal helpers (getConnectedSingleLayer wrap-around,
 // getConnectedMultiLayer up/down layer linking) with the crystalsFused predicate.
-import { Shape, ShapePart, ShapeOperationConfig } from '../shapeClass.js';
-import { cut, pushPin, genCrystal } from '../shapeOperations.js';
+import { Shape, ShapePart, ShapeOperationConfig } from '../../shapeClass.js';
+import { cut, pushPin, genCrystal } from '../../shapeOperations.js';
 import {
     crystalsFused,
     getConnectedSingleLayer,
     getConnectedMultiLayer
-} from '../shapeOperationsTestUtils.js';
+} from '../../shapeOperationsTestUtils.js';
 
 let passed = 0;
 let total = 0;

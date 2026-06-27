@@ -1,7 +1,7 @@
-// Unit tests for shapeRotation primitives + comparePartOrder — run with: node tests/shapeRotation.test.js
-import { Shape } from '../shapeClass.js';
-import { rotate90CW, rotate90CCW, rotate180 } from '../shapeRotation.js';
-import { comparePartOrder } from '../shapeAnalysis.js';
+// Unit tests for shapeRotation primitives + comparePartOrder — run with: node tests/shape/shapeRotation.test.js
+import { Shape } from '../../shapeClass.js';
+import { rotate90CW, rotate90CCW, rotate180 } from '../../shapeRotation.js';
+import { comparePartOrder } from '../../shapeAnalysis.js';
 let passed = 0;
 let total = 0;
 let failed = false;

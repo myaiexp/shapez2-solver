@@ -1,5 +1,5 @@
-// Unit tests for PriorityQueue (min-heap) — run with: node tests/shapeSolverPriorityQueue.test.js
-import { PriorityQueue } from '../shapeSolverPriorityQueue.js';
+// Unit tests for PriorityQueue (min-heap) — run with: node tests/solver/shapeSolverPriorityQueue.test.js
+import { PriorityQueue } from '../../shapeSolverPriorityQueue.js';
 
 // Verified contract (read from the source, not assumed):
 //   - Min-heap: the lowest `priority` dequeues first.

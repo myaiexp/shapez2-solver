@@ -1,11 +1,11 @@
 // Unit tests for blueprintTopology topoSort cycle-detection fallback (audit #3719) —
-// run with:  node tests/blueprintTopologyCycle.test.js
+// run with:  node tests/blueprint/blueprintTopologyCycle.test.js
 //
 // When Kahn's algorithm cannot reach every placeable node (dependency cycle),
 // topoSort appends unreached indices and logs a console.warn. This branch was
 // never tested. We pin the cyclic fallback (warn + full coverage) and contrast
 // it with an acyclic topology so the warn assertion is meaningful.
-import { topoSort } from '../blueprintTopology.js';
+import { topoSort } from '../../blueprintTopology.js';
 
 let passed = 0;
 let total = 0;

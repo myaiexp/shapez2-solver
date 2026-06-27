@@ -1,5 +1,5 @@
 // Golden regression tests for the core shapeOperations primitives that lacked a
-// hard-coded anchor — run with: node tests/shapeOperations.test.js
+// hard-coded anchor — run with: node tests/shape/shapeOperations.test.js
 //
 // smoke.js "tests" these ops via a snapshot file that auto-baselines whatever the
 // code emits on first run (no regression protection on a fresh baseline). The
@@ -7,14 +7,14 @@
 // (shapeCrystals.test.js) and gravity (shapeGravity.test.js) with literals — but
 // the half-split geometry of cut, the layer order of stack, the Painter
 // primitive (topPaint), getSimilarity (legacy shape-comparison metric kept for
-// tests/smoke; the solver uses _matchAndCoverage in shapeSolverCore.js since
+// tests/shared/smoke; the solver uses _matchAndCoverage in shapeSolverCore.js since
 // idea #1677, not getSimilarity) and the
 // remaining structural ops (halfCut, swapHalves, trash, beltSplit) had no
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
-import { Shape } from '../shapeClass.js';
-import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit, extractLayers } from '../shapeOperations.js';
-import { getSimilarity } from '../shapeAnalysis.js';
+import { Shape } from '../../shapeClass.js';
+import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit, extractLayers } from '../../shapeOperations.js';
+import { getSimilarity } from '../../shapeAnalysis.js';
 
 let passed = 0;
 let total = 0;

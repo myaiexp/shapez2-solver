@@ -1,5 +1,5 @@
 // Unit tests for shapeExplorer's depthLimit=0 boundary (audit #3726) —
-// run with:  node tests/shapeExplorerDepthLimit.test.js
+// run with:  node tests/solver/shapeExplorerDepthLimit.test.js
 //
 // The explorer's expansion loop is `for (let depth = 1; depth <= depthLimit; ...)`,
 // so depthLimit=0 must run zero iterations: the returned graph is exactly the
@@ -9,7 +9,7 @@
 // at depth 1 — without any failing test. We pin the zero-depth contract and
 // contrast it with a depthLimit=1 case so the "no expansion" assertion is
 // meaningful (i.e. expansion DOES happen once the limit allows it).
-import { shapeExplorer } from '../shapeExplorerCore.js';
+import { shapeExplorer } from '../../shapeExplorerCore.js';
 
 let passed = 0;
 let total = 0;

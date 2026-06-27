@@ -1,4 +1,4 @@
-// Standalone tests for colorMode.js — run with: node tests/colorMode.test.js
+// Standalone tests for colorMode.js — run with: node tests/shared/colorMode.test.js
 //
 // The point of this suite is to prove the circular import was broken (audit
 // #2423): colorMode.js must import in a plain Node process WITHOUT a DOM. If it
@@ -7,7 +7,7 @@
 // event handlers at module-evaluation time. The fact that the import below
 // succeeds at all is the cycle-break proof. Behavior is then exercised against a
 // minimal `document` stub — getCurrentColorMode reads the live <select> value.
-import { getCurrentColorMode } from '../colorMode.js';
+import { getCurrentColorMode } from '../../colorMode.js';
 
 let passed = 0;
 let total = 0;

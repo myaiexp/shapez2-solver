@@ -17,6 +17,7 @@ run() {
 }
 
 echo "pre-commit: running test suite…"
-for t in tests/*.test.js; do run "$t"; done
-run tests/smoke.js
+# Tests are grouped into tests/{shape,solver,blueprint,shared}/ — discover recursively.
+for t in $(find tests -name '*.test.js' | sort); do run "$t"; done
+run tests/shared/smoke.js
 echo "✓ pre-commit: all tests passed"

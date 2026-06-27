@@ -1,13 +1,13 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { Shape } from '../shapeClass.js';
-import { cut, stack } from '../shapeOperations.js';
-import { rotate90CW } from '../shapeRotation.js';
-import { getSimilarity } from '../shapeAnalysis.js';
-import { buildLayout } from '../blueprintLayout.js';
-import { shapeSolver, operations } from '../shapeSolverCore.js';
-import { shapeExplorer } from '../shapeExplorerCore.js';
+import { Shape } from '../../shapeClass.js';
+import { cut, stack } from '../../shapeOperations.js';
+import { rotate90CW } from '../../shapeRotation.js';
+import { getSimilarity } from '../../shapeAnalysis.js';
+import { buildLayout } from '../../blueprintLayout.js';
+import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

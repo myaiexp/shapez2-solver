@@ -1,4 +1,4 @@
-// Standalone tests for persistence.js — run with: node tests/persistence.test.js
+// Standalone tests for persistence.js — run with: node tests/shared/persistence.test.js
 //
 // Covers the localStorage-backed save/load surface (audit #2218 — previously
 // only exercised as a bare JSON.parse(JSON.stringify(...)) round-trip in
@@ -16,7 +16,7 @@
 // The import itself is also a smoke check: persistence.js defines $/$all/byId as
 // document-using closures but never calls them at module load, so importing it
 // with NO document present must succeed.
-import { loadState, saveState, STORAGE_KEY, SCHEMA_VERSION } from '../persistence.js';
+import { loadState, saveState, STORAGE_KEY, SCHEMA_VERSION } from '../../persistence.js';
 
 let passed = 0;
 let total = 0;

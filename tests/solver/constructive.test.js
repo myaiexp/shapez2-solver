@@ -1,13 +1,13 @@
 // End-to-end tests for the Constructive decompose-and-search planner.
-// Run with: node tests/constructive.test.js
+// Run with: node tests/solver/constructive.test.js
 //
 // Every emitted step is re-validated as a real operation (output === the actual
-// op applied to its inputs), exactly like tests/solve.mjs — the spliced/id-remapped
+// op applied to its inputs), exactly like tests/shared/solve.mjs — the spliced/id-remapped
 // path must be physically constructible, not just plausible.
-import { solveConstructive } from '../shapeSolverConstructive.js';
-import { operations } from '../shapeSolverCore.js';
-import { Shape, ShapeOperationConfig } from '../shapeClass.js';
-import { getAllRotations } from '../shapeOperations.js';
+import { solveConstructive } from '../../shapeSolverConstructive.js';
+import { operations } from '../../shapeSolverCore.js';
+import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
+import { getAllRotations } from '../../shapeOperations.js';
 
 const DEFAULT_STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
 const ALL_OPS = Object.keys(operations);

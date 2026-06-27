@@ -1,13 +1,13 @@
 // Unit tests for the solver's maxStates cap (idea #1675) — run with:
-//   node tests/solverStateCap.test.js
+//   node tests/solver/solverStateCap.test.js
 //
 // Hard targets (e.g. alternating quadrants CuRuCuRu) have an effectively
 // unbounded state space. Before the cap the search OOM'd the process; now it
 // aborts gracefully once `maxStates` distinct states are discovered. These tests
 // use a TINY cap so they are bounded-by-construction and safe to run — they never
 // approach the memory ceiling that an uncapped hard solve would.
-import { shapeSolver, operations } from '../shapeSolverCore.js';
-import { Shape } from '../shapeClass.js';
+import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { Shape } from '../../shapeClass.js';
 
 let passed = 0;
 let total = 0;

@@ -1,12 +1,12 @@
 // Unit tests for shapeExplorer's 2-input Stacker branch and symmetric-order
-// dedup logic (audit #3721) — run with:  node tests/shapeExplorerStacker.test.js
+// dedup logic (audit #3721) — run with:  node tests/solver/shapeExplorerStacker.test.js
 //
 // The explorer's inputCount===2 path iterates id1 over all shapes × id2 over the
 // frontier. For Stacker, when stack(A,B) equals stack(B,A) it records only the
 // id1 < id2 ordering; when the outputs differ it records both orderings. No
 // existing fixture or depth-limit test reaches this branch (fixtures use
 // Cutter+Rotator only; shapeExplorerDepthLimit.test.js excludes Stacker).
-import { shapeExplorer } from '../shapeExplorerCore.js';
+import { shapeExplorer } from '../../shapeExplorerCore.js';
 
 let passed = 0;
 let total = 0;

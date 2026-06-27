@@ -1,11 +1,11 @@
-// Standalone tests for shapeClass.js — run with: node tests/shapeClass.test.js
+// Standalone tests for shapeClass.js — run with: node tests/shape/shapeClass.test.js
 //
 // Direct coverage for the pure Shape.isEmpty() method (audit #2216 — it was
 // only exercised transitively, never asserted on its own). isEmpty() returns
 // true iff *every* character of the concatenated layers is NOTHING_CHAR ('-'),
 // i.e. every part is "--" (Nothing shape, no color). A single non-'-' char —
 // a shape char OR a stray color — makes the shape non-empty.
-import { Shape, ShapePart, NOTHING_CHAR } from '../shapeClass.js';
+import { Shape, ShapePart, NOTHING_CHAR } from '../../shapeClass.js';
 
 let passed = 0;
 let total = 0;
