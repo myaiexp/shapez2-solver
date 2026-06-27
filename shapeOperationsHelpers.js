@@ -135,6 +135,18 @@ export function makeLayersFall(layers) {
         return groups;
     }
 
+    // The lowest layer an unsupported `group` settles into: scan down from its
+    // current layer while every cell directly beneath it is empty, stopping at
+    // the first blocked layer (or the floor). Pure index math — no mutated loop
+    // variable leaking past the search, no break flags.
+    function lowestFreeLayer(group, fromLayerIndex) {
+        let target = fromLayerIndex;
+        while (target > 0 && group.every(p => layers[target - 1][p].shape === NOTHING_CHAR)) {
+            target--;
+        }
+        return target;
+    }
+
     // A part is supported iff it can reach a floor anchor (a non-empty part on
     // layer 0) through the support relations. Computing that as a monotone
     // fixpoint — seed the floor, then propagate support outward along the
@@ -203,19 +215,7 @@ export function makeLayersFall(layers) {
         for (const group of sepInGroups(layer)) {
             if (group.some(p => supportedPartStates[layerIndex][p])) continue;
 
-            let fallToLayerIndex;
-            for (fallToLayerIndex = layerIndex; fallToLayerIndex >= 0; fallToLayerIndex--) {
-                if (fallToLayerIndex === 0) break;
-                let fall = true;
-                for (const partIndex of group) {
-                    if (layers[fallToLayerIndex - 1][partIndex].shape !== NOTHING_CHAR) {
-                        fall = false;
-                        break;
-                    }
-                }
-                if (!fall) break;
-            }
-
+            const fallToLayerIndex = lowestFreeLayer(group, layerIndex);
             for (const partIndex of group) {
                 layers[fallToLayerIndex][partIndex] = layers[layerIndex][partIndex];
                 layers[layerIndex][partIndex] = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);
