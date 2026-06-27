@@ -1,6 +1,6 @@
 import { extractTopology, topoSort, groupIntoRows } from './blueprintTopology.js';
 import { assignPositions, MACHINE_GAP } from './blueprintPositions.js';
-import { computeGridBounds } from './blueprintUtils.js';
+import { computeGridBounds } from './blueprintBounds.js';
 
 /**
  * @typedef {Object} PlacedMachine

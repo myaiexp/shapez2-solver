@@ -17,7 +17,7 @@ import {
     makeLayersFall,
     cleanUpEmptyUpperLayers,
     differentNumPartsUnsupported
-} from './shapeOperationsHelpers.js';
+} from './shapeLayerMechanics.js';
 import { rotate90CW } from './shapeRotation.js';
 
 // Shape Operations

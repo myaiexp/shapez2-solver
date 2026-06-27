@@ -1,6 +1,6 @@
 import { BUILDING_DATA } from './buildingData.js';
 import { routeBelt } from './blueprintRouting.js';
-import { computeGridBounds } from './blueprintUtils.js';
+import { computeGridBounds } from './blueprintBounds.js';
 
 /** Vertical distance between machine rows in tiles */
 export const ROW_PITCH = 4;
