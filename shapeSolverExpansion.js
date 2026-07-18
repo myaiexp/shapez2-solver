@@ -56,10 +56,14 @@ export function shouldSkipUnaryOp(opName, inputShape, {
     }
 
     if (opName === 'Cutter' || opName === 'Half Destroyer') {
-        const layer = inputShape.layers[0];
+        // A cut is a pure no-op only when one whole side is empty across EVERY
+        // layer — then one piece is empty and the other is the untouched input.
+        // Inspecting layer 0 alone wrongly prunes multi-layer shapes whose empty
+        // halves sit on different layers (e.g. CuCu----:----SuSu cuts into two
+        // useful pieces), silently making such targets unreachable via cutting.
         const half = Math.floor(inputShape.numParts / 2);
-        const leftEmpty = layer.slice(0, half).every(p => p.shape === NOTHING_CHAR);
-        const rightEmpty = layer.slice(half).every(p => p.shape === NOTHING_CHAR);
+        const leftEmpty = inputShape.layers.every(layer => layer.slice(0, half).every(p => p.shape === NOTHING_CHAR));
+        const rightEmpty = inputShape.layers.every(layer => layer.slice(half).every(p => p.shape === NOTHING_CHAR));
         if (leftEmpty || rightEmpty) return true;
     }
 

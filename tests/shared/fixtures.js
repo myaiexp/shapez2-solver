@@ -82,6 +82,19 @@ export const SOLVER_FIXTURES = [
         method: 'BFS',
         ...baseSolverParams,
     },
+    // Multi-layer cut reachability: CuCu----:----SuSu has an empty half on each
+    // layer, but on *different* sides — so a single Cut yields two useful pieces
+    // (----SuSu and CuCu----). Guards the shapeSolverExpansion empty-half prune
+    // against regressing to a layer-0-only check, which wrongly skips this cut
+    // and makes ----SuSu unreachable from this start (audit finding).
+    {
+        name: 'multilayer-cut',
+        target: '----SuSu',
+        starting: ['CuCu----:----SuSu'],
+        ops: ['Cutter'],
+        method: 'BFS',
+        ...baseSolverParams,
+    },
     // 1.0: paint a shape Black (k) — proves the new color solves end-to-end
     {
         name: 'paint-black-astar',

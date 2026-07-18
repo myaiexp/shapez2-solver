@@ -58,6 +58,18 @@ check('two-fold shape NOT skipped by Rotator CW', skip('Rotator CW', 'CuRuCuRu')
 // Both halves occupied: a real cut that yields two distinct pieces.
 check('both-halves cutter not skipped', skip('Cutter', 'CuRuSuWu'), false);
 
+// Multi-layer complementary halves: each layer has one empty side, but on
+// OPPOSITE sides — so neither side is empty across ALL layers. cut() runs every
+// layer and yields two useful pieces (----SuSu and CuCu----), so the prune must
+// NOT skip. A layer-0-only check wrongly reads layer 0's empty right half and
+// skips, making ----SuSu unreachable from this start (audit finding).
+check('multi-layer complementary-half cutter not skipped', skip('Cutter', 'CuCu----:----SuSu'), false);
+check('multi-layer complementary-half Half Destroyer not skipped', skip('Half Destroyer', 'CuCu----:----SuSu'), false);
+
+// Multi-layer with the SAME side empty on every layer is still a genuine no-op
+// (one piece empty, the other the untouched input) — the prune must skip it.
+check('multi-layer whole-side-empty cutter skips', skip('Cutter', 'CuCu----:SuSu----'), true);
+
 // Single-layer paint is exactly what monolayerPainting allows.
 check('single-layer paint not skipped under monolayerPainting',
     skip('Painter', 'CuCuCuCu', { monolayerPainting: true }), false);

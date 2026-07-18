@@ -31,7 +31,7 @@ import { shapeSolver, operations } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { validateStep } from './pathValidation.js';
+import { validateStep, pathReachesTarget } from './pathValidation.js';
 
 function parseArgs(argv) {
     const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
@@ -126,8 +126,12 @@ const stepReports = res.solutionPath.map((step, i) => {
     return { i, op: step.operation, color: step.params?.color, inputs: inCodes, outputs: outCodes, valid: v.valid, reason: v.reason };
 });
 
+// Goal gate: valid ops don't prove the path built the target — the final
+// inventory must actually contain it (any rotation unless orientation-sensitive).
+const reachesTarget = pathReachesTarget(res.solutionPath, opts.target, { config: opConfig, orientationSensitive: !!opts.orientation });
+
 if (opts.json) {
-    console.log(JSON.stringify({ target: opts.target, solved: true, depth: res.depth, steps: stepReports, invalid: bad, statesExplored: res.statesExplored }, null, 2));
+    console.log(JSON.stringify({ target: opts.target, solved: true, reachesTarget, depth: res.depth, steps: stepReports, invalid: bad, statesExplored: res.statesExplored }, null, 2));
 } else {
     console.log(`target=${opts.target} method=${opts.method} depth=${res.depth} steps=${res.solutionPath.length} explored=${res.statesExplored}`);
     for (const r of stepReports) {
@@ -136,5 +140,6 @@ if (opts.json) {
         console.log(`${tag} ${String(r.i).padStart(2)} ${r.op}${' '.repeat(Math.max(0, 17 - r.op.length))} ${col}${r.inputs.join(' + ')} -> ${r.outputs.join(', ')}${r.valid ? '' : '   <-- ' + r.reason}`);
     }
     console.log(bad ? `*** ${bad} INVALID step(s) — solver produced an impossible path ***` : 'all steps valid');
+    if (!reachesTarget) console.log(`*** path does not reach target ${opts.target} — final inventory lacks it ***`);
 }
-process.exit(bad ? 1 : 0);
+process.exit(bad || !reachesTarget ? 1 : 0);

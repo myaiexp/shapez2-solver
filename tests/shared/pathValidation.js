@@ -9,6 +9,33 @@
 // four (e.g. one passing an op config while the others silently don't).
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { operations } from '../../shapeSolverCore.js';
+import { getAllRotations } from '../../shapeOperations.js';
+
+// The claimed outputs of a step must be an order-preserving subsequence of what
+// the op actually produced (matching each produced entry at most once). Ordered,
+// because blueprint ports bind by outputs[i] index — a Cutter whose L/R halves
+// are swapped is a different, miswired factory even though both codes appear in
+// the produced set. Subsequence (not equality), because the solver legitimately
+// drops empty / no-op outputs the op still emits, so the claimed list is a subset
+// kept in produced order. Returns null when valid, else a human-readable reason.
+export function orderedSubsequenceFailure(claimed, produced) {
+    let cursor = 0;
+    for (const code of claimed) {
+        let found = -1;
+        for (let j = cursor; j < produced.length; j++) {
+            if (produced[j] === code) { found = j; break; }
+        }
+        if (found === -1) {
+            // Distinguish a fabricated output from one that exists but is
+            // out-of-order or over-claimed (already consumed at an earlier index).
+            return produced.includes(code)
+                ? `out-of-order/duplicate output ${code}`
+                : `not produced: ${code}`;
+        }
+        cursor = found + 1;
+    }
+    return null;
+}
 
 // Re-run an operation on concrete input codes, returning the produced output
 // codes (empties dropped). Throws on an unknown op. `config` should carry the
@@ -34,8 +61,8 @@ export function validateStep(opName, inputCodes, outputCodes, color, config) {
     } catch (e) {
         return { valid: false, reason: `error: ${e.message}`, produced: [] };
     }
-    const missing = outputCodes.filter(c => !produced.includes(c));
-    return { valid: missing.length === 0, reason: missing.length ? `not produced: ${missing.join(',')}` : '', produced };
+    const reason = orderedSubsequenceFailure(outputCodes, produced);
+    return { valid: !reason, reason: reason ?? '', produced };
 }
 
 // Re-validate a whole solution path (array of step objects shaped
@@ -53,8 +80,8 @@ export function invalidPathSteps(path, config) {
         try {
             produced = applyOp(step.operation, inputs, step.params?.color, config);
         } catch (e) { bad.push(`${step.operation}: ${e.message}`); continue; }
-        const missing = step.outputs.map(x => x.shape).filter(c => !produced.includes(c));
-        if (missing.length) bad.push(`${step.operation}: ${inputs.join('+')} -> ${missing.join(',')} (got ${produced.join(',')})`);
+        const reason = orderedSubsequenceFailure(step.outputs.map(x => x.shape), produced);
+        if (reason) bad.push(`${step.operation}: ${inputs.join('+')} -> ${reason} (got ${produced.join(',')})`);
     }
     return bad;
 }
@@ -65,4 +92,39 @@ export function invalidPathSteps(path, config) {
 export function pathIsValid(path, config) {
     if (!path) return false;
     return invalidPathSteps(path, config).length === 0;
+}
+
+// Replay a solution path's id bookkeeping to recover the shapes still on hand
+// after the last step. Every step deletes its input ids and adds its output ids
+// (mirroring the solver's applySuccessor). Ids that are consumed but never
+// produced are the participating starting shapes, so we seed those first. The
+// remaining shapes are the final inventory — this is what "did we build it?"
+// must check, since a Trash-ending path removes the byproduct, not the target.
+export function simulateFinalInventory(path) {
+    const producedIds = new Set();
+    for (const step of path) for (const out of step.outputs) producedIds.add(out.id);
+    const inventory = new Map(); // id -> shape code
+    // Seed starting shapes: any input id that no step produces.
+    for (const step of path) {
+        for (const inp of step.inputs) {
+            if (!producedIds.has(inp.id) && !inventory.has(inp.id)) inventory.set(inp.id, inp.shape);
+        }
+    }
+    for (const step of path) {
+        for (const inp of step.inputs) inventory.delete(inp.id);
+        for (const out of step.outputs) inventory.set(out.id, out.shape);
+    }
+    return Array.from(inventory.values());
+}
+
+// True when the path's final inventory actually contains the target (any
+// rotation, unless orientationSensitive — mirroring the solver's acceptable
+// set). This is the goal gate that step-level op validation does NOT provide:
+// every step can be a real op yet assemble the wrong shape or trash the target.
+export function pathReachesTarget(path, target, { config, orientationSensitive = false } = {}) {
+    if (!path || path.length === 0) return false;
+    const acceptable = orientationSensitive
+        ? new Set([target])
+        : getAllRotations(Shape.fromShapeCode(target), config);
+    return simulateFinalInventory(path).some(code => acceptable.has(code));
 }

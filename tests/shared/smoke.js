@@ -8,7 +8,7 @@ import { getSimilarity } from '../../shapeAnalysis.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
-import { invalidPathSteps } from './pathValidation.js';
+import { invalidPathSteps, pathReachesTarget } from './pathValidation.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -115,9 +115,20 @@ for (const fixture of SOLVER_FIXTURES) {
 
     // Correctness gate (independent of the snapshot): every step must be a real op,
     // validated under the same layer cap the solver ran with.
-    const badSteps = invalidPathSteps(path, new ShapeOperationConfig(fixture.maxLayers));
+    const config = new ShapeOperationConfig(fixture.maxLayers);
+    const badSteps = invalidPathSteps(path, config);
     if (badSteps.length) {
         console.log(`✗ ${key} — INVALID path: ${badSteps.join(' | ')}`);
+        failed = true;
+        continue;
+    }
+
+    // Goal gate (independent of the snapshot): valid ops alone don't prove the
+    // path built the target — the final inventory must actually contain it (any
+    // rotation unless orientation-sensitive). Catches wrong-assembly and
+    // target-trashed paths that every step-level check would still pass.
+    if (!pathReachesTarget(path, fixture.target, { config, orientationSensitive: fixture.orientationSensitive })) {
+        console.log(`✗ ${key} — path does not reach target ${fixture.target}`);
         failed = true;
         continue;
     }
@@ -125,9 +136,6 @@ for (const fixture of SOLVER_FIXTURES) {
     const actual = {
         numOps: path ? path.length : null,
         depth: result?.depth ?? null,
-        finalShapeCode: path && path.length > 0
-            ? path[path.length - 1].outputs[0]?.shape ?? null
-            : null,
     };
     if (!(key in snapshots)) {
         snapshots[key] = actual;

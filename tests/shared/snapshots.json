@@ -19,33 +19,27 @@
   },
   "Solver: simple-cut": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "----CuCu"
+    "depth": 1
   },
   "Solver: rotate-astar": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "CuRuCuRu"
+    "depth": 1
   },
   "Solver: stack-astar": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "CuCuCuCu:RuRuRuRu"
+    "depth": 1
   },
   "Solver: paint-astar": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "CrCrCrCr"
+    "depth": 1
   },
   "Solver: cut-stack-astar": {
-    "numOps": 4,
-    "depth": 4,
-    "finalShapeCode": "CuCu----:RuRu----"
+    "numOps": 3,
+    "depth": 3
   },
   "Solver: rotate-ida": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "CuRuCuRu"
+    "depth": 1
   },
   "Explorer: small-explore": {
     "shapeCount": 10,
@@ -58,8 +52,7 @@
   ],
   "Solver: refined-x-cut": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "----XuXu"
+    "depth": 1
   },
   "Op: cut-CkCkCkCk": [
     "----CkCk",
@@ -67,8 +60,7 @@
   ],
   "Solver: paint-black-astar": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "CkCkCkCk"
+    "depth": 1
   },
   "Layout: cut-paint-stack": {
     "machineCount": 3,
@@ -93,23 +85,19 @@
   },
   "Solver: bidi-stack": {
     "numOps": 1,
-    "depth": 1,
-    "finalShapeCode": "CuCuCuCu:RuRuRuRu"
+    "depth": 1
   },
   "Solver: bidi-cut-stack": {
     "numOps": 3,
-    "depth": 3,
-    "finalShapeCode": "CuCu----:RuRu----"
+    "depth": 3
   },
   "Solver: prevent-waste-monolayer-paint": {
     "numOps": 2,
-    "depth": 2,
-    "finalShapeCode": "CrCr----:CuCu----"
+    "depth": 2
   },
   "Solver: prevent-waste-blocks-waste": {
     "numOps": 2,
-    "depth": 2,
-    "finalShapeCode": null
+    "depth": 2
   },
   "Layout: machine-fed-belt-split": {
     "machineCount": 3,
@@ -117,5 +105,9 @@
     "gridWidth": 4,
     "gridHeight": 9,
     "floorCount": 2
+  },
+  "Solver: multilayer-cut": {
+    "numOps": 1,
+    "depth": 1
   }
 }
