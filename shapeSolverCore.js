@@ -422,248 +422,259 @@ export async function shapeSolver(
     }
 
     // -----------------------------------------------------------------------
-    // A* Search
-    // -----------------------------------------------------------------------
-    if (searchMethod === 'A*') {
-        return await runBestFirst(getHeuristic, 'A*', '', ' (try BFS, a larger heuristic divisor, or a simpler target)');
-
-    // -----------------------------------------------------------------------
     // IDA* Search
     // -----------------------------------------------------------------------
-    } else if (searchMethod === 'IDA*') {
+    async function runIdaStar() {
+        let threshold = getHeuristic(initialAvailableIds);
+        let statesExplored = 0;   // cumulative nodes expanded across all threshold passes
+        let passCount = 0;        // number of threshold-bounded passes run so far
 
-    let threshold = getHeuristic(initialAvailableIds);
-    let statesExplored = 0;   // cumulative nodes expanded across all threshold passes
-    let passCount = 0;        // number of threshold-bounded passes run so far
+        while (!shouldCancel()) {
+            passCount++;
+            let nodesThisPass = 0;
 
-    while (!shouldCancel()) {
-        passCount++;
-        let nodesThisPass = 0;
+            // Depth-limited search using explicit stack. pathKeys is a single mutable
+            // Set holding the state keys currently on the stack (root → top): a key is
+            // added when its frame is pushed and deleted when the frame is popped
+            // (backtracking), so cycle detection stays O(depth) total instead of copying
+            // the whole Set on every push. pathStack mirrors the same push/pop pattern
+            // for step records; the public solution path is built from pathStack only at
+            // the goal. Cycle detection prevents a duplicate key from being on the stack
+            // at once, so each delete-on-pop is unambiguous.
+            const initialKey = getStateKey(initialAvailableIds);
+            const pathKeys = new Set([initialKey]);
+            const pathStack = [];
+            const stack = [{
+                availableIds: new Set(initialAvailableIds),
+                g: 0,
+                successorIterator: null,
+                stateKey: initialKey
+            }];
 
-        // Depth-limited search using explicit stack. pathKeys is a single mutable
-        // Set holding the state keys currently on the stack (root → top): a key is
-        // added when its frame is pushed and deleted when the frame is popped
-        // (backtracking), so cycle detection stays O(depth) total instead of copying
-        // the whole Set on every push. pathStack mirrors the same push/pop pattern
-        // for step records; the public solution path is built from pathStack only at
-        // the goal. Cycle detection prevents a duplicate key from being on the stack
-        // at once, so each delete-on-pop is unambiguous.
-        const initialKey = getStateKey(initialAvailableIds);
-        const pathKeys = new Set([initialKey]);
-        const pathStack = [];
-        const stack = [{
-            availableIds: new Set(initialAvailableIds),
-            g: 0,
-            successorIterator: null,
-            stateKey: initialKey
-        }];
+            let nextThreshold = Infinity;
+            let found = false;
+            let solutionPath = null;
 
-        let nextThreshold = Infinity;
-        let found = false;
-        let solutionPath = null;
+            while (stack.length > 0 && !shouldCancel()) {
+                const frame = stack[stack.length - 1];
 
-        while (stack.length > 0 && !shouldCancel()) {
-            const frame = stack[stack.length - 1];
+                // A frame with no successorIterator is on its first visit: check its
+                // goal/f-value, then lazily attach the iterator below. On later visits the
+                // iterator is present, so this block is skipped and we pull the next
+                // successor — the iterator's presence is what distinguishes a frame being
+                // re-expanded from one being visited for the first time.
+                if (!frame.successorIterator) {
+                    nodesThisPass++;
+                    statesExplored++;
 
-            // A frame with no successorIterator is on its first visit: check its
-            // goal/f-value, then lazily attach the iterator below. On later visits the
-            // iterator is present, so this block is skipped and we pull the next
-            // successor — the iterator's presence is what distinguishes a frame being
-            // re-expanded from one being visited for the first time.
-            if (!frame.successorIterator) {
-                nodesThisPass++;
-                statesExplored++;
+                    if (statesExplored > maxStates) { aborted = true; break; }
 
-                if (statesExplored > maxStates) { aborted = true; break; }
+                    const f = frame.g + getHeuristic(frame.availableIds);
+                    if (f > threshold) {
+                        nextThreshold = Math.min(nextThreshold, f);
+                        pathKeys.delete(frame.stateKey);
+                        stack.pop();
+                        if (frame.g > 0) pathStack.pop();
+                        continue;
+                    }
 
-                const f = frame.g + getHeuristic(frame.availableIds);
-                if (f > threshold) {
-                    nextThreshold = Math.min(nextThreshold, f);
+                    if (isGoal(frame.availableIds)) {
+                        solutionPath = pathStack.map(formatStep);
+                        found = true;
+                        break;
+                    }
+
+                    frame.successorIterator = generateSuccessors(frame.availableIds);
+                }
+
+                // Try next successor
+                const next = frame.successorIterator.next();
+                if (next.done) {
                     pathKeys.delete(frame.stateKey);
                     stack.pop();
                     if (frame.g > 0) pathStack.pop();
                     continue;
                 }
 
-                if (isGoal(frame.availableIds)) {
-                    solutionPath = pathStack.map(formatStep);
-                    found = true;
-                    break;
+                const desc = next.value;
+                const succKey = successorStateKey(frame.availableIds, desc);
+
+                // Cycle detection: skip if this state key is already on the path
+                if (pathKeys.has(succKey)) continue;
+
+                const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
+                pathKeys.add(succKey);
+                pathStack.push(step);
+
+                stack.push({
+                    availableIds: succIds,
+                    g: frame.g + 1,
+                    successorIterator: null,
+                    stateKey: succKey
+                });
+
+                // Status update
+                if (statesExplored % 1000 === 0 || performance.now() - lastUpdate > 200) {
+                    onProgress(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Total:${statesExplored}`);
+                    lastUpdate = performance.now();
+                    // Yield to event loop periodically for cancel checks
+                    await new Promise(r => setTimeout(r, 0));
                 }
-
-                frame.successorIterator = generateSuccessors(frame.availableIds);
             }
 
-            // Try next successor
-            const next = frame.successorIterator.next();
-            if (next.done) {
-                pathKeys.delete(frame.stateKey);
-                stack.pop();
-                if (frame.g > 0) pathStack.pop();
-                continue;
+            if (found) {
+                return { solutionPath, depth: solutionPath.length, statesExplored: statesExplored };
             }
 
-            const desc = next.value;
-            const succKey = successorStateKey(frame.availableIds, desc);
-
-            // Cycle detection: skip if this state key is already on the path
-            if (pathKeys.has(succKey)) continue;
-
-            const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
-            pathKeys.add(succKey);
-            pathStack.push(step);
-
-            stack.push({
-                availableIds: succIds,
-                g: frame.g + 1,
-                successorIterator: null,
-                stateKey: succKey
-            });
-
-            // Status update
-            if (statesExplored % 1000 === 0 || performance.now() - lastUpdate > 200) {
-                onProgress(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Total:${statesExplored}`);
-                lastUpdate = performance.now();
-                // Yield to event loop periodically for cancel checks
-                await new Promise(r => setTimeout(r, 0));
+            if (aborted) {
+                onProgress(`IDA* | Aborted: hit ${maxStates}-node cap before solving`);
+                return { solutionPath: null, depth: null, statesExplored: statesExplored, aborted: 'maxStates' };
             }
+
+            if (nextThreshold === Infinity || shouldCancel()) {
+                return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
+            }
+
+            onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Total nodes: ${statesExplored}`);
+
+            threshold = nextThreshold;
         }
 
-        if (found) {
-            return { solutionPath, depth: solutionPath.length, statesExplored: statesExplored };
-        }
-
-        if (aborted) {
-            onProgress(`IDA* | Aborted: hit ${maxStates}-node cap before solving`);
-            return { solutionPath: null, depth: null, statesExplored: statesExplored, aborted: 'maxStates' };
-        }
-
-        if (nextThreshold === Infinity || shouldCancel()) {
-            return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
-        }
-
-        onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Total nodes: ${statesExplored}`);
-
-        threshold = nextThreshold;
+        return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
     }
-
-    return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
 
     // -----------------------------------------------------------------------
     // Bidirectional Search
     // -----------------------------------------------------------------------
-    } else if (searchMethod === 'Bidirectional') {
+    async function runBidirectional() {
+        // Phase 1: Build backward reachability map
+        onProgress('Bidirectional | Building backward reachability map...');
+        const backwardDepth = BIDIRECTIONAL_BACKWARD_DEPTH;
+        const backwardMap = buildBackwardReachability(targetShapeCode, config, enabledOperations, backwardDepth, shouldCancel);
+        if (shouldCancel()) return null;
 
-    // Phase 1: Build backward reachability map
-    onProgress('Bidirectional | Building backward reachability map...');
-    const backwardDepth = BIDIRECTIONAL_BACKWARD_DEPTH;
-    const backwardMap = buildBackwardReachability(targetShapeCode, config, enabledOperations, backwardDepth, shouldCancel);
-    if (shouldCancel()) return null;
+        onProgress(`Bidirectional | Backward map: ${backwardMap.size} reachable shapes (depth ${backwardDepth})`);
 
-    onProgress(`Bidirectional | Backward map: ${backwardMap.size} reachable shapes (depth ${backwardDepth})`);
+        // Phase 2: Forward A* with enhanced heuristic
+        function getHeuristicBidirectional(availableIds) {
+            if (availableIds.size === 0) return Infinity;
 
-    // Phase 2: Forward A* with enhanced heuristic
-    function getHeuristicBidirectional(availableIds) {
-        if (availableIds.size === 0) return Infinity;
-
-        // Check if any shape is in the backward map
-        let bestBackwardDist = Infinity;
-        for (const id of availableIds) {
-            const code = shapes.get(id);
-            if (backwardMap.has(code)) {
-                bestBackwardDist = Math.min(bestBackwardDist, backwardMap.get(code));
+            // Check if any shape is in the backward map
+            let bestBackwardDist = Infinity;
+            for (const id of availableIds) {
+                const code = shapes.get(id);
+                if (backwardMap.has(code)) {
+                    bestBackwardDist = Math.min(bestBackwardDist, backwardMap.get(code));
+                }
             }
+
+            if (bestBackwardDist < Infinity) {
+                // Use backward distance as heuristic (exact for shapes in the map)
+                let h = bestBackwardDist;
+                if (preventWaste && availableIds.size > 1) {
+                    h += (availableIds.size - 1);
+                }
+                return h;
+            }
+
+            // Fallback to standard heuristic
+            return getHeuristic(availableIds);
         }
 
-        if (bestBackwardDist < Infinity) {
-            // Use backward distance as heuristic (exact for shapes in the map)
-            let h = bestBackwardDist;
-            if (preventWaste && availableIds.size > 1) {
-                h += (availableIds.size - 1);
-            }
-            return h;
-        }
-
-        // Fallback to standard heuristic
-        return getHeuristic(availableIds);
+        return await runBestFirst(
+            getHeuristicBidirectional,
+            'Bidirectional',
+            ` | Backward map:${backwardMap.size}`,
+            ''
+        );
     }
-
-    return await runBestFirst(
-        getHeuristicBidirectional,
-        'Bidirectional',
-        ` | Backward map:${backwardMap.size}`,
-        ''
-    );
 
     // -----------------------------------------------------------------------
     // BFS (original)
     // -----------------------------------------------------------------------
-    } else {
-    const initialKey = getStateKey(initialAvailableIds);
-    const queue = [{ availableIds: initialAvailableIds, stateKey: initialKey, depth: 0, score: calculateStateScore(initialAvailableIds) }];
-    const visited = new Set();
-    visited.add(initialKey);
-    // cameFrom maps each discovered state key to its parent key + the step that
-    // produced it, so the solution path is reconstructed once at the goal (same
-    // pattern as A*/Bidirectional) instead of copying a full path array onto every
-    // accepted successor. Pruned states leave harmless unused entries — only the
-    // goal's ancestor chain (all survivors) is ever walked.
-    const cameFrom = new Map();
-    // Beam pruning: when a depth level exceeds the cap, keep only the
-    // highest-scoring states (calculateStateScore favours clean partial pieces).
-    function pruneStatesAtDepth(states, beamWidth) {
-        if (states.length <= beamWidth) {
-            return states;
-        }
-        states.sort((a, b) => b.score - a.score);
-        return states.slice(0, beamWidth);
-    }
-    while (queue.length > 0 && !shouldCancel()) {
-        if (visited.size > maxStates) { aborted = true; break; }
-        const currentDepthStates = [];
-        while (queue.length > 0 && queue[0].depth === depth) {
-            currentDepthStates.push(queue.shift());
-        }
-        const nextDepthStates = [];
-        for (const current of currentDepthStates) {
-            if (shouldCancel()) break;
-            const availableIds = current.availableIds;
-            const currentKey = current.stateKey;
-            if (isGoal(availableIds)) {
-                return {
-                    solutionPath: reconstructPath(cameFrom, currentKey, initialKey),
-                    depth,
-                    statesExplored: visited.size
-                };
+    async function runBfs() {
+        const initialKey = getStateKey(initialAvailableIds);
+        const queue = [{ availableIds: initialAvailableIds, stateKey: initialKey, depth: 0, score: calculateStateScore(initialAvailableIds) }];
+        const visited = new Set();
+        visited.add(initialKey);
+        // cameFrom maps each discovered state key to its parent key + the step that
+        // produced it, so the solution path is reconstructed once at the goal (same
+        // pattern as A*/Bidirectional) instead of copying a full path array onto every
+        // accepted successor. Pruned states leave harmless unused entries — only the
+        // goal's ancestor chain (all survivors) is ever walked.
+        const cameFrom = new Map();
+        // Beam pruning: when a depth level exceeds the cap, keep only the
+        // highest-scoring states (calculateStateScore favours clean partial pieces).
+        function pruneStatesAtDepth(states, beamWidth) {
+            if (states.length <= beamWidth) {
+                return states;
             }
-            for (const desc of generateSuccessors(availableIds)) {
+            states.sort((a, b) => b.score - a.score);
+            return states.slice(0, beamWidth);
+        }
+        while (queue.length > 0 && !shouldCancel()) {
+            if (visited.size > maxStates) { aborted = true; break; }
+            const currentDepthStates = [];
+            while (queue.length > 0 && queue[0].depth === depth) {
+                currentDepthStates.push(queue.shift());
+            }
+            const nextDepthStates = [];
+            for (const current of currentDepthStates) {
                 if (shouldCancel()) break;
-                const stateKey = successorStateKey(availableIds, desc);
-                if (!visited.has(stateKey)) {
-                    visited.add(stateKey);
-                    const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
-                    cameFrom.set(stateKey, { parentKey: currentKey, step });
-                    const newScore = calculateStateScore(succIds);
-                    nextDepthStates.push({ availableIds: succIds, stateKey, depth: depth + 1, score: newScore });
+                const availableIds = current.availableIds;
+                const currentKey = current.stateKey;
+                if (isGoal(availableIds)) {
+                    return {
+                        solutionPath: reconstructPath(cameFrom, currentKey, initialKey),
+                        depth,
+                        statesExplored: visited.size
+                    };
+                }
+                for (const desc of generateSuccessors(availableIds)) {
+                    if (shouldCancel()) break;
+                    const stateKey = successorStateKey(availableIds, desc);
+                    if (!visited.has(stateKey)) {
+                        visited.add(stateKey);
+                        const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
+                        cameFrom.set(stateKey, { parentKey: currentKey, step });
+                        const newScore = calculateStateScore(succIds);
+                        nextDepthStates.push({ availableIds: succIds, stateKey, depth: depth + 1, score: newScore });
+                    }
                 }
             }
+            const prunedNextStates = pruneStatesAtDepth(nextDepthStates, maxStatesPerLevel);
+            for (const state of prunedNextStates) {
+                queue.push(state);
+            }
+            if (queue.length > 0) {
+                depth = queue[0].depth;
+            }
+            const now = performance.now();
+            if (now - lastUpdate > 200) {
+                const prunedCount = nextDepthStates.length - prunedNextStates.length;
+                const pruneInfo = prunedCount > 0 ? ` | Pruned ${prunedCount} States` : '';
+                onProgress(`BFS | Depth ${depth} → ${queue.length} States | ${visited.size} Total States${pruneInfo}`);
+                lastUpdate = now;
+            }
         }
-        const prunedNextStates = pruneStatesAtDepth(nextDepthStates, maxStatesPerLevel);
-        for (const state of prunedNextStates) {
-            queue.push(state);
-        }
-        if (queue.length > 0) {
-            depth = queue[0].depth;
-        }
-        const now = performance.now();
-        if (now - lastUpdate > 200) {
-            const prunedCount = nextDepthStates.length - prunedNextStates.length;
-            const pruneInfo = prunedCount > 0 ? ` | Pruned ${prunedCount} States` : '';
-            onProgress(`BFS | Depth ${depth} → ${queue.length} States | ${visited.size} Total States${pruneInfo}`);
-            lastUpdate = now;
-        }
+        if (aborted) onProgress(`BFS | Aborted: hit ${maxStates}-state cap before solving`);
+        return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored: visited.size, aborted: aborted ? 'maxStates' : null};
     }
-    if (aborted) onProgress(`BFS | Aborted: hit ${maxStates}-state cap before solving`);
-    return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored: visited.size, aborted: aborted ? 'maxStates' : null};
+
+    // -----------------------------------------------------------------------
+    // Dispatch: explicit search-method -> runner map. Unknown methods throw
+    // rather than silently falling through to BFS, so a bad method string
+    // surfaces as an error instead of a mis-run search.
+    // -----------------------------------------------------------------------
+    const searchRunners = {
+        'A*': () => runBestFirst(getHeuristic, 'A*', '', ' (try BFS, a larger heuristic divisor, or a simpler target)'),
+        'IDA*': runIdaStar,
+        'Bidirectional': runBidirectional,
+        'BFS': runBfs,
+    };
+    const runner = searchRunners[searchMethod];
+    if (!runner) {
+        throw new Error(`shapeSolver: unknown searchMethod "${searchMethod}" (expected one of ${Object.keys(searchRunners).join(', ')})`);
     }
+    return await runner();
 }
