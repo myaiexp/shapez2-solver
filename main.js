@@ -216,15 +216,24 @@ function summarizeStrategyTrace(trace) {
 }
 
 let solverWorker = null;
+// The single button that currently owns the shared worker ({ btn, idleLabel }),
+// or null when idle. Solve and Explore share one worker, so this — not the
+// per-call `btn` closure — is the source of truth for which button shows
+// 'Cancel'. Tracking it here lets a new job reset the OTHER action's button.
+let activeJob = null;
 
 function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
     const status = byId('status');
 
-    // Reset the button to its idle label and tear down the worker. Called on
-    // every terminal outcome (cancel, result, error, worker crash) so the UI can
-    // never get stuck showing 'Cancel' behind a dead or orphaned worker.
+    // Reset whichever button owns the worker back to its idle label and tear the
+    // worker down. Called on every terminal outcome (cancel, result, error,
+    // crash) AND before starting a new job — so starting Explore mid-Solve (or
+    // vice versa) can never leave the other button stuck on 'Cancel'.
     const finish = () => {
-        btn.textContent = idleLabel;
+        if (activeJob) {
+            activeJob.btn.textContent = activeJob.idleLabel;
+            activeJob = null;
+        }
         if (solverWorker) {
             solverWorker.terminate();
             solverWorker = null;
@@ -241,8 +250,12 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
         return;
     }
 
-    if (solverWorker) solverWorker.terminate();
+    // Starting a new job: finish() resets any in-flight job's button (which must
+    // be the OTHER action, since this btn isn't showing 'Cancel') and kills its
+    // worker before we spin up a fresh one.
+    finish();
     solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
+    activeJob = { btn, idleLabel };
 
     solverWorker.onmessage = ({ data: msg }) => {
         const { type, message, result } = msg;
@@ -460,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state) {
         suspendPersist = true;
         try {
-            const { restoredFloor } = applyState(state, {
+            const { restoredSolution, restoredFloor } = applyState(state, {
                 renderGraph,
                 applyGraphLayout,
                 buildLayout,
@@ -469,7 +482,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 createShapeItem,
                 setBlueprintLayout: (layout) => { currentBlueprintLayout = layout; },
             });
-            if (state.solution) {
+            // Only adopt the persisted solution if applyState actually validated
+            // and rendered it — otherwise lastSolution would point at a solution
+            // the graph/blueprint never drew, leaving the two inconsistent.
+            if (restoredSolution && state.solution) {
                 lastSolution = state.solution;
             }
             if (state.view.activeOutputView === 'blueprint' && currentBlueprintLayout) {
@@ -482,11 +498,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     byId('floor-indicator').textContent = `Floor ${restoredFloor}`;
                 }
             }
-        } catch (err) {
-            console.warn('Failed to restore solver state, clearing.', err);
-            clearState();
-        } finally {
             suspendPersist = false;
+        } catch (err) {
+            // applyState mutates form fields, shapes, tabs, and the graph in place,
+            // so a throw can leave the UI half-applied. We can't cleanly unwind
+            // that, so wipe the saved state and reload into a guaranteed-default
+            // UI. Reload only if the wipe succeeded — otherwise the re-throw on the
+            // next load would loop; leave persistence suspended so the half-applied
+            // DOM isn't re-saved before navigation.
+            console.warn('Failed to restore solver state; clearing saved state and reloading defaults.', err);
+            if (clearState()) {
+                location.reload();
+            } else {
+                suspendPersist = false;
+            }
         }
     }
 });

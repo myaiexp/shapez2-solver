@@ -16,7 +16,7 @@
 // The import itself is also a smoke check: persistence.js defines $/$all/byId as
 // document-using closures but never calls them at module load, so importing it
 // with NO document present must succeed.
-import { loadState, saveState, clearState, STORAGE_KEY, SCHEMA_VERSION } from '../../persistence.js';
+import { loadState, saveState, clearState, isValidSolutionPath, STORAGE_KEY, SCHEMA_VERSION } from '../../persistence.js';
 
 let passed = 0;
 let total = 0;
@@ -248,6 +248,64 @@ check('SCHEMA_VERSION is 1', SCHEMA_VERSION === 1);
 }
 
 delete globalThis.localStorage;
+
+// --- clearState return value (used by the reload-on-failure guard) ----------
+// The restore-failure path in main.js reloads only if clearState() reports
+// success, so it must return true on a clean remove and false when the backing
+// store throws (otherwise a persistently-throwing store would reload-loop).
+{
+    withLocalStorage(makeLocalStorage());
+    saveState(validState());
+    check('clearState returns true on success', clearState() === true);
+}
+{
+    withLocalStorage({
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => { throw new Error('removeItem blocked'); },
+    });
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    let ret;
+    try {
+        ret = clearState();
+    } finally {
+        console.warn = originalWarn;
+    }
+    check('clearState returns false when removeItem throws', ret === false);
+    delete globalThis.localStorage;
+}
+
+// --- isValidSolutionPath: structural guard before rendering -----------------
+// A well-formed step: non-empty operation, input/output endpoints each with a
+// string shape and an id. Colored ops additionally require params.color.
+const okStep = {
+    operation: 'Stacker',
+    inputs: [{ id: 's0', shape: 'Cu------' }, { id: 's1', shape: '--Ru----' }],
+    outputs: [{ id: 's2', shape: 'CuRu----' }],
+};
+const okColoredStep = {
+    operation: 'Painter',
+    inputs: [{ id: 's0', shape: 'Cu------' }],
+    outputs: [{ id: 's1', shape: 'Cr------' }],
+    params: { color: 'r' },
+};
+
+check('empty path is valid (no-steps solution)', isValidSolutionPath([]) === true);
+check('single well-formed step is valid', isValidSolutionPath([okStep]) === true);
+check('colored step with params.color is valid', isValidSolutionPath([okColoredStep]) === true);
+check('non-array path is invalid', isValidSolutionPath('nope') === false);
+check('null path is invalid', isValidSolutionPath(null) === false);
+check('step missing operation is invalid', isValidSolutionPath([{ inputs: [], outputs: [] }]) === false);
+check('step with empty operation is invalid', isValidSolutionPath([{ ...okStep, operation: '' }]) === false);
+check('step with non-array inputs is invalid', isValidSolutionPath([{ ...okStep, inputs: null }]) === false);
+check('step with non-array outputs is invalid', isValidSolutionPath([{ ...okStep, outputs: undefined }]) === false);
+check('endpoint missing shape is invalid', isValidSolutionPath([{ ...okStep, outputs: [{ id: 's2' }] }]) === false);
+check('endpoint with non-string shape is invalid', isValidSolutionPath([{ ...okStep, outputs: [{ id: 's2', shape: 42 }] }]) === false);
+check('endpoint missing id is invalid', isValidSolutionPath([{ ...okStep, outputs: [{ shape: 'CuRu----' }] }]) === false);
+check('colored op without params is invalid', isValidSolutionPath([{ ...okColoredStep, params: undefined }]) === false);
+check('colored op without params.color is invalid', isValidSolutionPath([{ ...okColoredStep, params: {} }]) === false);
+check('one bad step invalidates whole path', isValidSolutionPath([okStep, { operation: 'X' }]) === false);
 
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);

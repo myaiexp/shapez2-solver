@@ -1,14 +1,16 @@
 // Pure, stateless decomposition splits + cost metric for the Constructive planner.
 // Each split takes a shape-code and returns piece shape-codes in fold order (the
 // orchestrator left-folds them with stack), or null when the split does not apply.
-// No mutation of cached shapes: we read parsed shapes to inspect quadrants and
-// build brand-new code strings.
+// No mutation of cached shapes: we read parsed shapes to inspect quadrants, then
+// route serialization through the canonical layerToCode codec (never re-joining
+// part codes by hand) so splits can't drift from Shape.toShapeCode.
 
 import { getCachedShape } from './shapeSolverCache.js';
-import { SHAPE_LAYER_SEPARATOR, NOTHING_CHAR } from './shapeClass.js';
+import { SHAPE_LAYER_SEPARATOR, NOTHING_CHAR, layerToCode, ShapePart } from './shapeClass.js';
 
-const EMPTY_PART = NOTHING_CHAR + NOTHING_CHAR; // '--'
-const partCode = (part) => part.shape + part.color;
+// A single empty ('--') part, reused read-only as filler for unoccupied slots.
+// layerToCode only reads .shape/.color, so sharing one instance is safe.
+const EMPTY_PART = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);
 const isMultiLayer = (code) => code.includes(SHAPE_LAYER_SEPARATOR);
 
 // Multi-layer -> the layers, BOTTOM first (Shape.fromShapeCode treats the first
@@ -32,8 +34,8 @@ export function splitByQuadrant(code) {
     if (occupied.length < 2) return null;
     return occupied.map((q) => {
         const parts = new Array(n).fill(EMPTY_PART);
-        parts[q] = partCode(layer[q]);
-        return parts.join('');
+        parts[q] = layer[q];
+        return layerToCode(parts);
     });
 }
 
@@ -48,10 +50,9 @@ export function splitByHalf(code) {
     const leftOccupied = layer.slice(0, half).some((p) => p.shape !== NOTHING_CHAR);
     const rightOccupied = layer.slice(half).some((p) => p.shape !== NOTHING_CHAR);
     if (!leftOccupied || !rightOccupied) return null;
-    const parts = layer.map(partCode);
-    const left = parts.map((p, i) => (i < half ? p : EMPTY_PART)).join('');
-    const right = parts.map((p, i) => (i >= half ? p : EMPTY_PART)).join('');
-    return [left, right];
+    const left = layer.map((p, i) => (i < half ? p : EMPTY_PART));
+    const right = layer.map((p, i) => (i >= half ? p : EMPTY_PART));
+    return [layerToCode(left), layerToCode(right)];
 }
 
 // ---------------------------------------------------------------------------

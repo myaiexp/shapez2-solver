@@ -47,13 +47,49 @@ export function saveState(state) {
 }
 
 // Wipe persisted solver state so the next page load uses defaults.
-// Used by the Reset button; storage errors are swallowed like save/load.
+// Used by the Reset button and the restore-failure path; storage errors are
+// swallowed like save/load. Returns true iff the key was actually removed —
+// callers that reload on failure check this to avoid a reload loop when the
+// backing store itself is throwing.
 export function clearState() {
     try {
         localStorage.removeItem(STORAGE_KEY);
+        return true;
     } catch (err) {
         console.warn('Failed to clear solver state:', err);
+        return false;
     }
+}
+
+// Structural validation of a persisted solutionPath before it reaches the graph
+// / blueprint renderers. loadState only checks the top-level version/inputs/view
+// shape, so a versioned-but-corrupt solution would otherwise flow straight into
+// renderGraph/buildLayout — either throwing mid-render (leaving a half-applied
+// UI) or drawing an inconsistent graph. Each step must carry a non-empty
+// operation name plus input/output endpoint arrays whose entries expose a string
+// shape code and an id; colored ops (Painter / Crystal Generator) additionally
+// need a params.color string, which the renderer dereferences unconditionally.
+const COLORED_OPS = new Set(['Painter', 'Crystal Generator']);
+
+function isValidEndpoint(e) {
+    return !!e && typeof e === 'object'
+        && typeof e.shape === 'string' && e.shape.length > 0
+        && (typeof e.id === 'string' || typeof e.id === 'number');
+}
+
+function isValidStep(step) {
+    if (!step || typeof step !== 'object') return false;
+    if (typeof step.operation !== 'string' || step.operation.length === 0) return false;
+    if (!Array.isArray(step.inputs) || !step.inputs.every(isValidEndpoint)) return false;
+    if (!Array.isArray(step.outputs) || !step.outputs.every(isValidEndpoint)) return false;
+    if (COLORED_OPS.has(step.operation) && (!step.params || typeof step.params.color !== 'string')) return false;
+    return true;
+}
+
+// True for an empty path (a valid "no steps" solution) or one whose every step is
+// structurally sound. Rejects the corrupt-but-versioned payloads described above.
+export function isValidSolutionPath(path) {
+    return Array.isArray(path) && path.every(isValidStep);
 }
 
 export function captureState(runtime) {
@@ -134,7 +170,7 @@ export function applyState(state, deps) {
     if (state.view.edgeStyle && edgeStyleSel) edgeStyleSel.value = state.view.edgeStyle;
 
     let restoredSolution = false;
-    if (state.solution && Array.isArray(state.solution.solutionPath)) {
+    if (state.solution && isValidSolutionPath(state.solution.solutionPath)) {
         deps.renderGraph(state.solution.solutionPath);
         if (state.view.graphDirection) deps.applyGraphLayout(state.view.graphDirection);
 
