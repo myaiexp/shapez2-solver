@@ -35,7 +35,7 @@ function lastProducesTarget(path, target) {
 async function run() {
     // --- CuRuSuWu: the headline multi-distinct-quadrant target ---------------
     {
-        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1);
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
         assert('CuRuSuWu solved', !!r.solutionPath);
         assert('CuRuSuWu every step is a real op', everyStepValid(r.solutionPath));
         assert('CuRuSuWu final output is the target', lastProducesTarget(r.solutionPath, 'CuRuSuWu'));
@@ -51,7 +51,7 @@ async function run() {
 
     // --- CuRu----: a two-quadrant flat target --------------------------------
     {
-        const r = await solveConstructive('CuRu----', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1);
+        const r = await solveConstructive('CuRu----', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
         assert('CuRu---- solved', !!r.solutionPath);
         assert('CuRu---- every step valid', everyStepValid(r.solutionPath));
         assert('CuRu---- final output is the target', lastProducesTarget(r.solutionPath, 'CuRu----'));
@@ -59,7 +59,7 @@ async function run() {
 
     // --- CuCuCuRu: should stay well under a naive 4-independent-quadrant build -
     {
-        const r = await solveConstructive('CuCuCuRu', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1);
+        const r = await solveConstructive('CuCuCuRu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
         assert('CuCuCuRu solved', !!r.solutionPath);
         assert('CuCuCuRu every step valid', everyStepValid(r.solutionPath));
         assert('CuCuCuRu final output is the target', lastProducesTarget(r.solutionPath, 'CuCuCuRu'));
@@ -68,7 +68,7 @@ async function run() {
 
     // --- clever shortcut preserved: CuCuRuRu via direct search (1 Swapper) ----
     {
-        const r = await solveConstructive('CuCuRuRu', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1);
+        const r = await solveConstructive('CuCuRuRu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
         assert('CuCuRuRu solved', !!r.solutionPath);
         assert('CuCuRuRu via direct-search (no decomposition)', r.strategyTrace.method === 'direct-search');
         assert('CuCuRuRu op count <= 2', r.solutionPath.length <= 2);
@@ -76,7 +76,7 @@ async function run() {
 
     // --- multi-layer target --------------------------------------------------
     {
-        const r = await solveConstructive('CuCuCuCu:RuRuRuRu', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1);
+        const r = await solveConstructive('CuCuCuCu:RuRuRuRu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
         assert('CuCuCuCu:RuRuRuRu solved', !!r.solutionPath);
         assert('CuCuCuCu:RuRuRuRu every step valid', everyStepValid(r.solutionPath));
         assert('CuCuCuCu:RuRuRuRu final output is the target', lastProducesTarget(r.solutionPath, 'CuCuCuCu:RuRuRuRu'));
@@ -86,7 +86,7 @@ async function run() {
     // Two distinct multi-quadrant layers — the top direct search caps, by-layer
     // peels them, each layer is itself solved (by-quadrant) and stacked.
     {
-        const r = await solveConstructive('CuRuSuWu:WuSuRuCu', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1);
+        const r = await solveConstructive('CuRuSuWu:WuSuRuCu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
         assert('CuRuSuWu:WuSuRuCu solved', !!r.solutionPath);
         assert('CuRuSuWu:WuSuRuCu every step valid', everyStepValid(r.solutionPath));
         assert('CuRuSuWu:WuSuRuCu final output is the target', lastProducesTarget(r.solutionPath, 'CuRuSuWu:WuSuRuCu'));
@@ -95,7 +95,7 @@ async function run() {
 
     // --- cancellation returns a null path ------------------------------------
     {
-        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, 4, false, false, false, 0.1, () => true);
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4, shouldCancel: () => true });
         assert('cancellation returns null solutionPath', r.solutionPath === null);
     }
 

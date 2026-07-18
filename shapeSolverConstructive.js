@@ -12,18 +12,24 @@ import { ShapeOperationConfig } from './shapeClass.js';
 import { stack, getAllRotations } from './shapeOperations.js';
 import { getCachedShape } from './shapeSolverCache.js';
 
+// Options mirror shapeSolver's (minus the search-method-specific caps): a single
+// named object so call sites don't re-spell the shared flag/numeric sequence. All
+// knobs default to the app's typical solve; nodeBudget is the per-node core-search
+// budget (fail-fast → decompose).
 export async function solveConstructive(
     targetShapeCode,
     startingShapeCodes,
     enabledOperations,
-    maxLayers,
-    preventWaste,
-    orientationSensitive,
-    monolayerPainting,
-    heuristicDivisor = 0.1,
-    shouldCancel = () => false,
-    onProgress = () => {},
-    nodeBudget = 4000
+    {
+        maxLayers = 4,
+        preventWaste = false,
+        orientationSensitive = false,
+        monolayerPainting = false,
+        heuristicDivisor = 0.1,
+        shouldCancel = () => false,
+        onProgress = () => {},
+        nodeBudget = 4000,
+    } = {}
 ) {
     const config = new ShapeOperationConfig(maxLayers);
     const memo = new Map();   // code -> Plan | null (memoized sub-targets; identical pieces reuse the SAME Plan object)
@@ -35,13 +41,18 @@ export async function solveConstructive(
     // the caller's orientationSensitive. preventWaste is honoured only at the top
     // — sub-pieces ignore it (we want the piece, leftover waste is fine).
     async function coreSearch(code, orientationSensitive, preventWaste) {
-        const res = await shapeSolver(
-            code, startingShapeCodes, enabledOperations, maxLayers,
-            Infinity,                        // maxStatesPerLevel — uncapped per-level
-            preventWaste, orientationSensitive, monolayerPainting, heuristicDivisor,
-            'A*', shouldCancel, onProgress,
-            nodeBudget                       // maxStates — the per-node budget (fail-fast → decompose)
-        );
+        const res = await shapeSolver(code, startingShapeCodes, enabledOperations, {
+            maxLayers,
+            maxStatesPerLevel: Infinity,     // uncapped per-level
+            preventWaste,
+            orientationSensitive,
+            monolayerPainting,
+            heuristicDivisor,
+            searchMethod: 'A*',
+            shouldCancel,
+            onProgress,
+            maxStates: nodeBudget,           // per-node budget (fail-fast → decompose)
+        });
         if (res) statesTotal += res.statesExplored || 0;
         return res;
     }

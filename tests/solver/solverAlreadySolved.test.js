@@ -40,17 +40,16 @@ function assertAlreadySolved(label, res) {
 // Thin wrapper so each call site reads as the scenario it tests. Defaults match
 // the app's typical non-orientation-sensitive, no-prevent-waste solve.
 function solve(target, starts, { method = 'A*', preventWaste = false, orientationSensitive = false } = {}) {
-    return shapeSolver(
-        target, starts, ALL_OPS,
-        /* maxLayers */ 4,
-        /* maxStatesPerLevel */ 1000,
+    return shapeSolver(target, starts, ALL_OPS, {
+        maxLayers: 4,
+        maxStatesPerLevel: 1000,
         preventWaste,
         orientationSensitive,
-        /* monolayerPainting */ false,
-        /* heuristicDivisor */ 0.1,
-        method, noCancel, noop,
-        /* maxStates */ 100000
-    );
+        searchMethod: method,
+        shouldCancel: noCancel,
+        onProgress: noop,
+        maxStates: 100000,
+    });
 }
 
 // --- Case A: start EXACTLY equals the target — every method short-circuits ---

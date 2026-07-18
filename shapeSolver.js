@@ -33,29 +33,33 @@ self.onmessage = async function (e) {
                     targetShapeCode,
                     startingShapeCodes,
                     enabledOperations,
-                    maxLayers,
-                    preventWaste,
-                    orientationSensitive,
-                    monolayerPainting,
-                    heuristicDivisor,
-                    shouldCancel,
-                    onProgress,
-                    maxStatesPerLevel || 4000
+                    {
+                        maxLayers,
+                        preventWaste,
+                        orientationSensitive,
+                        monolayerPainting,
+                        heuristicDivisor,
+                        shouldCancel,
+                        onProgress,
+                        nodeBudget: maxStatesPerLevel || 4000,
+                    }
                 )
                 : await shapeSolver(
                     targetShapeCode,
                     startingShapeCodes,
                     enabledOperations,
-                    maxLayers,
-                    maxStatesPerLevel,
-                    preventWaste,
-                    orientationSensitive,
-                    monolayerPainting,
-                    heuristicDivisor,
-                    searchMethod,
-                    shouldCancel,
-                    onProgress,
-                    maxStates
+                    {
+                        maxLayers,
+                        maxStatesPerLevel,
+                        preventWaste,
+                        orientationSensitive,
+                        monolayerPainting,
+                        heuristicDivisor,
+                        searchMethod,
+                        shouldCancel,
+                        onProgress,
+                        maxStates,
+                    }
                 );
             if (!cancelled) self.postMessage({ type: 'result', result });
         } catch (err) {

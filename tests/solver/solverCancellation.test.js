@@ -54,10 +54,11 @@ for (const method of SOLVER_METHODS) {
     let res = 'unset';
     let threw = false;
     try {
-        res = await shapeSolver(
-            'CuCuRuRu', STARTS, ALL_OPS, 4, 1000, false, false, false, 0.1,
-            method, alwaysCancel, noop, Infinity
-        );
+        res = await shapeSolver('CuCuRuRu', STARTS, ALL_OPS, {
+            maxLayers: 4, maxStatesPerLevel: 1000,
+            searchMethod: method, shouldCancel: alwaysCancel, onProgress: noop,
+            maxStates: Infinity,
+        });
     } catch (e) { threw = true; }
     check(`${method}: immediate cancel does not throw`, !threw);
     check(`${method}: immediate cancel resolves to null (documented cancelled result)`, res === null);
@@ -73,10 +74,11 @@ for (const method of SOLVER_METHODS) {
     let res = 'unset';
     let threw = false;
     try {
-        res = await shapeSolver(
-            'CuRuCuRu', STARTS, ALL_OPS, 4, 1000, false, false, false, 0.1,
-            method, cancel, noop, SAFETY_CAP
-        );
+        res = await shapeSolver('CuRuCuRu', STARTS, ALL_OPS, {
+            maxLayers: 4, maxStatesPerLevel: 1000,
+            searchMethod: method, shouldCancel: cancel, onProgress: noop,
+            maxStates: SAFETY_CAP,
+        });
     } catch (e) { threw = true; }
     check(`${method}: cancel-after-${N} does not throw`, !threw);
     check(`${method}: cancel-after-${N} resolves to null (aborted, not a maxStates object)`, res === null);
@@ -101,10 +103,9 @@ for (const method of SOLVER_METHODS) {
     let res = 'unset';
     let threw = false;
     try {
-        res = await solveConstructive(
-            'CuRuSuWu', STARTS, ALL_OPS, 4, false, false, false, 0.1,
-            alwaysCancel, noop, 4000
-        );
+        res = await solveConstructive('CuRuSuWu', STARTS, ALL_OPS, {
+            maxLayers: 4, shouldCancel: alwaysCancel, onProgress: noop, nodeBudget: 4000,
+        });
     } catch (e) { threw = true; }
     check('constructive: immediate cancel does not throw', !threw);
     check('constructive: immediate cancel resolves to a result object', res != null && typeof res === 'object');

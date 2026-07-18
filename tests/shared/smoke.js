@@ -94,23 +94,18 @@ for (const fixture of LAYOUT_FIXTURES) {
 for (const fixture of SOLVER_FIXTURES) {
     const key = `Solver: ${fixture.name}`;
     total++;
-    const result = await shapeSolver(
-        fixture.target,
-        fixture.starting,
-        fixture.ops,
-        fixture.maxLayers,
-        fixture.maxStatesPerLevel,
-        fixture.preventWaste,
-        fixture.orientationSensitive,
-        fixture.monolayerPainting,
-        fixture.heuristicDivisor,
-        fixture.method,
-        () => false,
-        () => {},
+    const result = await shapeSolver(fixture.target, fixture.starting, fixture.ops, {
+        maxLayers: fixture.maxLayers,
+        maxStatesPerLevel: fixture.maxStatesPerLevel,
+        preventWaste: fixture.preventWaste,
+        orientationSensitive: fixture.orientationSensitive,
+        monolayerPainting: fixture.monolayerPainting,
+        heuristicDivisor: fixture.heuristicDivisor,
+        searchMethod: fixture.method,
         // Cap distinct states so a runaway fixture can't OOM helm's cgroup.
         // Existing fixtures all solve in well under this; it only bounds the worst case.
-        fixture.maxStates ?? 100000
-    );
+        maxStates: fixture.maxStates ?? 100000,
+    });
     const path = result?.solutionPath ?? null;
 
     // Correctness gate (independent of the snapshot): every step must be a real op,

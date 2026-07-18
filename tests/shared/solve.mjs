@@ -99,15 +99,22 @@ if (opts.explore != null) {
 if (!opts.target) { console.error('usage: node tests/shared/solve.mjs <target> [options]  (or --explore N)'); process.exit(2); }
 
 const res = opts.method === 'Constructive'
-    ? await solveConstructive(
-        opts.target, starting, ops, opts.maxLayers,
-        !!opts.preventWaste, !!opts.orientation, false, 0.1,
-        shouldCancel, () => {}, opts.nodeBudget
-    )
-    : await shapeSolver(
-        opts.target, starting, ops, opts.maxLayers, 1000,
-        !!opts.preventWaste, !!opts.orientation, false, 0.1, opts.method, shouldCancel, () => {}, opts.maxStates
-    );
+    ? await solveConstructive(opts.target, starting, ops, {
+        maxLayers: opts.maxLayers,
+        preventWaste: !!opts.preventWaste,
+        orientationSensitive: !!opts.orientation,
+        shouldCancel,
+        nodeBudget: opts.nodeBudget,
+    })
+    : await shapeSolver(opts.target, starting, ops, {
+        maxLayers: opts.maxLayers,
+        maxStatesPerLevel: 1000,
+        preventWaste: !!opts.preventWaste,
+        orientationSensitive: !!opts.orientation,
+        searchMethod: opts.method,
+        shouldCancel,
+        maxStates: opts.maxStates,
+    });
 
 if (shouldCancel() && (!res || !res.solutionPath)) { console.error(`solve: timed out after ${opts.timeout}ms`); process.exit(2); }
 if (!res || !res.solutionPath) {

@@ -33,10 +33,10 @@ const CONFIG = new ShapeOperationConfig(4);
 // --- A hard target aborts at the cap instead of running unbounded ---
 const CAP = 2000;
 for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
-    const res = await shapeSolver(
-        'CuRuCuRu', STARTS, ALL_OPS, 4, 1000, false, false, false, 0.1,
-        method, noCancel, noop, CAP
-    );
+    const res = await shapeSolver('CuRuCuRu', STARTS, ALL_OPS, {
+        maxLayers: 4, maxStatesPerLevel: 1000,
+        searchMethod: method, shouldCancel: noCancel, onProgress: noop, maxStates: CAP,
+    });
     check(`${method}: hard target returns a result object (no throw/hang)`, res != null);
     check(`${method}: hard target found no solution`, res && res.solutionPath == null);
     check(`${method}: hard target reports aborted='maxStates'`, res && res.aborted === 'maxStates');
@@ -50,10 +50,10 @@ for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
 // --- The cap does not break normal solving: a reachable target still solves
 //     and its reconstructed path is valid (every step a real op) ---
 {
-    const res = await shapeSolver(
-        'CuCuRuRu', STARTS, ALL_OPS, 4, 1000, false, false, false, 0.1,
-        'A*', noCancel, noop, 50000
-    );
+    const res = await shapeSolver('CuCuRuRu', STARTS, ALL_OPS, {
+        maxLayers: 4, maxStatesPerLevel: 1000,
+        searchMethod: 'A*', shouldCancel: noCancel, onProgress: noop, maxStates: 50000,
+    });
     check('solvable target still solves under a cap', res && res.solutionPath && res.solutionPath.length > 0);
     check('solved target is not flagged aborted', res && !res.aborted);
     check('reconstructed solution path is valid (lazy minting intact)', pathIsValid(res?.solutionPath, CONFIG));
