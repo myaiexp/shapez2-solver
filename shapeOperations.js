@@ -8,7 +8,8 @@ import {
     UNPAINTABLE_SHAPES,
     REPLACED_BY_CRYSTAL,
     PIN_CHAR,
-    CRYSTAL_CHAR
+    CRYSTAL_CHAR,
+    layerToCode
 } from './shapeClass.js';
 import {
     crystalsFused,
@@ -218,5 +219,5 @@ export function extractLayers(shape, mode = 'part', includePins = true, includeC
         });
     });
 
-    return groupedLayers.map(layer => layer.map(part => part.shape + part.color).join(''));
+    return groupedLayers.map(layerToCode);
 }

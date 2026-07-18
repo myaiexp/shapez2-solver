@@ -25,6 +25,18 @@ export class ShapePart {
     }
 }
 
+// Canonical shape-code serializers. These are the single source of truth for
+// turning ShapeParts back into code text — callers holding raw layers (inverse
+// ops, extractLayers) route through these instead of re-joining part codes, so
+// the format can never diverge from Shape.toShapeCode.
+export function layerToCode(layer) {
+    return layer.map(part => part.shape + part.color).join('');
+}
+
+export function layersToCode(layers) {
+    return layers.map(layerToCode).join(SHAPE_LAYER_SEPARATOR);
+}
+
 export class Shape {
     constructor(layers) {
         this.layers = layers;
@@ -53,13 +65,11 @@ export class Shape {
     }
 
     toListOfLayers() {
-        return this.layers.map(layer =>
-            layer.map(part => part.shape + part.color).join('')
-        );
+        return this.layers.map(layerToCode);
     }
 
     toShapeCode() {
-        return this.toListOfLayers().join(SHAPE_LAYER_SEPARATOR);
+        return layersToCode(this.layers);
     }
 
     isEmpty() {
