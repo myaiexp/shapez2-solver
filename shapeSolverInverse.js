@@ -1,6 +1,6 @@
 import {
-    Shape, ShapePart, NOTHING_CHAR, SHAPE_LAYER_SEPARATOR,
-    UNPAINTABLE_SHAPES,
+    Shape, ShapePart, NOTHING_CHAR,
+    UNPAINTABLE_SHAPES, layerToCode, layersToCode,
 } from './shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
 
@@ -71,15 +71,7 @@ export function inverseUnstack(shape, config) {
         const bottomLayers = shape.layers.slice(0, splitAt);
         const topLayers = shape.layers.slice(splitAt);
 
-        const bottomCode = bottomLayers.map(layer =>
-            layer.map(p => p.shape + p.color).join('')
-        ).join(SHAPE_LAYER_SEPARATOR);
-
-        const topCode = topLayers.map(layer =>
-            layer.map(p => p.shape + p.color).join('')
-        ).join(SHAPE_LAYER_SEPARATOR);
-
-        results.push(bottomCode, topCode);
+        results.push(layersToCode(bottomLayers), layersToCode(topLayers));
     }
     return results;
 }
@@ -105,14 +97,12 @@ export function inverseUncut(shape, config) {
         // and anything on the right
         const wholeParts = layer.map((p, i) => i < half ? p : new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
         // Just stacking with empty right gives us back
-        const wholeCode = wholeParts.map(p => p.shape + p.color).join('');
-        results.push(wholeCode);
+        results.push(layerToCode(wholeParts));
     }
     if (leftEmpty) {
         // This was the right output
         const wholeParts = layer.map((p, i) => i >= half ? p : new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-        const wholeCode = wholeParts.map(p => p.shape + p.color).join('');
-        results.push(wholeCode);
+        results.push(layerToCode(wholeParts));
     }
 
     return results;
@@ -130,10 +120,7 @@ export function inverseUnpin(shape, config) {
     const hasPins = bottomLayer.some(p => p.shape === 'P');
     if (allPins && hasPins) {
         const remainingLayers = shape.layers.slice(1);
-        const code = remainingLayers.map(layer =>
-            layer.map(p => p.shape + p.color).join('')
-        ).join(SHAPE_LAYER_SEPARATOR);
-        results.push(code);
+        results.push(layersToCode(remainingLayers));
     }
     return results;
 }

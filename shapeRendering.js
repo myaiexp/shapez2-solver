@@ -2,6 +2,7 @@
 import { getCurrentColorMode } from './colorMode.js';
 import { renderPart, QUAD_MODE, HEX_MODE } from './shapeRenderingPart.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
+import { Shape, SHAPE_LAYER_SEPARATOR } from './shapeClass.js';
 
 export { baseColors, colorValues } from './shapeRenderingColors.js';
 
@@ -35,17 +36,9 @@ function rotateContext(ctx, partIndex, numParts) {
 
 export function renderShape(context, size, shapeCode, shapesMode, colorMode) {
 
-    const layers = shapeCode.split(":");
-    const numLayers = layers.length;
-    const numParts = layers[0].length / 2;
-    const shapeParts = [];
-    for (let layerIndex = 0; layerIndex < numLayers; layerIndex++) {
-        const layer = layers[layerIndex];
-        shapeParts.push([]);
-        for (let partIndex = 0; partIndex < numParts; partIndex++) {
-            shapeParts.at(-1).push([layer[partIndex * 2], layer[(partIndex * 2) + 1]]);
-        }
-    }
+    const parsed = Shape.fromShapeCode(shapeCode);
+    const numLayers = parsed.numLayers;
+    const numParts = parsed.numParts;
 
     context.save();
 
@@ -62,7 +55,7 @@ export function renderShape(context, size, shapeCode, shapesMode, colorMode) {
     scaleContext(context, shapeDiameter);
 
     for (let layerIndex = 0; layerIndex < numLayers; layerIndex++) {
-        const layer = shapeParts[layerIndex];
+        const layer = parsed.layers[layerIndex];
 
         context.save();
         const curLayerScale = layerSizeReduction ** layerIndex;
@@ -72,7 +65,7 @@ export function renderShape(context, size, shapeCode, shapesMode, colorMode) {
         const partBorders = [];
 
         for (let partIndex = 0; partIndex < numParts; partIndex++) {
-            const [partShape, partColor] = layer[partIndex];
+            const { shape: partShape, color: partColor } = layer[partIndex];
 
             context.save();
             rotateContext(context, partIndex, numParts);
@@ -116,7 +109,7 @@ export function createShapeCanvas(shapeCode, size = 100) {
     const colorMode = getCurrentColorMode();
 
     // Determine quad/hex geometry mode based on shapeCode
-    const firstLayer = shapeCode.split(":")[0];
+    const firstLayer = shapeCode.split(SHAPE_LAYER_SEPARATOR)[0];
     const numParts = firstLayer.length / 2;
     const shapesMode = numParts === 6 ? HEX_MODE : QUAD_MODE;
 
