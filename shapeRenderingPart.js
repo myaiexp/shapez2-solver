@@ -259,8 +259,9 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesMode, co
         }
     }
 
-    // 1.0 support: Refined/Exotic shapes X and Y (from Trade Stations / Manufacture Mode).
-    // They do not recolor via Painter. Geometry traced from the in-game renders:
+    // 1.0 support: Refined/Exotic shapes X and Y (Trade Stations / Manufacture Mode).
+    // Color-bearing (Xu/Xr/…) but not Painter-recolorable — the part color is
+    // still drawn from the code suffix. Geometry traced from the in-game renders:
     // (0,1) is the shape centre, (1,0) the outer diagonal corner of the quadrant.
     // X: convex "home-plate" — full edges along both axes, outer corner pulled to a
     //    single point; the four quadrants together read as a 4-petal shape.

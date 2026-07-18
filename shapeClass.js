@@ -6,8 +6,10 @@ export const CRYSTAL_CHAR = "c";
 export const REFINED_X_CHAR = "X";
 export const REFINED_Y_CHAR = "Y";
 
-// Refined (X/Y) shapes from 1.0 do not recolor via the Painter operation
-// (their colors come from Trade Stations). Treat them as unpaintable for recoloring logic.
+// Refined/exotic (X/Y) shapes from 1.0 DO carry a normal color suffix (Xu/Xr/…).
+// The Painter simply will not change that color (wiki: Can have color: Yes).
+// Colors typically arrive from Trade Stations / Manufacture Mode; keep X/Y in
+// UNPAINTABLE so topPaint and paint-color analysis leave their suffix alone.
 export const UNPAINTABLE_SHAPES = [
     CRYSTAL_CHAR,
     PIN_CHAR,

@@ -7,7 +7,7 @@ import { showValidationErrors } from './shapeValidation.js';
 import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
-import { loadState, saveState, captureState, applyState, STORAGE_KEY } from './persistence.js';
+import { loadState, saveState, clearState, captureState, applyState } from './persistence.js';
 import { getCurrentColorMode } from './colorMode.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { $, $all, byId } from './domUtils.js';
@@ -484,11 +484,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.warn('Failed to restore solver state, clearing.', err);
-            try { localStorage.removeItem(STORAGE_KEY); } catch {}
+            clearState();
         } finally {
             suspendPersist = false;
         }
     }
+});
+
+// Wipe localStorage and reload so all inputs/options/solution return to defaults.
+byId('reset-state-btn').addEventListener('click', () => {
+    if (!confirm('Clear saved solver state and reload defaults?')) return;
+    clearState();
+    location.reload();
 });
 
 // Graph Controls

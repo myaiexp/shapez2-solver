@@ -46,6 +46,16 @@ export function saveState(state) {
     }
 }
 
+// Wipe persisted solver state so the next page load uses defaults.
+// Used by the Reset button; storage errors are swallowed like save/load.
+export function clearState() {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+        console.warn('Failed to clear solver state:', err);
+    }
+}
+
 export function captureState(runtime) {
     const inputs = {};
     for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {

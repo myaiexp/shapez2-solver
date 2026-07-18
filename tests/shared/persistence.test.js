@@ -16,7 +16,7 @@
 // The import itself is also a smoke check: persistence.js defines $/$all/byId as
 // document-using closures but never calls them at module load, so importing it
 // with NO document present must succeed.
-import { loadState, saveState, STORAGE_KEY, SCHEMA_VERSION } from '../../persistence.js';
+import { loadState, saveState, clearState, STORAGE_KEY, SCHEMA_VERSION } from '../../persistence.js';
 
 let passed = 0;
 let total = 0;
@@ -160,16 +160,50 @@ check('SCHEMA_VERSION is 1', SCHEMA_VERSION === 1);
 }
 
 // --- Clear / remove behavior ----------------------------------------------
-// persistence.js exposes no clear() — clearing is external (the browser or the
-// user wiping site data). After removeItem the key is absent, so loadState must
-// fall back to the no-saved-state default (null), same as a fresh storage.
+// clearState() is the in-app Reset path: remove STORAGE_KEY so the next load
+// (after reload) falls back to defaults. Mirrors external wipe / site-data clear.
 {
     const ls = makeLocalStorage();
     withLocalStorage(ls);
     saveState(validState());
     check('precondition: state present before clear', loadState() !== null);
-    ls.removeItem(STORAGE_KEY);
-    checkEqual('load after removeItem returns null', loadState(), null);
+    clearState();
+    checkEqual('clearState removes the key (load returns null)', loadState(), null);
+    check('clearState leaves STORAGE_KEY absent in storage', ls._raw(STORAGE_KEY) === undefined);
+}
+
+// clearState is idempotent and never throws when the key is already gone.
+{
+    withLocalStorage(makeLocalStorage());
+    let threw = false;
+    try {
+        clearState();
+        clearState();
+    } catch {
+        threw = true;
+    }
+    check('clearState on empty storage does not throw', !threw);
+    checkEqual('clearState on empty storage leaves load null', loadState(), null);
+}
+
+// removeItem throwing (e.g. SecurityError) is swallowed, same as load/save.
+{
+    withLocalStorage({
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => { throw new Error('removeItem blocked'); },
+    });
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    let threw = false;
+    try {
+        clearState();
+    } catch {
+        threw = true;
+    } finally {
+        console.warn = originalWarn;
+    }
+    check('clearState with throwing removeItem does not throw', !threw);
 }
 
 // --- Storage backend throwing is swallowed, never propagated ---------------
