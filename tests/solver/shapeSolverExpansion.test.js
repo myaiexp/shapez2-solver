@@ -5,8 +5,10 @@
 // generate. A wrong prune silently makes targets unsolvable — golden op tests
 // and smoke path-validation only check paths that WERE found, so an over-eager
 // skip never trips them. This suite pins the skip / don't-skip boundary for each
-// prune branch (rotation symmetry, empty-half cut, monolayer paint, empty input,
-// single-id trash), then confirms expandUnaryOp honours it end to end.
+// prune branch (rotation symmetry, empty-half cut, monolayer paint, empty input),
+// then confirms expandUnaryOp honours it end to end. Trash is not a prune branch:
+// both callers special-case it with an early continue before expandUnaryOp, so
+// shouldSkipUnaryOp never sees it.
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { shouldSkipUnaryOp, expandUnaryOp } from '../../shapeSolverExpansion.js';
@@ -46,9 +48,6 @@ check('right-empty half skips Half Destroyer', skip('Half Destroyer', 'CuCu----'
 check('multi-layer paint skips under monolayerPainting',
     skip('Painter', 'CuCuCuCu:RuRuRuRu', { monolayerPainting: true }), true);
 
-// The last remaining shape must not be trashed (nothing left to build with).
-check('sole-id Trash skips', skip('Trash', 'CuCuCuCu', { availableIdsSize: 1 }), true);
-
 // --- shouldSkipUnaryOp: MUST NOT skip ---------------------------------------
 
 // Asymmetric rotator: CuRuSuWu has 4 distinct rotations, so rotating is useful.
@@ -73,10 +72,6 @@ check('multi-layer whole-side-empty cutter skips', skip('Cutter', 'CuCu----:SuSu
 // Single-layer paint is exactly what monolayerPainting allows.
 check('single-layer paint not skipped under monolayerPainting',
     skip('Painter', 'CuCuCuCu', { monolayerPainting: true }), false);
-
-// Trash with more than one shape available is a legal successor.
-check('Trash not skipped when other shapes remain',
-    skip('Trash', 'CuCuCuCu', { availableIdsSize: 2 }), false);
 
 // --- expandUnaryOp: the skip actually suppresses descriptors ----------------
 

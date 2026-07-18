@@ -43,11 +43,8 @@ export function buildBinaryInputDescriptor(opName, id1, id2, inputCode1, inputCo
 export function shouldSkipUnaryOp(opName, inputShape, {
     config,
     monolayerPainting = false,
-    availableIdsSize = Infinity,
 }) {
     if (inputShape.isEmpty()) return true;
-
-    if (opName === 'Trash' && availableIdsSize === 1) return true;
 
     if (opName === 'Rotator CW' || opName === 'Rotator CCW' || opName === 'Rotator 180') {
         const rotations = getAllRotations(inputShape, config);

@@ -291,11 +291,9 @@ export async function shapeSolver(
     };
     const expansionPruning = {
         monolayerPainting,
-        availableIdsSize: 0,
     };
 
     function* generateSuccessors(availableIds) {
-        expansionPruning.availableIdsSize = availableIds.size;
         const referenceCodes = Array.from(availableIds).map(id => shapes.get(id));
 
         for (const opName of enabledOperations) {

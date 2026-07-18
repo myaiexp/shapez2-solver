@@ -62,7 +62,6 @@ export async function shapeExplorer(
 
     const expansionPruning = {
         monolayerPainting: false,
-        availableIdsSize: Infinity,
     };
 
     function recordDescriptor(desc, newlyDiscovered) {
