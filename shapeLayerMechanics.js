@@ -1,5 +1,4 @@
 import {
-    Shape,
     ShapePart,
     ShapeOperationConfig,
     InvalidOperationInputs,
@@ -121,7 +120,7 @@ export function breakCrystals(layers, layerIndex, partIndex) {
 }
 
 export function makeLayersFall(layers) {
-    function sepInGroups(layer) {
+    function gravityGroups(layer) {
         const handledIndexes = new Set();
         const groups = [];
         for (let partIndex = 0; partIndex < layer.length; partIndex++) {
@@ -212,7 +211,7 @@ export function makeLayersFall(layers) {
         const layer = layers[layerIndex];
         if (layerIndex === 0) continue;
 
-        for (const group of sepInGroups(layer)) {
+        for (const group of gravityGroups(layer)) {
             if (group.some(p => supportedPartStates[layerIndex][p])) continue;
 
             const fallToLayerIndex = lowestFreeLayer(group, layerIndex);
@@ -240,30 +239,17 @@ export function cleanUpEmptyUpperLayers(layers) {
     return [layers[0]];
 }
 
-export function differentNumPartsUnsupported(func) {
-    return function(...args) {
-        let config = new ShapeOperationConfig();
-        let shapes = [];
-
-        // Extract shapes and config from arguments
-        for (let i = 0; i < args.length; i++) {
-            if (args[i] instanceof Shape) {
-                shapes.push(args[i]);
-            } else if (args[i] instanceof ShapeOperationConfig) {
-                config = args[i];
-            }
+// Wrap a binary shape operation so it rejects inputs whose layers hold a
+// different number of parts — the halves can only align when both shapes have
+// the same parts-per-layer. Explicit (a, b, config) signature: no argument
+// sniffing, no re-appended config.
+export function requireSameNumParts(func) {
+    return function(shapeA, shapeB, config = new ShapeOperationConfig()) {
+        if (shapeA.numParts !== shapeB.numParts) {
+            throw new InvalidOperationInputs(
+                `Shapes with differing number of parts per layer are not supported for operation '${func.name}'`
+            );
         }
-
-        if (shapes.length > 0) {
-            const expected = shapes[0].numParts;
-            for (const shape of shapes.slice(1)) {
-                if (shape.numParts !== expected) {
-                    throw new InvalidOperationInputs(
-                        `Shapes with differing number of parts per layer are not supported for operation '${func.name}'`
-                    );
-                }
-            }
-        }
-        return func(...args, config);
+        return func(shapeA, shapeB, config);
     };
 }

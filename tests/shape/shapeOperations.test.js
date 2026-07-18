@@ -38,15 +38,17 @@ const s = code => Shape.fromShapeCode(code);
 const codes = shapes => shapes.map(sh => sh.toShapeCode());
 
 // --- cut: half-split geometry --------------------------------------------
-// cut returns [right-half, left-half]: the right half keeps the trailing two
-// quadrants (shifted into place, leading two emptied), the left half keeps the
-// leading two. A symmetric shape verifies the split count and emptying.
-check('cut halves a full single layer into right/left',
+// Quadrants are indexed clockwise from top-right (0=TR, 1=BR, 2=BL, 3=TL), so the
+// leading two {0,1} are the RIGHT half and the trailing two {2,3} the LEFT half.
+// cut returns [left-half, right-half]: outputs[0] keeps the trailing two quadrants
+// (leading two emptied), outputs[1] keeps the leading two. A symmetric shape
+// verifies the split count and emptying.
+check('cut halves a full single layer into left/right',
     codes(cut(s('CuCuCuCu'))), ['----CuCu', 'CuCu----']);
 
 // An asymmetric shape pins the quadrant -> half MAPPING (which quadrants land in
 // which half) — a symmetric shape can't catch a quadrant-ordering regression.
-// CuRuSuWu -> right keeps Su,Wu; left keeps Cu,Ru.
+// CuRuSuWu -> left half keeps Su,Wu (quadrants 2,3); right half keeps Cu,Ru (0,1).
 check('cut maps quadrants to halves (asymmetric)',
     codes(cut(s('CuRuSuWu'))), ['----SuWu', 'CuRu----']);
 
@@ -95,10 +97,10 @@ check('similarity of fully disjoint shapes is 0',
     getSimilarity(s('CuCuCuCu'), s('RuRuRuRu')), 0);
 
 // --- halfCut: keep one half, discard the other ---------------------------
-// halfCut is cut(...)[1] — it keeps the LEFT half (leading two quadrants) and
-// throws the right half away. An asymmetric input pins WHICH half survives:
-// CuRuSuWu -> left half CuRu----, the SuWu half is destroyed.
-check('halfCut keeps the left half and discards the right',
+// halfCut is cut(...)[1] — it keeps the RIGHT half (leading two quadrants {0,1})
+// and throws the left half away. An asymmetric input pins WHICH half survives:
+// CuRuSuWu -> right half CuRu----, the ----SuWu (left) half is destroyed.
+check('halfCut keeps the right half and discards the left',
     codes(halfCut(s('CuRuSuWu'))), ['CuRu----']);
 
 // --- swapHalves: exchange the trailing halves of two shapes --------------

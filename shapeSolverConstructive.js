@@ -30,15 +30,15 @@ export async function solveConstructive(
     let statesTotal = 0;      // aggregate states across every base-case search (incl. capped attempts)
 
     // One bounded A* search for a single sub-target. Pieces are searched
-    // orientation-sensitive (exact=true) so each comes back in its exact target
-    // position and assembly stacks gravity-merge with no rotation; the top-level
-    // target uses the caller's orientationSensitive. preventWaste is honoured only
-    // at the top — sub-pieces ignore it (we want the piece, leftover waste is fine).
-    async function coreSearch(code, exact, pw) {
+    // orientation-sensitive so each comes back in its exact target position and
+    // assembly stacks gravity-merge with no rotation; the top-level target uses
+    // the caller's orientationSensitive. preventWaste is honoured only at the top
+    // — sub-pieces ignore it (we want the piece, leftover waste is fine).
+    async function coreSearch(code, orientationSensitive, preventWaste) {
         const res = await shapeSolver(
             code, startingShapeCodes, enabledOperations, maxLayers,
             Infinity,                        // maxStatesPerLevel — uncapped per-level
-            pw, exact, monolayerPainting, heuristicDivisor,
+            preventWaste, orientationSensitive, monolayerPainting, heuristicDivisor,
             'A*', shouldCancel, onProgress,
             nodeBudget                       // maxStates — the per-node budget (fail-fast → decompose)
         );
@@ -67,15 +67,15 @@ export async function solveConstructive(
         if (!isTop && memo.has(code)) return memo.get(code);
         if (shouldCancel()) return null;
 
-        const exact = isTop ? orientationSensitive : true;
-        const pw = isTop ? preventWaste : false;
+        const nodeOrientationSensitive = isTop ? orientationSensitive : true;
+        const nodePreventWaste = isTop ? preventWaste : false;
         onProgress(`Constructive | solving ${code} via direct-search | budget ${nodeBudget}`);
-        const res = await coreSearch(code, exact, pw);
+        const res = await coreSearch(code, nodeOrientationSensitive, nodePreventWaste);
         if (res === null) return null; // cancelled
 
         let result;
         if (res.solutionPath) {
-            const acceptable = exact ? new Set([code]) : rotationsOf(code);
+            const acceptable = nodeOrientationSensitive ? new Set([code]) : rotationsOf(code);
             result = {
                 target: code, method: 'direct-search', steps: res.solutionPath,
                 outputId: findOutputId(res.solutionPath, acceptable),
