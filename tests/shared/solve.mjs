@@ -30,7 +30,8 @@
 import { shapeSolver, operations } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
-import { Shape } from '../../shapeClass.js';
+import { ShapeOperationConfig } from '../../shapeClass.js';
+import { validateStep } from './pathValidation.js';
 
 function parseArgs(argv) {
     const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
@@ -54,37 +55,16 @@ function parseArgs(argv) {
     return opts;
 }
 
-// Returns the output codes of applying an operation to concrete input codes.
-// Keeps empty (`--------`) outputs: the explorer keeps them as nodes, and the
-// solver simply drops them, so both stay a subset of this full set.
-function applyOp(opName, inputCodes, color) {
-    const op = operations[opName];
-    if (!op) throw new Error(`unknown op ${opName}`);
-    const shapes = inputCodes.map(c => Shape.fromShapeCode(c));
-    let out;
-    if (op.inputCount === 2) out = op.fn(shapes[0], shapes[1]);
-    else if (op.needsColor) out = op.fn(shapes[0], color);
-    else out = op.fn(shapes[0]);
-    return out.map(s => s.toShapeCode()).filter(Boolean);
-}
-
-// A step/edge is valid if every claimed output is among the codes the operation
-// actually produces from the claimed inputs (the search drops no-ops, and the
-// solver drops empties, so subset — not equality — is the contract).
-function validateStep(opName, inputCodes, outputCodes, color) {
-    let produced;
-    try {
-        produced = applyOp(opName, inputCodes, color);
-    } catch (e) {
-        return { valid: false, reason: `error: ${e.message}`, produced: [] };
-    }
-    const missing = outputCodes.filter(c => !produced.includes(c));
-    return { valid: missing.length === 0, reason: missing.length ? `not produced: ${missing.join(',')}` : '', produced };
-}
+// Step/edge operation validation (applyOp + validateStep) lives in the shared
+// tests/shared/pathValidation.js so all four harnesses stay in lockstep. Empty
+// (`--------`) outputs are kept there: the explorer keeps them as nodes and the
+// solver drops them, so both stay a subset of the produced set.
 
 const opts = parseArgs(process.argv.slice(2));
 const starting = opts.start.split(',').map(s => s.trim()).filter(Boolean);
 const ops = opts.ops ? opts.ops.split(',').map(s => s.trim()) : Object.keys(operations);
+// Validate every step under the same layer cap this run solved with.
+const opConfig = new ShapeOperationConfig(opts.maxLayers);
 
 const deadline = Date.now() + opts.timeout;
 const shouldCancel = () => Date.now() > deadline;
@@ -102,7 +82,7 @@ if (opts.explore != null) {
     const edgeReports = g.ops.map(o => {
         const inCodes = (inputs.get(o.id) || []).map(id => codeOf.get(id));
         const outCodes = (outputs.get(o.id) || []).map(id => codeOf.get(id));
-        const v = validateStep(o.type, inCodes, outCodes, o.params?.color);
+        const v = validateStep(o.type, inCodes, outCodes, o.params?.color, opConfig);
         if (!v.valid) bad++;
         return { op: o.type, inputs: inCodes, outputs: outCodes, valid: v.valid, reason: v.reason };
     });
@@ -141,7 +121,7 @@ let bad = 0;
 const stepReports = res.solutionPath.map((step, i) => {
     const inCodes = step.inputs.map(x => x.shape);
     const outCodes = step.outputs.map(x => x.shape);
-    const v = validateStep(step.operation, inCodes, outCodes, step.params?.color);
+    const v = validateStep(step.operation, inCodes, outCodes, step.params?.color, opConfig);
     if (!v.valid) bad++;
     return { i, op: step.operation, color: step.params?.color, inputs: inCodes, outputs: outCodes, valid: v.valid, reason: v.reason };
 });

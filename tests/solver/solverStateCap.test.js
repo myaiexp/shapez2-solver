@@ -7,7 +7,8 @@
 // use a TINY cap so they are bounded-by-construction and safe to run — they never
 // approach the memory ceiling that an uncapped hard solve would.
 import { shapeSolver, operations } from '../../shapeSolverCore.js';
-import { Shape } from '../../shapeClass.js';
+import { ShapeOperationConfig } from '../../shapeClass.js';
+import { pathIsValid } from '../shared/pathValidation.js';
 
 let passed = 0;
 let total = 0;
@@ -24,22 +25,10 @@ const STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu'];
 const noCancel = () => false;
 const noop = () => {};
 
-// Validate every step in a path is a real operation (guards lazy id minting /
-// applySuccessor from ever reconstructing an impossible path).
-function pathIsValid(path) {
-    if (!path) return false;
-    for (const step of path) {
-        const op = operations[step.operation];
-        if (!op) return false;
-        const ins = step.inputs.map(x => Shape.fromShapeCode(x.shape));
-        const out = op.inputCount === 2 ? op.fn(ins[0], ins[1])
-            : op.needsColor ? op.fn(ins[0], step.params?.color)
-            : op.fn(ins[0]);
-        const produced = out.map(o => o.toShapeCode()).filter(Boolean);
-        if (step.outputs.some(o => !produced.includes(o.shape))) return false;
-    }
-    return true;
-}
+// Every step must be a real operation (guards lazy id minting / applySuccessor
+// from ever reconstructing an impossible path). Validated under the solver's
+// maxLayers via the shared tests/shared/pathValidation.js.
+const CONFIG = new ShapeOperationConfig(4);
 
 // --- A hard target aborts at the cap instead of running unbounded ---
 const CAP = 2000;
@@ -67,7 +56,7 @@ for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
     );
     check('solvable target still solves under a cap', res && res.solutionPath && res.solutionPath.length > 0);
     check('solved target is not flagged aborted', res && !res.aborted);
-    check('reconstructed solution path is valid (lazy minting intact)', pathIsValid(res?.solutionPath));
+    check('reconstructed solution path is valid (lazy minting intact)', pathIsValid(res?.solutionPath, CONFIG));
 }
 
 console.log(`[${passed}/${total} passed]`);

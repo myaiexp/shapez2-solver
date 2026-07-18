@@ -2,12 +2,13 @@
 // Run with: node tests/solver/constructive.test.js
 //
 // Every emitted step is re-validated as a real operation (output === the actual
-// op applied to its inputs), exactly like tests/shared/solve.mjs — the spliced/id-remapped
-// path must be physically constructible, not just plausible.
+// op applied to its inputs) via the shared tests/shared/pathValidation.js — the
+// spliced/id-remapped path must be physically constructible, not just plausible.
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { operations } from '../../shapeSolverCore.js';
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { getAllRotations } from '../../shapeOperations.js';
+import { pathIsValid } from '../shared/pathValidation.js';
 
 const DEFAULT_STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
 const ALL_OPS = Object.keys(operations);
@@ -20,27 +21,9 @@ function assert(name, cond) {
     else { console.log(`✗ ${name} — assertion failed`); failed = true; }
 }
 
-// Re-run an op on concrete input codes; outputs are valid if every claimed output
-// is among what the op actually produces (search drops empties/no-ops → subset).
-function applyOp(opName, inputCodes, color) {
-    const op = operations[opName];
-    const shapes = inputCodes.map((c) => Shape.fromShapeCode(c));
-    let out;
-    if (op.inputCount === 2) out = op.fn(shapes[0], shapes[1], cfg);
-    else if (op.needsColor) out = op.fn(shapes[0], color, cfg);
-    else out = op.fn(shapes[0], cfg);
-    return out.map((s) => s.toShapeCode()).filter(Boolean);
-}
-function everyStepValid(path) {
-    return path.every((step) => {
-        const inCodes = step.inputs.map((x) => x.shape);
-        const outCodes = step.outputs.map((x) => x.shape);
-        let produced;
-        try { produced = applyOp(step.operation, inCodes, step.params?.color); }
-        catch { return false; }
-        return outCodes.every((c) => produced.includes(c));
-    });
-}
+// A solution path is valid when every step is a real op under this test's layer
+// config (cfg); the shared validator re-runs each op and checks outputs ⊆ produced.
+const everyStepValid = (path) => pathIsValid(path, cfg);
 function isAcceptableRotation(code, target) {
     return getAllRotations(Shape.fromShapeCode(target), cfg).has(code);
 }
