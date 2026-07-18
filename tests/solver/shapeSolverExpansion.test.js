@@ -94,6 +94,15 @@ check('expandUnaryOp: cutter descriptor type/inputs',
 check('expandUnaryOp: cutter outputs are the two halves',
     [...(cutDesc[0]?.outputCodes ?? [])].sort(), ['----SuWu', 'CuRu----']);
 
+// End-to-end guard for the audit regression: a multi-layer shape with empty
+// halves on opposite layers must cut into TWO useful pieces. A layer-0-only
+// prune would skip this op and emit [] (target unreachable); the correct
+// all-layers prune emits one descriptor carrying both non-empty halves.
+const mlCutDesc = expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuCu----:----SuSu', shape('CuCu----:----SuSu'), config, { needsColor: false });
+check('expandUnaryOp: multi-layer complementary cut → one descriptor', mlCutDesc.length, 1);
+check('expandUnaryOp: multi-layer complementary cut emits both halves',
+    [...(mlCutDesc[0]?.outputCodes ?? [])].sort(), ['----SuSu', 'CuCu----']);
+
 // Painter enumerates target-implied colors and applies each.
 const paintDesc = expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu', shape('CuCuCuCu'), config,
     { needsColor: true, colorContext: { target: shape('CrCrCrCr') } });
