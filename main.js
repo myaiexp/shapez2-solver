@@ -4,8 +4,6 @@ import { extractLayers } from './shapeOperations.js';
 import { filterStartingShapes } from './shapeAnalysis.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
-import { SHAPE_TYPES, COLOR_TYPES, getShapeInfo, getColorInfo } from './shapeColorData.js';
-import { buildShapeCode, parseShapeCode, createDefaultParts } from './shapeCodeFormat.js';
 import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
@@ -221,15 +219,24 @@ let solverWorker = null;
 
 function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
     const status = byId('status');
-    const running = btn.textContent === idleLabel;
 
-    if (!running) {
+    // Reset the button to its idle label and tear down the worker. Called on
+    // every terminal outcome (cancel, result, error, worker crash) so the UI can
+    // never get stuck showing 'Cancel' behind a dead or orphaned worker.
+    const finish = () => {
+        btn.textContent = idleLabel;
         if (solverWorker) {
-            solverWorker.postMessage({ action: 'cancel' });
             solverWorker.terminate();
             solverWorker = null;
         }
-        btn.textContent = idleLabel;
+    };
+
+    // The button reads 'Cancel' only while a worker is running, so a click then
+    // means "cancel", not "start".
+    const isRunning = btn.textContent === 'Cancel';
+    if (isRunning) {
+        if (solverWorker) solverWorker.postMessage({ action: 'cancel' });
+        finish();
         status.textContent = 'Cancelled.';
         return;
     }
@@ -245,13 +252,33 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
             return;
         }
 
-        if (type === 'result') {
-            onResult(result);
-            btn.textContent = idleLabel;
-            solverWorker.terminate();
-            solverWorker = null;
-            if (persistOnComplete) persist();
+        if (type === 'error') {
+            status.textContent = message;
+            finish();
+            return;
         }
+
+        if (type === 'result') {
+            try {
+                onResult(result);
+                if (persistOnComplete) persist();
+            } catch (err) {
+                status.textContent = `Error: ${err.message}`;
+            } finally {
+                finish();
+            }
+        }
+    };
+
+    // A worker that throws before posting a terminal message (onerror) or sends
+    // an undeserializable one (onmessageerror) still has to release the UI.
+    solverWorker.onerror = (e) => {
+        status.textContent = `Error: ${e.message || 'worker crashed'}`;
+        finish();
+    };
+    solverWorker.onmessageerror = () => {
+        status.textContent = 'Error: worker sent an unreadable message.';
+        finish();
     };
 
     btn.textContent = 'Cancel';
@@ -274,7 +301,7 @@ byId('solve-btn').addEventListener('click', () => {
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
 
     const maxLayers = parseInt(byId('max-layers').value) || 4;
-    const maxStates = parseInt(byId('max-states-per-level').value) || 1000;
+    const maxStatesPerLevel = parseInt(byId('max-states-per-level').value) || 1000;
     const preventWaste = byId('prevent-waste').checked;
     const orientationSensitive = byId('orientation-sensitive').checked;
     const monolayerPainting = byId('monolayer-painting').checked;
@@ -317,7 +344,7 @@ byId('solve-btn').addEventListener('click', () => {
             startingShapeCodes: starting,
             enabledOperations: ops,
             maxLayers,
-            maxStatesPerLevel: maxStates,
+            maxStatesPerLevel,
             preventWaste,
             orientationSensitive,
             monolayerPainting,
@@ -407,6 +434,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const usesMaxStates = method === 'BFS' || method === 'Constructive';
         heuristicGroup.style.display = usesHeuristic ? 'block' : 'none';
         maxStatesGroup.style.display = usesMaxStates ? 'block' : 'none';
+        // Same input drives two distinct concepts: BFS beam width vs. the
+        // Constructive per-node search budget. Label it for the active method.
+        maxStatesGroup.querySelector('label').textContent =
+            method === 'Constructive' ? 'Node Search Budget' : 'Max States Per Level';
     });
 
     // Initial toggle

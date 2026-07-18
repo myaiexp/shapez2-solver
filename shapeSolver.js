@@ -59,7 +59,7 @@ self.onmessage = async function (e) {
                 );
             if (!cancelled) self.postMessage({ type: 'result', result });
         } catch (err) {
-            self.postMessage({ type: 'status', message: `Error: ${err.message}` });
+            self.postMessage({ type: 'error', message: `Error: ${err.message}` });
         }
     } else if (action === 'explore') {
         cancelled = false;
@@ -76,7 +76,7 @@ self.onmessage = async function (e) {
             );
             if (!cancelled) self.postMessage({ type: 'result', result: graph });
         } catch (err) {
-            self.postMessage({ type: 'status', message: `Error: ${err.message}` });
+            self.postMessage({ type: 'error', message: `Error: ${err.message}` });
         }
     } else if (action === 'cancel') {
         cancelled = true;

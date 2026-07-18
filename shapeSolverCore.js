@@ -611,12 +611,12 @@ export async function shapeSolver(
     const cameFrom = new Map();
     // Beam pruning: when a depth level exceeds the cap, keep only the
     // highest-scoring states (calculateStateScore favours clean partial pieces).
-    function pruneStatesAtDepth(states, maxStates) {
-        if (states.length <= maxStates) {
+    function pruneStatesAtDepth(states, beamWidth) {
+        if (states.length <= beamWidth) {
             return states;
         }
         states.sort((a, b) => b.score - a.score);
-        return states.slice(0, maxStates);
+        return states.slice(0, beamWidth);
     }
     while (queue.length > 0 && !shouldCancel()) {
         if (visited.size > maxStates) { aborted = true; break; }
