@@ -8,8 +8,7 @@ import {
     UNPAINTABLE_SHAPES,
     REPLACED_BY_CRYSTAL,
     PIN_CHAR,
-    CRYSTAL_CHAR,
-    layerToCode
+    CRYSTAL_CHAR
 } from './shapeClass.js';
 import {
     crystalsFused,
@@ -19,7 +18,6 @@ import {
     cleanUpEmptyUpperLayers,
     requireSameNumParts
 } from './shapeLayerMechanics.js';
-import { rotate90CW } from './shapeRotation.js';
 
 // Shape Operations
 export function cut(shape, config = new ShapeOperationConfig()) {
@@ -163,61 +161,4 @@ export function trash(shape, config = new ShapeOperationConfig()) {
 
 export function beltSplit(shape, config = new ShapeOperationConfig()) {
     return [shape, shape];
-}
-
-// Extra functions for Shape Analysis - for Solver
-export function getAllRotations(shape, config) {
-    const rotations = new Set();
-    let current = shape;
-
-    for (let i = 0; i < current.numParts; i++) {
-        rotations.add(current.toShapeCode());
-        current = rotate90CW(current, config)[0];
-    }
-
-    return rotations;
-}
-
-// Decompose a shape into one sub-shape-code per distinct key (mode): each
-// grouped layer keeps its parts at their original index. Nothing and Crystal
-// parts are always dropped; Pins drop only when includePins is false. Used by
-// the UI's "Extract Shapes" modal to seed the starting-shapes list.
-export function extractLayers(shape, mode = 'part', includePins = true, includeColor = true) {
-    const numParts = shape.numParts;
-    const groupedLayers = [];
-
-    shape.layers.forEach((layer) => {
-        const seen = {};
-
-        layer.forEach((part, partIndex) => {
-            if (!includePins && (part.shape === PIN_CHAR)) return;
-            if (part.shape === NOTHING_CHAR || part.shape === CRYSTAL_CHAR) return;
-
-            let key;
-            if (mode === 'layer') {
-                key = "valid";
-            } else if (mode === 'part') {
-                key = part.shape;
-            } else if (mode === 'color') {
-                key = part.color;
-            } else if (mode === 'part-color') {
-                key = `${part.shape}-${part.color}`;
-            }
-
-            if (!seen[key]) {
-                seen[key] = [];
-            }
-            seen[key].push({ index: partIndex, shape: part.shape, color: part.color });
-        });
-
-        Object.entries(seen).forEach(([, entries]) => {
-            const newLayer = Array.from({ length: numParts }, () => new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-            entries.forEach(({ index, shape, color }) => {
-                newLayer[index] = new ShapePart(shape, includeColor ? color : 'u');
-            });
-            groupedLayers.push(newLayer);
-        });
-    });
-
-    return groupedLayers.map(layerToCode);
 }

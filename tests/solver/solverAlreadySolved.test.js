@@ -9,7 +9,8 @@
 // 0, not aborted, not null. These tests pin that contract so a future refactor
 // of the goal-check / path-reconstruction can't silently regress it into a
 // spurious search (or a null "no solution").
-import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { shapeSolver } from '../../shapeSolverCore.js';
+import { operations } from '../../shapeSolverOperations.js';
 import { Shape } from '../../shapeClass.js';
 
 let passed = 0;

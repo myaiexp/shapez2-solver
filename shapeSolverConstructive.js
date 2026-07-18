@@ -9,7 +9,8 @@
 import { shapeSolver } from './shapeSolverCore.js';
 import { splitByLayer, splitByQuadrant, splitByHalf, cost, opCountOf } from './shapeSolverDecompose.js';
 import { ShapeOperationConfig } from './shapeClass.js';
-import { stack, getAllRotations } from './shapeOperations.js';
+import { stack } from './shapeOperations.js';
+import { getAllRotations } from './shapeRotation.js';
 import { getCachedShape } from './shapeSolverCache.js';
 
 // Options mirror shapeSolver's (minus the search-method-specific caps): a single
@@ -40,12 +41,12 @@ export async function solveConstructive(
     // assembly stacks gravity-merge with no rotation; the top-level target uses
     // the caller's orientationSensitive. preventWaste is honoured only at the top
     // — sub-pieces ignore it (we want the piece, leftover waste is fine).
-    async function coreSearch(code, orientationSensitive, preventWaste) {
+    async function coreSearch(code, searchOrientationSensitive, searchPreventWaste) {
         const res = await shapeSolver(code, startingShapeCodes, enabledOperations, {
             maxLayers,
             maxStatesPerLevel: Infinity,     // uncapped per-level
-            preventWaste,
-            orientationSensitive,
+            preventWaste: searchPreventWaste,
+            orientationSensitive: searchOrientationSensitive,
             monolayerPainting,
             heuristicDivisor,
             searchMethod: 'A*',

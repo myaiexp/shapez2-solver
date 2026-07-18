@@ -1,10 +1,10 @@
 import { NOTHING_CHAR } from './shapeClass.js';
-import { getAllRotations } from './shapeOperations.js';
+import { getAllRotations } from './shapeRotation.js';
 import { getPaintColors, getCrystalColors } from './shapeAnalysis.js';
 import {
-    getCachedOpResult1,
-    getCachedOpResult1Color,
-    getCachedOpResult2
+    getCachedUnaryResult,
+    getCachedColoredUnaryResult,
+    getCachedBinaryResult
 } from './shapeSolverCache.js';
 
 // Build a single-input successor descriptor from an op's raw output shapes.
@@ -104,17 +104,17 @@ export function enumerateUnaryColors(opName, inputShape, {
 function runUnaryOp(opName, fn, inputShape, color, config, useCache) {
     if (color != null) {
         return useCache
-            ? getCachedOpResult1Color(opName, fn, inputShape, color, config)
+            ? getCachedColoredUnaryResult(opName, fn, inputShape, color, config)
             : fn(inputShape, color, config);
     }
     return useCache
-        ? getCachedOpResult1(opName, fn, inputShape, config)
+        ? getCachedUnaryResult(opName, fn, inputShape, config)
         : fn(inputShape, config);
 }
 
 function runBinaryOp(opName, fn, inputShape1, inputShape2, config, useCache) {
     return useCache
-        ? getCachedOpResult2(opName, fn, inputShape1, inputShape2, config)
+        ? getCachedBinaryResult(opName, fn, inputShape1, inputShape2, config)
         : fn(inputShape1, inputShape2, config);
 }
 

@@ -6,7 +6,8 @@
 // aborts gracefully once `maxStates` distinct states are discovered. These tests
 // use a TINY cap so they are bounded-by-construction and safe to run — they never
 // approach the memory ceiling that an uncapped hard solve would.
-import { shapeSolver, operations } from '../../shapeSolverCore.js';
+import { shapeSolver } from '../../shapeSolverCore.js';
+import { operations } from '../../shapeSolverOperations.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
 import { pathIsValid } from '../shared/pathValidation.js';
 

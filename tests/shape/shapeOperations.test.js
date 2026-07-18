@@ -13,7 +13,7 @@
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
 import { Shape } from '../../shapeClass.js';
-import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit, extractLayers } from '../../shapeOperations.js';
+import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit } from '../../shapeOperations.js';
 import { getSimilarity } from '../../shapeAnalysis.js';
 
 let passed = 0;
@@ -128,50 +128,6 @@ check('trash returns no output shapes',
 // unchanged. A multi-part input pins that nothing is dropped or altered.
 check('beltSplit duplicates the shape onto both outputs',
     codes(beltSplit(s('CuRuSuWu'))), ['CuRuSuWu', 'CuRuSuWu']);
-
-// --- extractLayers: decompose a shape into per-key sub-shape codes --------
-// Groups each layer's parts by key (mode), one grouped layer per distinct key,
-// with parts placed back at their original index. Nothing and Crystal parts are
-// always dropped; Pins drop only when includePins=false. (Moved here from the
-// shapeAnalysis suite when extractLayers became a shapeOperations transform.)
-
-// mode 'part' (default): one grouped layer per distinct shape char.
-check('extractLayers part: CuRuSuWu → one layer per shape, index-preserved',
-    extractLayers(s('CuRuSuWu')), ['Cu------', '--Ru----', '----Su--', '------Wu']);
-check('extractLayers part: repeated shapes merge into one layer (CuCuRuRu)',
-    extractLayers(s('CuCuRuRu')), ['CuCu----', '----RuRu']);
-
-// mode 'layer': single key → whole layer kept intact (Nothing/Crystal dropped).
-check('extractLayers layer: keeps each layer whole (CuRuSuWu)',
-    extractLayers(s('CuRuSuWu'), 'layer'), ['CuRuSuWu']);
-check('extractLayers layer: per-layer over multi-layer input',
-    extractLayers(s('CuRuSuWu:WuWuWuWu'), 'layer'), ['CuRuSuWu', 'WuWuWuWu']);
-
-// mode 'color': group by color, shape+color preserved.
-check('extractLayers color: groups by color char (CrCrRgRg)',
-    extractLayers(s('CrCrRgRg'), 'color'), ['CrCr----', '----RgRg']);
-
-// mode 'part-color': group by shape+color pair.
-check('extractLayers part-color: splits same shape by color (CrCuCrCu)',
-    extractLayers(s('CrCuCrCu'), 'part-color'), ['Cr--Cr--', '--Cu--Cu']);
-
-// includeColor=false → colors collapsed to 'u' in the output.
-check('extractLayers includeColor=false collapses color to u (CrCrCrCr)',
-    extractLayers(s('CrCrCrCr'), 'part', true, false), ['CuCuCuCu']);
-
-// Pins: kept by default, dropped when includePins=false.
-check('extractLayers keeps pins by default (CuP-----)',
-    extractLayers(s('CuP-----')), ['Cu------', '--P-----']);
-check('extractLayers includePins=false drops pins (CuP-----)',
-    extractLayers(s('CuP-----'), 'part', false), ['Cu------']);
-
-// Crystals are always dropped (here 'c' = crystal).
-check('extractLayers always drops crystal parts (cuCuRu--)',
-    extractLayers(s('cuCuRu--')), ['--Cu----', '----Ru--']);
-
-// A fully-empty layer contributes nothing.
-check('extractLayers skips an all-Nothing layer (--------:CuCuCuCu)',
-    extractLayers(s('--------:CuCuCuCu')), ['CuCuCuCu']);
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

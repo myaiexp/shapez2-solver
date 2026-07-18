@@ -1,5 +1,5 @@
 import { ShapeOperationConfig, NOTHING_CHAR } from './shapeClass.js';
-import { getAllRotations } from './shapeOperations.js';
+import { getAllRotations } from './shapeRotation.js';
 import { getCrystalColors } from './shapeAnalysis.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
 import {
@@ -10,8 +10,6 @@ import {
 import { buildBackwardReachability } from './shapeSolverBackward.js';
 import { operations } from './shapeSolverOperations.js';
 import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
-
-export { operations } from './shapeSolverOperations.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
 // precompute outward from the target before the forward A* runs. 4 trades map

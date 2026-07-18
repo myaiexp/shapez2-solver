@@ -26,3 +26,18 @@ export function rotate180(shape, config = new ShapeOperationConfig()) {
     }
     return [new Shape(newLayers)];
 }
+
+// The set of distinct shape codes reachable by rotating `shape` through every
+// 90° CW step. A solver/expansion concern (rotation-symmetry pruning and the
+// acceptable-rotation goal set), lives here next to the rotators it drives.
+export function getAllRotations(shape, config) {
+    const rotations = new Set();
+    let current = shape;
+
+    for (let i = 0; i < current.numParts; i++) {
+        rotations.add(current.toShapeCode());
+        current = rotate90CW(current, config)[0];
+    }
+
+    return rotations;
+}

@@ -8,8 +8,8 @@
 // and solverStateCap.test.js so the path-integrity gate can't drift between the
 // four (e.g. one passing an op config while the others silently don't).
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
-import { operations } from '../../shapeSolverCore.js';
-import { getAllRotations } from '../../shapeOperations.js';
+import { operations } from '../../shapeSolverOperations.js';
+import { getAllRotations } from '../../shapeRotation.js';
 
 // The claimed outputs of a step must be an order-preserving subsequence of what
 // the op actually produced (matching each produced entry at most once). Ordered,

@@ -1,9 +1,12 @@
 import {
     Shape,
+    ShapePart,
     NOTHING_CHAR,
     CRYSTAL_CHAR,
+    PIN_CHAR,
     UNPAINTABLE_SHAPES,
-    ShapeOperationConfig
+    ShapeOperationConfig,
+    layerToCode
 } from './shapeClass.js';
 import { rotate90CW } from './shapeRotation.js';
 
@@ -210,4 +213,48 @@ export function filterStartingShapes(startingShapeCodes, targetShapeCode) {
 
         return false;
     });
+}
+
+// Decompose a shape into one sub-shape-code per distinct key (mode): each
+// grouped layer keeps its parts at their original index. Nothing and Crystal
+// parts are always dropped; Pins drop only when includePins is false. Used by
+// the UI's "Extract Shapes" modal to seed the starting-shapes list.
+export function extractLayers(shape, mode = 'part', includePins = true, includeColor = true) {
+    const numParts = shape.numParts;
+    const groupedLayers = [];
+
+    shape.layers.forEach((layer) => {
+        const seen = {};
+
+        layer.forEach((part, partIndex) => {
+            if (!includePins && (part.shape === PIN_CHAR)) return;
+            if (part.shape === NOTHING_CHAR || part.shape === CRYSTAL_CHAR) return;
+
+            let key;
+            if (mode === 'layer') {
+                key = "valid";
+            } else if (mode === 'part') {
+                key = part.shape;
+            } else if (mode === 'color') {
+                key = part.color;
+            } else if (mode === 'part-color') {
+                key = `${part.shape}-${part.color}`;
+            }
+
+            if (!seen[key]) {
+                seen[key] = [];
+            }
+            seen[key].push({ index: partIndex, shape: part.shape, color: part.color });
+        });
+
+        Object.entries(seen).forEach(([, entries]) => {
+            const newLayer = Array.from({ length: numParts }, () => new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
+            entries.forEach(({ index, shape: partType, color }) => {
+                newLayer[index] = new ShapePart(partType, includeColor ? color : 'u');
+            });
+            groupedLayers.push(newLayer);
+        });
+    });
+
+    return groupedLayers.map(layerToCode);
 }

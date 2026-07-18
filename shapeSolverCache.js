@@ -19,7 +19,7 @@ export function getCachedShape(code) {
 // ---------------------------------------------------------------------------
 export const operationResultCache = new Map();
 
-export function getCachedOpResult1(opName, fn, inputShape, config) {
+export function getCachedUnaryResult(opName, fn, inputShape, config) {
     const key = `${opName}|${inputShape.toShapeCode()}`;
     let result = operationResultCache.get(key);
     if (!result) {
@@ -29,7 +29,7 @@ export function getCachedOpResult1(opName, fn, inputShape, config) {
     return result;
 }
 
-export function getCachedOpResult1Color(opName, fn, inputShape, color, config) {
+export function getCachedColoredUnaryResult(opName, fn, inputShape, color, config) {
     const key = `${opName}|${inputShape.toShapeCode()}|${color}`;
     let result = operationResultCache.get(key);
     if (!result) {
@@ -39,7 +39,7 @@ export function getCachedOpResult1Color(opName, fn, inputShape, color, config) {
     return result;
 }
 
-export function getCachedOpResult2(opName, fn, inputShape1, inputShape2, config) {
+export function getCachedBinaryResult(opName, fn, inputShape1, inputShape2, config) {
     const key = `${opName}|${inputShape1.toShapeCode()}|${inputShape2.toShapeCode()}`;
     let result = operationResultCache.get(key);
     if (!result) {

@@ -5,9 +5,9 @@
 // op applied to its inputs) via the shared tests/shared/pathValidation.js — the
 // spliced/id-remapped path must be physically constructible, not just plausible.
 import { solveConstructive } from '../../shapeSolverConstructive.js';
-import { operations } from '../../shapeSolverCore.js';
+import { operations } from '../../shapeSolverOperations.js';
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
-import { getAllRotations } from '../../shapeOperations.js';
+import { getAllRotations } from '../../shapeRotation.js';
 import { pathIsValid } from '../shared/pathValidation.js';
 
 const DEFAULT_STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
