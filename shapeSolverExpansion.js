@@ -1,6 +1,6 @@
 import { NOTHING_CHAR } from './shapeClass.js';
 import { getAllRotations } from './shapeRotation.js';
-import { getPaintColors, getCrystalColors } from './shapeAnalysis.js';
+import { getPaintColors, getCrystalColors } from './shapeColorAnalysis.js';
 import {
     getCachedUnaryResult,
     getCachedColoredUnaryResult,

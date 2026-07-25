@@ -4,7 +4,7 @@ import { dirname, join } from 'path';
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { cut, stack } from '../../shapeOperations.js';
 import { rotate90CW } from '../../shapeRotation.js';
-import { getSimilarity } from '../../shapeAnalysis.js';
+import { getSimilarity } from './similarity.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';

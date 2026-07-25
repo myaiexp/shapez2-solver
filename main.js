@@ -1,6 +1,6 @@
 import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
 import { Shape } from './shapeClass.js';
-import { extractLayers, filterStartingShapes } from './shapeAnalysis.js';
+import { extractLayers, filterStartingShapes } from './startingShapes.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';

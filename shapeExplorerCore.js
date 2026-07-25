@@ -5,7 +5,7 @@ import {
     operationResultCache,
     getCachedShape,
 } from './shapeSolverCache.js';
-import { getCrystalColors } from './shapeAnalysis.js';
+import { getCrystalColors } from './shapeColorAnalysis.js';
 import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
 
 // Breadth-first space explorer for the visualization: starting from the given

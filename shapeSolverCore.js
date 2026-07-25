@@ -1,6 +1,6 @@
 import { ShapeOperationConfig, NOTHING_CHAR } from './shapeClass.js';
 import { getAllRotations } from './shapeRotation.js';
-import { getCrystalColors } from './shapeAnalysis.js';
+import { getCrystalColors } from './shapeColorAnalysis.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
 import {
     shapeCache,
@@ -74,12 +74,14 @@ export async function shapeSolver(
         }
     }
 
-    // Initialize shapes with unique IDs
+    // Initialize shapes with unique IDs. This maps id -> shape CODE (a string);
+    // getCachedShape is the only path from a code to a Shape instance, so the
+    // registry itself never holds parsed objects.
     let nextId = 0;
-    const shapes = new Map();
+    const shapeCodesById = new Map();
     const initialAvailableIds = new Set();
     for (const code of startingShapeCodes) {
-        shapes.set(nextId, code);
+        shapeCodesById.set(nextId, code);
         initialAvailableIds.add(nextId);
         nextId++;
     }
@@ -170,7 +172,7 @@ export async function shapeSolver(
         let maxLayerCount = 0;
 
         for (const id of availableIds) {
-            const code = shapes.get(id);
+            const code = shapeCodesById.get(id);
             const shape = getCachedShape(code);
             if (shape.numLayers > maxLayerCount) maxLayerCount = shape.numLayers;
             const m = getCachedMatch(code);
@@ -235,18 +237,18 @@ export async function shapeSolver(
 
     function getStateKey(availableIds) {
         const codes = [];
-        for (const id of availableIds) codes.push(shapes.get(id));
+        for (const id of availableIds) codes.push(shapeCodesById.get(id));
         return stateKeyFromCodes(codes);
     }
 
     // Resulting state key for a successor descriptor, computed from codes alone —
     // no shape ids minted, so successors the search rejects stay cheap (this is
-    // what keeps the shapes Map from growing with every edge ever generated).
+    // what keeps shapeCodesById from growing with every edge ever generated).
     function successorStateKey(parentAvailableIds, desc) {
         const codes = [];
         for (const id of parentAvailableIds) {
             if (desc.inputIds.includes(id)) continue;
-            codes.push(shapes.get(id));
+            codes.push(shapeCodesById.get(id));
         }
         for (const code of desc.outputCodes) codes.push(code);
         return stateKeyFromCodes(codes);
@@ -260,7 +262,7 @@ export async function shapeSolver(
         const outputIds = [];
         for (const code of desc.outputCodes) {
             const newId = nextId++;
-            shapes.set(newId, code);
+            shapeCodesById.set(newId, code);
             outputIds.push(newId);
             newAvailableIds.add(newId);
         }
@@ -271,7 +273,7 @@ export async function shapeSolver(
     }
 
     function isGoal(availableIds) {
-        const shapeCodes = Array.from(availableIds).map(id => shapes.get(id));
+        const shapeCodes = Array.from(availableIds).map(id => shapeCodesById.get(id));
         const hasTarget = shapeCodes.some(code => acceptable.has(code));
         const allTarget = preventWaste ? shapeCodes.every(code => acceptable.has(code)) : true;
         return hasTarget && allTarget;
@@ -281,7 +283,7 @@ export async function shapeSolver(
     // A descriptor is lightweight — { type, inputIds, outputCodes, color } — and
     // deliberately does NOT mint shape ids or build the new available-set. That is
     // deferred to applySuccessor() and only done for successors the caller actually
-    // accepts, so rejected successors never grow the shapes Map (the old
+    // accepts, so rejected successors never grow shapeCodesById (the old
     // unbounded-growth bug minted ids for every edge, kept or not).
     // Includes operation pruning and the operation-result cache.
     const expansionColorContext = {
@@ -294,7 +296,7 @@ export async function shapeSolver(
     };
 
     function* generateSuccessors(availableIds) {
-        const referenceCodes = Array.from(availableIds).map(id => shapes.get(id));
+        const referenceCodes = Array.from(availableIds).map(id => shapeCodesById.get(id));
 
         for (const opName of enabledOperations) {
             if (shouldCancel()) return;
@@ -305,7 +307,7 @@ export async function shapeSolver(
             if (inputCount === 1) {
                 for (const id of availableIds) {
                     if (shouldCancel()) return;
-                    const inputCode = shapes.get(id);
+                    const inputCode = shapeCodesById.get(id);
 
                     if (opName === 'Trash') {
                         if (preventWaste && !acceptable.has(inputCode)) {
@@ -331,8 +333,8 @@ export async function shapeSolver(
                         if (i === j) continue;
                         const id1 = ids[i];
                         const id2 = ids[j];
-                        const inputCode1 = shapes.get(id1);
-                        const inputCode2 = shapes.get(id2);
+                        const inputCode1 = shapeCodesById.get(id1);
+                        const inputCode2 = shapeCodesById.get(id2);
                         const desc = expandBinaryOp(
                             opName, op, id1, id2,
                             inputCode1, inputCode2,
@@ -352,8 +354,8 @@ export async function shapeSolver(
     function formatStep(step) {
         return {
             operation: step.type,
-            inputs: step.inputIds.map(id => ({id, shape: shapes.get(id)})),
-            outputs: step.outputIds.map(id => ({id, shape: shapes.get(id)})),
+            inputs: step.inputIds.map(id => ({id, shape: shapeCodesById.get(id)})),
+            outputs: step.outputIds.map(id => ({id, shape: shapeCodesById.get(id)})),
             params: step.color ? {color: step.color} : {}
         };
     }
@@ -567,7 +569,7 @@ export async function shapeSolver(
             // Check if any shape is in the backward map
             let bestBackwardDist = Infinity;
             for (const id of availableIds) {
-                const code = shapes.get(id);
+                const code = shapeCodesById.get(id);
                 if (backwardMap.has(code)) {
                     bestBackwardDist = Math.min(bestBackwardDist, backwardMap.get(code));
                 }
