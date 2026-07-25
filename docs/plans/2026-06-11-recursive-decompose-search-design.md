@@ -185,11 +185,23 @@ already encodes a DAG through input-ID references (it handles 2-input Stacker/Sw
 - but the **ID remapping must be exact**, or the spliced path references a non-existent or
   wrong shape and the per-step correctness gate fails.
 
+> **Correction (2026-07-25, audit #5498).** The first bullet was wrong, and shipped as a
+> bug: handing the same output ID to two consumers is *not* what a fan-out looks like in
+> this format. An ID is a single item — the core solver deletes it the moment it is
+> consumed, and `blueprintPositions` maps it to one output port, so two consumers drew
+> belts from that port and double-spent the intermediate. The fan-out must be **explicit**:
+> `flatten` builds a reused sub-plan once and emits a chain of `Belt Split` steps (N
+> consumers → N-1 splits), each consuming one copy and minting fresh IDs. Two exceptions:
+> a piece that IS a starting shape is re-built instead (a second feed costs no op and
+> keeps full throughput), and when the user has disabled Belt Split the whole sub-plan is
+> re-built per consumer — `cost(plan, { reuseCost: null })` then stops crediting the reuse.
+
 **ID invariant for the implementer:** each core `shapeSolver` call mints shape IDs
 sequentially from 0 (it clears caches and reinitializes per call), so every sub-plan's ID
 space overlaps. Before concatenating a sub-plan, offset all its IDs by
 `max(existing IDs) + 1` (or thread a running counter through the splice). Reused (memoized)
-sub-plans are spliced **once**; later consumers reference the already-offset output ID.
+sub-plans are spliced **once**, and their product is then copied per consumer (above) —
+never referenced twice by ID.
 
 This is the highest-risk component and the focus of testing.
 

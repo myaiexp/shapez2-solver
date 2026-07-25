@@ -58,15 +58,27 @@ export function splitByHalf(code) {
 // ---------------------------------------------------------------------------
 // Cost metric — the operational definition of "intelligent".
 // ---------------------------------------------------------------------------
-// opCountOf: total steps when the plan is flattened, with memoized (object-shared)
-// sub-plans counted exactly ONCE. A direct-search leaf contributes its search
-// path length; a split contributes (children.length - 1) assembly stacks plus
-// its children. Reuse — the same Plan object appearing more than once — is the
-// shared-sub-factory that the cost rewards by counting it a single time.
-export function opCountOf(plan) {
+// A plan that solved its target in zero steps IS a starting shape. It is the one
+// piece a second consumer can have for free — flatten draws it another feed
+// instead of splitting a belt — so both the cost metric and flatten key off this.
+export const isBareStart = (plan) => plan.method === 'direct-search' && plan.steps.length === 0;
+
+// opCountOf: total steps when the plan is flattened. A direct-search leaf
+// contributes its search path length; a split contributes (children.length - 1)
+// assembly stacks plus its children. Reuse — the same Plan object appearing more
+// than once — is the shared-sub-factory the cost rewards: it is built once and
+// its product copied, so every EXTRA consumer costs only `reuseCost` (the one
+// Belt Split that flatten emits to fan it out), not the sub-plan again.
+//
+// Pass reuseCost: null when Belt Split is unavailable — flatten then re-builds
+// the sub-plan per consumer, so reuse earns no credit at all and each occurrence
+// must be charged in full. A zero-step leaf (the piece IS a starting shape) is
+// the one free case either way: flatten draws it a second feed, no op at all.
+export function opCountOf(plan, { reuseCost = 1 } = {}) {
     const seen = new Set();
     function walk(p) {
-        if (seen.has(p)) return 0; // already counted this exact sub-plan
+        if (seen.has(p) && isBareStart(p)) return 0;             // second feed, free
+        if (reuseCost !== null && seen.has(p)) return reuseCost; // one split per extra consumer
         seen.add(p);
         if (p.method === 'direct-search') return p.steps.length;
         let total = Math.max(0, p.children.length - 1); // assembly stacks (n-1)
@@ -87,6 +99,7 @@ export function depthOf(plan) {
 }
 
 // Reuse-credited op count, with shallower decomposition depth as the tie-break.
-export function cost(plan) {
-    return opCountOf(plan) + depthOf(plan) * 1e-6;
+// `opts` is forwarded to opCountOf (see reuseCost there).
+export function cost(plan, opts) {
+    return opCountOf(plan, opts) + depthOf(plan) * 1e-6;
 }

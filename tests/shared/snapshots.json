@@ -109,5 +109,9 @@
   "Solver: multilayer-cut": {
     "numOps": 1,
     "depth": 1
+  },
+  "Solver: already-solved": {
+    "numOps": 0,
+    "depth": 0
   }
 }

@@ -8,7 +8,7 @@ import { getSimilarity } from './similarity.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
-import { invalidPathSteps, pathReachesTarget } from './pathValidation.js';
+import { invalidPathSteps, invalidPathIds, pathReachesTarget } from './pathValidation.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -118,11 +118,22 @@ for (const fixture of SOLVER_FIXTURES) {
         continue;
     }
 
+    // Id-integrity gate (independent of the snapshot): every step can replay
+    // perfectly while the path feeds one machine's output to two consumers.
+    // Passing `starting` also rejects inputs conjured from outside the start set.
+    const badIds = invalidPathIds(path, { starts: fixture.starting });
+    if (badIds.length) {
+        console.log(`✗ ${key} — UNBUILDABLE id flow: ${badIds.join(' | ')}`);
+        failed = true;
+        continue;
+    }
+
     // Goal gate (independent of the snapshot): valid ops alone don't prove the
     // path built the target — the final inventory must actually contain it (any
     // rotation unless orientation-sensitive). Catches wrong-assembly and
-    // target-trashed paths that every step-level check would still pass.
-    if (!pathReachesTarget(path, fixture.target, { config, orientationSensitive: fixture.orientationSensitive })) {
+    // target-trashed paths that every step-level check would still pass. `starts`
+    // makes a zero-op already-solved path pass rather than read as "no solution".
+    if (!pathReachesTarget(path, fixture.target, { starts: fixture.starting, config, orientationSensitive: fixture.orientationSensitive })) {
         console.log(`✗ ${key} — path does not reach target ${fixture.target}`);
         failed = true;
         continue;

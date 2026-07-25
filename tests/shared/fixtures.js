@@ -24,6 +24,18 @@ const baseSolverParams = {
 
 export const SOLVER_FIXTURES = [
     {
+        // Already-solved: the target is a starting shape, so the correct answer
+        // is an EMPTY path at depth 0 (solverAlreadySolved.test.js pins the
+        // contract). Kept here so smoke's goal gate keeps accepting a zero-op
+        // solve — it reads as "no solution" the moment `starts` stops reaching it.
+        name: 'already-solved',
+        target: 'CuCuCuCu',
+        starting: ['RuRuRuRu', 'CuCuCuCu'],
+        ops: ['Cutter', 'Stacker'],
+        method: 'A*',
+        ...baseSolverParams,
+    },
+    {
         name: 'simple-cut',
         target: 'CuCu----',
         starting: ['CuCuCuCu'],

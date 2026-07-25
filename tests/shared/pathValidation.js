@@ -7,6 +7,11 @@
 // truth for that check, imported by smoke.js, solve.mjs, constructive.test.js
 // and solverStateCap.test.js so the path-integrity gate can't drift between the
 // four (e.g. one passing an op config while the others silently don't).
+//
+// Three independent gates live here, and a path must clear all of them:
+//   1. invalidPathSteps — every step is a real op on its claimed inputs
+//   2. invalidPathIds   — the id bookkeeping is physical (single-consume)
+//   3. pathReachesTarget — the final inventory actually holds the target
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { getAllRotations } from '../../shapeRotation.js';
@@ -86,12 +91,78 @@ export function invalidPathSteps(path, config) {
     return bad;
 }
 
-// Boolean convenience over invalidPathSteps: true ⇒ path is present and every
-// step is a real op. A null/absent path is invalid (callers that expect a
-// solution treat "no path" as a failure).
-export function pathIsValid(path, config) {
+// ---------------------------------------------------------------------------
+// Id integrity — the item-flow the shape-code replay above cannot see
+// ---------------------------------------------------------------------------
+// Every shape instance in a path carries a unique id, and the solver consumes
+// each id EXACTLY once: applySuccessor deletes every input id from the available
+// set and mints fresh ids for the outputs, so a consumed id can never come back.
+// Re-running ops on shape CODES is blind to that — two Stackers can both name id
+// 12 (`CuRu----`) as an input and every step still replays perfectly, while the
+// factory double-spends one machine's output. It is not a cosmetic slip:
+// blueprintPositions maps an id to a SINGLE output port, so both consumers get
+// belts from that one port with no splitter between them. The sanctioned fan-out
+// is an explicit Belt Split step, which consumes its input id once and mints one
+// fresh id per copy — those copies then pass this check on their own.
+//
+// Returns human-readable failures (empty ⇒ the id bookkeeping is sound):
+//   • an id produced by two steps (or twice by one step)
+//   • an id consumed by two steps — the double-spend above
+//   • an id consumed before the step that produces it
+//   • with `starts` given, an unproduced input whose code is not a starting
+//     shape: a shape materialised out of nothing
+export function invalidPathIds(path, { starts } = {}) {
+    if (!path) return [];
+    const bad = [];
+    const producedAt = new Map();   // id -> index of the step that produced it
+    const consumedAt = new Map();   // id -> index of the step that first consumed it
+    const startCodes = starts ? new Set(starts) : null;
+
+    for (let i = 0; i < path.length; i++) {
+        for (const out of path[i].outputs) {
+            if (producedAt.has(out.id)) {
+                bad.push(`id ${out.id} (${out.shape}) produced twice: step ${producedAt.get(out.id)} and step ${i} (${path[i].operation})`);
+                continue;
+            }
+            producedAt.set(out.id, i);
+        }
+    }
+
+    for (let i = 0; i < path.length; i++) {
+        const step = path[i];
+        for (const inp of step.inputs) {
+            const firstConsumer = consumedAt.get(inp.id);
+            if (firstConsumer === undefined) {
+                consumedAt.set(inp.id, i);
+            } else if (firstConsumer === i) {
+                bad.push(`id ${inp.id} (${inp.shape}) consumed twice by step ${i} (${step.operation}) — needs a Belt Split to fan out`);
+            } else {
+                bad.push(`id ${inp.id} (${inp.shape}) consumed twice: step ${firstConsumer} and step ${i} (${step.operation}) — needs a Belt Split to fan out`);
+            }
+
+            const producer = producedAt.get(inp.id);
+            if (producer === undefined) {
+                // Unproduced ⇒ a starting shape. Its code must be one we started with.
+                if (startCodes && !startCodes.has(inp.shape)) {
+                    bad.push(`step ${i} (${step.operation}) consumes id ${inp.id} (${inp.shape}), which no step produces and which is not a starting shape`);
+                }
+            } else if (producer > i) {
+                bad.push(`step ${i} (${step.operation}) consumes id ${inp.id} (${inp.shape}) before step ${producer} produces it`);
+            }
+        }
+    }
+    return bad;
+}
+
+// Boolean convenience over both gates: true ⇒ path is present, every step is a
+// real op, AND its id bookkeeping is sound (single-consume, produced-before-used).
+// Pass `starts` to also reject inputs conjured from outside the starting set.
+// A null/absent path is invalid (callers that expect a solution treat "no path"
+// as a failure).
+export function pathIsValid(path, config, { starts } = {}) {
     if (!path) return false;
-    return invalidPathSteps(path, config).length === 0;
+    return invalidPathSteps(path, config).length === 0
+        && invalidPathIds(path, { starts }).length === 0;
 }
 
 // Replay a solution path's id bookkeeping to recover the shapes still on hand
@@ -121,10 +192,18 @@ export function simulateFinalInventory(path) {
 // rotation, unless orientationSensitive — mirroring the solver's acceptable
 // set). This is the goal gate that step-level op validation does NOT provide:
 // every step can be a real op yet assemble the wrong shape or trash the target.
-export function pathReachesTarget(path, target, { config, orientationSensitive = false } = {}) {
-    if (!path || path.length === 0) return false;
+//
+// A ZERO-OP path is the solver's already-solved contract (empty solutionPath at
+// depth 0 when a start is already acceptable — see solverAlreadySolved.test.js),
+// not a failure. There are no steps to replay, so the final inventory simply IS
+// the starting set, which only the caller knows: pass `starts` and an empty path
+// succeeds iff one of them is acceptable. Without `starts` we cannot tell an
+// already-solved solve from an empty one, so we stay strict and reject.
+export function pathReachesTarget(path, target, { starts, config, orientationSensitive = false } = {}) {
+    if (!path) return false;
     const acceptable = orientationSensitive
         ? new Set([target])
         : getAllRotations(Shape.fromShapeCode(target), config);
+    if (path.length === 0) return starts ? starts.some(code => acceptable.has(code)) : false;
     return simulateFinalInventory(path).some(code => acceptable.has(code));
 }

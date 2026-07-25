@@ -10,7 +10,8 @@ import {
     splitByHalf,
     cost,
     opCountOf,
-    depthOf
+    depthOf,
+    isBareStart
 } from '../../shapeSolverDecompose.js';
 
 let passed = 0, total = 0, failed = false;
@@ -59,13 +60,30 @@ const planA = split('by-quadrant', [leaf(3), leaf(3), leaf(3), leaf(3)]);
 check('opCount planA (no reuse)', opCountOf(planA), 15);
 check('depth planA (flat split)', depthOf(planA), 1);
 
-// Reuse: one shared leaf object referenced twice counts ONCE.
+// Reuse: one shared leaf object referenced twice is BUILT once, and the second
+// consumer pays only the Belt Split that flatten emits to copy its product.
 const shared = leaf(3);
-const planB = split('by-half', [shared, shared]);            // shared built once + 1 stack = 4 ops
+const planB = split('by-half', [shared, shared]);            // 3 built + 1 split + 1 stack = 5 ops
 const planAequivNoReuse = split('by-half', [leaf(3), leaf(3)]); // 3 + 3 + 1 stack = 7 ops
-check('opCount planB credits reuse', opCountOf(planB), 4);
+check('opCount planB credits reuse (one split per extra consumer)', opCountOf(planB), 5);
 check('opCount equivalent without reuse', opCountOf(planAequivNoReuse), 7);
 assert('cost(planB) < cost(no-reuse equivalent)', cost(planB) < cost(planAequivNoReuse));
+
+// reuseCost null — Belt Split disabled, so flatten re-builds the shared sub-plan
+// per consumer and reuse earns no credit: planB must score like the no-reuse twin.
+check('opCount planB with splitting unavailable', opCountOf(planB, { reuseCost: null }), 7);
+assert('no cost advantage to reuse when it cannot be split',
+    cost(planB, { reuseCost: null }) === cost(planAequivNoReuse, { reuseCost: null }));
+
+// A zero-step leaf IS a starting shape: an extra consumer is a second feed, free
+// even with splitting unavailable.
+const bareStart = leaf(0);
+const planStarts = split('by-layer', [bareStart, bareStart]); // just the 1 assembly stack
+assert('isBareStart: zero-step direct-search leaf', isBareStart(bareStart));
+assert('isBareStart: a searched leaf is not one', !isBareStart(shared));
+assert('isBareStart: a split is not one', !isBareStart(planStarts));
+check('opCount reused starting shape is free', opCountOf(planStarts), 1);
+check('opCount reused starting shape is free without splitting', opCountOf(planStarts, { reuseCost: null }), 1);
 
 // Depth tie-break: equal opCount, shallower decomposition wins.
 // flat: split of 3 leaves(1 each) -> 3 + 2 stacks = 5 ops, depth 1.
