@@ -10,6 +10,7 @@ import { loadState, saveState, clearState, captureState, applyState } from './pe
 import { getCurrentColorMode } from './colorMode.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { $, $all, byId } from './domUtils.js';
+import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH } from './exploreDepth.js';
 
 // Blueprint State
 let blueprintRenderer = null;
@@ -217,42 +218,48 @@ function summarizeStrategyTrace(trace) {
 let solverWorker = null;
 // The single button that currently owns the shared worker ({ btn, idleLabel }),
 // or null when idle. Solve and Explore share one worker, so this — not the
-// per-call `btn` closure — is the source of truth for which button shows
-// 'Cancel'. Tracking it here lets a new job reset the OTHER action's button.
+// per-call `btn` closure, and never the button's label text — is the source of
+// truth for which action is running. Label text is presentation only: routing a
+// click off it would couple control flow to display copy (a label tweak or i18n
+// would silently mis-route clicks). Tracking ownership here also lets a new job
+// reset the OTHER action's button.
 let activeJob = null;
 
+// True while `btn` owns the worker, i.e. a click on it means "cancel", not "start".
+const isJobRunning = (btn) => activeJob?.btn === btn;
+
+// Reset whichever button owns the worker back to its idle label and tear the
+// worker down. Called on every terminal outcome (cancel, result, error, crash)
+// AND before starting a new job — so starting Explore mid-Solve (or vice versa)
+// can never leave the other button stuck on 'Cancel'.
+function finishJob() {
+    if (activeJob) {
+        activeJob.btn.textContent = activeJob.idleLabel;
+        activeJob = null;
+    }
+    if (solverWorker) {
+        solverWorker.terminate();
+        solverWorker = null;
+    }
+}
+
+// Stop the in-flight job and release the UI. The single cancel path: both click
+// handlers route here when their button owns the worker.
+function cancelActiveJob() {
+    if (solverWorker) solverWorker.postMessage({ action: 'cancel' });
+    finishJob();
+    byId('status').textContent = 'Cancelled.';
+}
+
+// Starts a job — never cancels one. Callers guard with isJobRunning() and route
+// cancel clicks to cancelActiveJob() before gathering any inputs.
 function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
     const status = byId('status');
 
-    // Reset whichever button owns the worker back to its idle label and tear the
-    // worker down. Called on every terminal outcome (cancel, result, error,
-    // crash) AND before starting a new job — so starting Explore mid-Solve (or
-    // vice versa) can never leave the other button stuck on 'Cancel'.
-    const finish = () => {
-        if (activeJob) {
-            activeJob.btn.textContent = activeJob.idleLabel;
-            activeJob = null;
-        }
-        if (solverWorker) {
-            solverWorker.terminate();
-            solverWorker = null;
-        }
-    };
-
-    // The button reads 'Cancel' only while a worker is running, so a click then
-    // means "cancel", not "start".
-    const isRunning = btn.textContent === 'Cancel';
-    if (isRunning) {
-        if (solverWorker) solverWorker.postMessage({ action: 'cancel' });
-        finish();
-        status.textContent = 'Cancelled.';
-        return;
-    }
-
-    // Starting a new job: finish() resets any in-flight job's button (which must
-    // be the OTHER action, since this btn isn't showing 'Cancel') and kills its
-    // worker before we spin up a fresh one.
-    finish();
+    // finishJob() resets any in-flight job's button (which must be the OTHER
+    // action, since a click on this btn while it owns the worker was routed to
+    // cancelActiveJob) and kills its worker before we spin up a fresh one.
+    finishJob();
     solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
     activeJob = { btn, idleLabel };
 
@@ -266,7 +273,7 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
 
         if (type === 'error') {
             status.textContent = message;
-            finish();
+            finishJob();
             return;
         }
 
@@ -277,7 +284,7 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
             } catch (err) {
                 status.textContent = `Error: ${err.message}`;
             } finally {
-                finish();
+                finishJob();
             }
         }
     };
@@ -286,11 +293,11 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
     // an undeserializable one (onmessageerror) still has to release the UI.
     solverWorker.onerror = (e) => {
         status.textContent = `Error: ${e.message || 'worker crashed'}`;
-        finish();
+        finishJob();
     };
     solverWorker.onmessageerror = () => {
         status.textContent = 'Error: worker sent an unreadable message.';
-        finish();
+        finishJob();
     };
 
     btn.textContent = 'Cancel';
@@ -302,8 +309,10 @@ byId('solve-btn').addEventListener('click', () => {
     const btn = byId('solve-btn');
     const status = byId('status');
 
-    if (btn.textContent !== 'Solve') {
-        runSolverWorker({ btn, idleLabel: 'Solve', action: 'solve', data: {} });
+    // This button owns the worker -> the click is a cancel; don't gather or
+    // validate inputs.
+    if (isJobRunning(btn)) {
+        cancelActiveJob();
         return;
     }
 
@@ -401,14 +410,19 @@ byId('solve-btn').addEventListener('click', () => {
 byId('explore-btn').addEventListener('click', () => {
     const btn = byId('explore-btn');
 
-    if (btn.textContent !== 'Explore') {
-        runSolverWorker({ btn, idleLabel: 'Explore', action: 'explore', data: {} });
+    // This button owns the worker -> the click is a cancel; don't gather or
+    // validate inputs.
+    if (isJobRunning(btn)) {
+        cancelActiveJob();
         return;
     }
 
     const starting = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((x) => x.textContent);
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
-    const depthLimit = parseInt(byId('depth-limit-input').value) || 999;
+    // Empty/invalid -> a small default, never an effectively unbounded depth:
+    // the explorer BFS has no state cap, so depth is the only thing keeping the
+    // graph (and the tab) from growing without bound.
+    const depthLimit = clampExploreDepth(byId('depth-limit-input').value);
     const maxLayers = parseInt(byId('max-layers').value) || 4;
     const targetShapeCode = byId('target-shape').value.trim() || null;
 
@@ -434,6 +448,19 @@ byId('explore-btn').addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', () => {
     initializeDefaultShapes();
     byId('color-mode-select')?.addEventListener('change', refreshShapeColors);
+
+    // Surface the explore-depth bounds on the input itself (single source of
+    // truth: the same constants clampExploreDepth enforces). Seeding a value
+    // makes the default explicit rather than implicit in an empty field; the
+    // persisted value, restored below, still wins.
+    const depthInput = byId('depth-limit-input');
+    if (depthInput) {
+        depthInput.max = String(MAX_EXPLORE_DEPTH);
+        depthInput.placeholder = `Depth (${DEFAULT_EXPLORE_DEPTH})`;
+        depthInput.title = `Operation steps to explore (1-${MAX_EXPLORE_DEPTH}). `
+            + `The explored graph grows multiplicatively with depth.`;
+        if (!depthInput.value) depthInput.value = String(DEFAULT_EXPLORE_DEPTH);
+    }
 
     // Search method toggle: A*/IDA*/Bidirectional use the heuristic divisor;
     // BFS uses the Max States cap; Constructive reuses Max States as its per-node

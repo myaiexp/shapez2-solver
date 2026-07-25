@@ -1,6 +1,7 @@
 import { shapeSolver } from './shapeSolverCore.js';
 import { shapeExplorer } from './shapeExplorerCore.js';
 import { solveConstructive } from './shapeSolverConstructive.js';
+import { clampExploreDepth } from './exploreDepth.js';
 
 let cancelled = false;
 const shouldCancel = () => cancelled;
@@ -72,7 +73,10 @@ self.onmessage = async function (e) {
             const graph = await shapeExplorer(
                 startingShapeCodes,
                 enabledOperations,
-                depthLimit || 999,
+                // Clamped here as well as in the UI: the explorer has no state
+                // cap, so an unbounded depth arriving from any caller grows the
+                // graph until the tab OOMs.
+                clampExploreDepth(depthLimit),
                 maxLayers || 4,
                 shouldCancel,
                 onProgress,
