@@ -20,71 +20,101 @@ import {
 } from './shapeLayerMechanics.js';
 
 // Shape Operations
+
+// Quadrants are indexed clockwise from top-right (0=TR, 1=BR, 2=BL, 3=TL), so the
+// LEADING quadrants {0,1} form the right half and the TRAILING ones {2,3} the left
+// half. Every half-split below keeps that convention, and cut() returns the halves
+// in [left, right] order.
+const leftHalfSize = numParts => Math.ceil(numParts / 2);   // trailing quadrants
+const rightHalfSize = numParts => numParts - leftHalfSize(numParts); // leading quadrants
+
+const emptyLayer = numParts => Array(numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
+
 export function cut(shape, config = new ShapeOperationConfig()) {
-    const takeParts = Math.ceil(shape.numParts / 2);
-    const cutPoints = [[0, shape.numParts - 1], [shape.numParts - takeParts, shape.numParts - takeParts - 1]];
+    const leftSize = leftHalfSize(shape.numParts);
+    const rightSize = rightHalfSize(shape.numParts);
+
+    // The blade travels a full diameter, so it crosses the ring at TWO places: the
+    // wrap-around seam (last quadrant of the left half -> quadrant 0) and the mid
+    // seam (last quadrant of the right half -> first of the left half). A crystal
+    // fused across either seam shatters. Each pair is [oneSide, otherSide]; only
+    // the pairing matters, since breakCrystals shatters the whole connected group.
+    const wrapSeam = [0, shape.numParts - 1];
+    const midSeam = [rightSize, rightSize - 1];
     const layers = cloneLayers(shape.layers);
 
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
-        for (const [start, end] of cutPoints) {
-            if (crystalsFused(layers[layerIndex][start], layers[layerIndex][end])) {
-                breakCrystals(layers, layerIndex, start);
+        for (const [seamStart, seamEnd] of [wrapSeam, midSeam]) {
+            if (crystalsFused(layers[layerIndex][seamStart], layers[layerIndex][seamEnd])) {
+                breakCrystals(layers, layerIndex, seamStart);
             }
         }
     }
 
-    const shapeA = [];
-    const shapeB = [];
+    const leftLayers = [];
+    const rightLayers = [];
     for (const layer of layers) {
-        shapeA.push([
-            ...Array(shape.numParts - takeParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR)),
-            ...layer.slice(-takeParts)
+        // Left half: trailing quadrants survive, leading ones are emptied.
+        leftLayers.push([
+            ...emptyLayer(rightSize),
+            ...layer.slice(-leftSize)
         ]);
-        shapeB.push([
-            ...layer.slice(0, -takeParts),
-            ...Array(takeParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR))
+        // Right half: leading quadrants survive, trailing ones are emptied.
+        rightLayers.push([
+            ...layer.slice(0, -leftSize),
+            ...emptyLayer(leftSize)
         ]);
     }
 
-    const [processedA, processedB] = [
-        cleanUpEmptyUpperLayers(makeLayersFall(shapeA)),
-        cleanUpEmptyUpperLayers(makeLayersFall(shapeB))
-    ];
+    // Each half settles under gravity on its own, so they can end up with
+    // different layer counts.
+    const leftHalf = cleanUpEmptyUpperLayers(makeLayersFall(leftLayers));
+    const rightHalf = cleanUpEmptyUpperLayers(makeLayersFall(rightLayers));
 
-    return [new Shape(processedA), new Shape(processedB)];
+    return [new Shape(leftHalf), new Shape(rightHalf)];
 }
 
 export function halfCut(shape, config = new ShapeOperationConfig()) {
-    return [cut(shape, config)[1]];
+    // The Half Destroyer keeps the right half (leading quadrants) and destroys the left.
+    const [, rightHalf] = cut(shape, config);
+    return [rightHalf];
 }
 
 export const swapHalves = requireSameNumParts(function(shapeA, shapeB, config = new ShapeOperationConfig()) {
     const numLayers = Math.max(shapeA.numLayers, shapeB.numLayers);
-    const takeParts = Math.ceil(shapeA.numParts / 2);
-    const [shapeACut1, shapeACut2] = cut(shapeA, config);
-    const [shapeBCut1, shapeBCut2] = cut(shapeB, config);
+    const leftSize = leftHalfSize(shapeA.numParts);
+    const [leftA, rightA] = cut(shapeA, config);
+    const [leftB, rightB] = cut(shapeB, config);
 
-    const returnShapeA = [];
-    const returnShapeB = [];
+    // A cut half can be shorter than its sibling (each settles separately), so a
+    // layer missing from one half reads as empty.
+    const layerOrEmpty = (half, layerIndex, numParts) => half.layers[layerIndex] || emptyLayer(numParts);
+
+    const swappedA = [];
+    const swappedB = [];
 
     for (let i = 0; i < numLayers; i++) {
-        const layerA1 = shapeACut1.layers[i] || Array(shapeA.numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-        const layerA2 = shapeACut2.layers[i] || Array(shapeA.numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-        const layerB1 = shapeBCut1.layers[i] || Array(shapeB.numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-        const layerB2 = shapeBCut2.layers[i] || Array(shapeB.numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
+        const leftLayerA = layerOrEmpty(leftA, i, shapeA.numParts);
+        const rightLayerA = layerOrEmpty(rightA, i, shapeA.numParts);
+        const leftLayerB = layerOrEmpty(leftB, i, shapeB.numParts);
+        const rightLayerB = layerOrEmpty(rightB, i, shapeB.numParts);
 
-        returnShapeA.push([
-            ...layerA2.slice(0, -takeParts),
-            ...layerB1.slice(-takeParts)
+        // The Swapper exchanges left halves: each output keeps its own right half
+        // (leading quadrants) and receives the other shape's left half (trailing).
+        // The slices pick the populated side out of each half, whose other side is
+        // already emptied by cut().
+        swappedA.push([
+            ...rightLayerA.slice(0, -leftSize),
+            ...leftLayerB.slice(-leftSize)
         ]);
-        returnShapeB.push([
-            ...layerB2.slice(0, -takeParts),
-            ...layerA1.slice(-takeParts)
+        swappedB.push([
+            ...rightLayerB.slice(0, -leftSize),
+            ...leftLayerA.slice(-leftSize)
         ]);
     }
 
-    const processedA = cleanUpEmptyUpperLayers(returnShapeA);
-    const processedB = cleanUpEmptyUpperLayers(returnShapeB);
+    const processedA = cleanUpEmptyUpperLayers(swappedA);
+    const processedB = cleanUpEmptyUpperLayers(swappedB);
 
     return [new Shape(processedA), new Shape(processedB)];
 });
