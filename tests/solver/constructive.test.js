@@ -105,6 +105,31 @@ async function run() {
         assert('CuRuSuWu:WuSuRuCu used a decomposition', r.strategyTrace.method !== 'direct-search');
     }
 
+    // --- gappy complementary multi-layer: by-layer stack gravity-collapses to a
+    // wrong single-layer product (stack(CuCu----, ----SuSu) → CuCuSuSu). Must NOT
+    // ship that as a success — Tier-1 has no pin/crystal support for floating
+    // upper parts, so the honest answer is no-decomposition (finding #6373).
+    {
+        const gappy = [
+            'CuCu----:----SuSu',
+            'CuRu----:----RuCu',
+            'Cu--Su--:--Ru--Wu',
+        ];
+        for (const target of gappy) {
+            const r = await solveConstructive(target, DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
+            if (r.solutionPath) {
+                assertPathIsBuildable(target, r.solutionPath, target);
+                assert(`${target} final inventory is exactly the multi-layer target`,
+                    pathReachesTarget(r.solutionPath, target, {
+                        starts: DEFAULT_STARTS, config: cfg, orientationSensitive: true,
+                    }));
+            } else {
+                assert(`${target} rejects gravity-broken by-layer (no false solution)`,
+                    r.aborted === 'no-decomposition');
+            }
+        }
+    }
+
     // --- REUSE: identical pieces share one sub-plan, so its product must be
     // copied, never double-spent. Two shapes of reuse, and both matter:
     //   • CuRu----:CuRu---- reuses a BUILT intermediate -> needs a Belt Split
@@ -177,7 +202,9 @@ async function run() {
     }
 
     // preventWaste without Trash: leftover cut byproducts cannot be removed, so
-    // a decomposing solve must not claim success with a dirty inventory.
+    // a decomposing solve must not claim success with a dirty inventory. When it
+    // fails, aborted is 'preventWaste' (not 'no-decomposition') — a plan tree
+    // existed; cleanliness scrubbing is what failed (finding #6381).
     {
         const noTrash = ALL_OPS.filter((op) => op !== 'Trash');
         const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, noTrash, {
@@ -189,9 +216,15 @@ async function run() {
                 pathInventoryAcceptable(r.solutionPath, 'CuRuSuWu', {
                     starts: DEFAULT_STARTS, config: cfg,
                 }));
+            assert('CuRuSuWu (preventWaste, no Trash) succeeded with clean path',
+                r.aborted === null);
         } else {
             assert('CuRuSuWu (preventWaste, no Trash) fails rather than leave waste',
                 r.solutionPath === null);
+            assert('CuRuSuWu (preventWaste, no Trash) aborted reason is preventWaste',
+                r.aborted === 'preventWaste');
+            assert('CuRuSuWu (preventWaste, no Trash) still returns strategyTrace',
+                !!r.strategyTrace);
         }
     }
 

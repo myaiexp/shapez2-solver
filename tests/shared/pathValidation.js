@@ -18,6 +18,7 @@
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { getAllRotations } from '../../shapeRotation.js';
+import { simulateFinalInventoryMap } from '../../pathInventory.js';
 
 // The claimed outputs of a step must be an order-preserving subsequence of what
 // the op actually produced (matching each produced entry at most once). Ordered,
@@ -206,27 +207,17 @@ export function pathIsValid(path, config, { starts } = {}) {
 }
 
 // Replay a solution path's id bookkeeping to recover the shapes still on hand
-// after the last step. Every step deletes its input ids and adds its output ids
-// (mirroring the solver's applySuccessor). Ids that are consumed but never
-// produced are the participating starting shapes, so we seed those first. The
-// remaining shapes are the final inventory — this is what "did we build it?"
-// must check, since a Trash-ending path removes the byproduct, not the target.
+// after the last step. Codes-only view over the production Map core in
+// pathInventory.js — Constructive scrubPreventWaste uses the same Map so
+// preventWaste Trash emission and this harness gate cannot drift.
 export function simulateFinalInventory(path) {
-    const producedIds = new Set();
-    for (const step of path) for (const out of step.outputs) producedIds.add(out.id);
-    const inventory = new Map(); // id -> shape code
-    // Seed starting shapes: any input id that no step produces.
-    for (const step of path) {
-        for (const inp of step.inputs) {
-            if (!producedIds.has(inp.id) && !inventory.has(inp.id)) inventory.set(inp.id, inp.shape);
-        }
-    }
-    for (const step of path) {
-        for (const inp of step.inputs) inventory.delete(inp.id);
-        for (const out of step.outputs) inventory.set(out.id, out.shape);
-    }
-    return Array.from(inventory.values());
+    if (!path) return [];
+    return Array.from(simulateFinalInventoryMap(path).values());
 }
+
+// Re-export the Map form so harnesses that need id→code (or callers comparing
+// against Constructive) share one import surface with the codes-only helper.
+export { simulateFinalInventoryMap };
 
 // True when the path's final inventory actually contains the target (any
 // rotation, unless orientationSensitive — mirroring the solver's acceptable

@@ -12,6 +12,7 @@ import { ShapeOperationConfig } from './shapeClass.js';
 import { stack } from './shapeOperations.js';
 import { getAllRotations } from './shapeRotation.js';
 import { getCachedShape } from './shapeSolverCache.js';
+import { simulateFinalInventoryMap } from './pathInventory.js';
 
 // Options mirror shapeSolver's (minus the search-method-specific caps): a single
 // named object so call sites don't re-spell the shared flag/numeric sequence. All
@@ -71,6 +72,19 @@ export async function solveConstructive(
     }
 
     const rotationsOf = (code) => new Set(getAllRotations(getCachedShape(code), config));
+
+    // Left-fold stack of piece codes (same op flatten emits). Gravity-merge can
+    // collapse gappy multi-layer pairs into a wrong single-layer product
+    // (e.g. CuCu---- + ----SuSu → CuCuSuSu), so candidates whose product is not
+    // the parent target are rejected before we commit to them.
+    function stackProduct(pieceCodes) {
+        if (!pieceCodes.length) return null;
+        let acc = pieceCodes[0];
+        for (let i = 1; i < pieceCodes.length; i++) {
+            acc = stack(getCachedShape(acc), getCachedShape(pieceCodes[i]), config)[0].toShapeCode();
+        }
+        return acc;
+    }
 
     // Local id of the shape this plan produces: the last step that outputs an
     // acceptable code, or — for a 0-step solve — the matching starting shape's id
@@ -140,6 +154,14 @@ export async function solveConstructive(
                     children.push(cp);
                 }
                 if (!ok) continue;
+                // Pieces are orientation-sensitive for the parent code, so the
+                // assembly product must match exactly — rotation-tolerant only
+                // when the TOP node allows rotations (sub-nodes never do).
+                const product = stackProduct(pieces);
+                const productOk = nodeOrientationSensitive
+                    ? product === code
+                    : rotationsOf(code).has(product);
+                if (!productOk) continue;
                 const candidate = { target: code, method, steps: [], outputId: null, statesExplored: 0, children };
                 if (best === null || cost(candidate, costOpts) < cost(best, costOpts)) best = candidate;
             }
@@ -284,26 +306,13 @@ export async function solveConstructive(
     // searches intentionally ignore preventWaste (waste is fine while building
     // a piece); only the top-level path must be clean. Returns null when waste
     // remains and Trash is disabled — the plan is then not a valid preventWaste
-    // solution.
+    // solution. Inventory walk is the shared production helper (pathInventory)
+    // so harness pathInventoryAcceptable cannot drift from this scrub.
     function scrubPreventWaste(path) {
         const acceptable = orientationSensitive
             ? new Set([targetShapeCode])
             : rotationsOf(targetShapeCode);
-        // Id-level final inventory (same walk as pathValidation.simulateFinalInventory).
-        const producedIds = new Set();
-        for (const step of path) for (const out of step.outputs) producedIds.add(out.id);
-        const inventory = new Map();
-        for (const step of path) {
-            for (const inp of step.inputs) {
-                if (!producedIds.has(inp.id) && !inventory.has(inp.id)) {
-                    inventory.set(inp.id, inp.shape);
-                }
-            }
-        }
-        for (const step of path) {
-            for (const inp of step.inputs) inventory.delete(inp.id);
-            for (const out of step.outputs) inventory.set(out.id, out.shape);
-        }
+        const inventory = simulateFinalInventoryMap(path);
 
         const cleaned = path.slice();
         for (const [id, code] of inventory) {
@@ -319,6 +328,22 @@ export async function solveConstructive(
         return cleaned;
     }
 
+    // Defense in depth: final inventory must hold the target (any rotation when
+    // not orientation-sensitive). Catches any assembly/id bug that slipped past
+    // stackProduct rejection (which only checks the Plan tree, not the flat path).
+    function pathHoldsTarget(path) {
+        const acceptable = orientationSensitive
+            ? new Set([targetShapeCode])
+            : rotationsOf(targetShapeCode);
+        if (path.length === 0) {
+            return startingShapeCodes.some((c) => acceptable.has(c));
+        }
+        for (const code of simulateFinalInventoryMap(path).values()) {
+            if (acceptable.has(code)) return true;
+        }
+        return false;
+    }
+
     const rootPlan = await solvePlan(targetShapeCode, true);
 
     if (!rootPlan) {
@@ -329,12 +354,21 @@ export async function solveConstructive(
     }
 
     let solutionPath = flatten(rootPlan);
+    if (!pathHoldsTarget(solutionPath)) {
+        return {
+            solutionPath: null, depth: null, statesExplored: statesTotal,
+            aborted: shouldCancel() ? null : 'no-decomposition',
+            strategyTrace: buildTrace(rootPlan)
+        };
+    }
     if (preventWaste) {
         solutionPath = scrubPreventWaste(solutionPath);
         if (!solutionPath) {
+            // Plan tree exists; failure is inventory cleanliness, not a missing
+            // split — distinct from 'no-decomposition' so UI/callers can tell.
             return {
                 solutionPath: null, depth: null, statesExplored: statesTotal,
-                aborted: shouldCancel() ? null : 'no-decomposition',
+                aborted: shouldCancel() ? null : 'preventWaste',
                 strategyTrace: buildTrace(rootPlan)
             };
         }
