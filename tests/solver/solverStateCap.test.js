@@ -32,7 +32,15 @@ const noop = () => {};
 const CONFIG = new ShapeOperationConfig(4);
 
 // --- A hard target aborts at the cap instead of running unbounded ---
+// maxStates is a ceiling on *distinct* state keys for every method (A*/BFS/
+// Bidirectional via costSoFar/visited size; IDA* via a lifetime distinctStates
+// set). One expansion can mint several successors before the next check, so
+// allow a small overshoot — not the old CAP×10 that hid IDA* counting
+// cumulative expansions instead of distinct keys.
 const CAP = 2000;
+// Branching-factor headroom only (one expansion / a few successors), not a
+// full frontier of runaway growth.
+const CAP_SLOP = 256;
 for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
     const res = await shapeSolver('CuRuCuRu', STARTS, ALL_OPS, {
         maxLayers: 4, maxStatesPerLevel: 1000,
@@ -41,11 +49,8 @@ for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
     check(`${method}: hard target returns a result object (no throw/hang)`, res != null);
     check(`${method}: hard target found no solution`, res && res.solutionPath == null);
     check(`${method}: hard target reports aborted='maxStates'`, res && res.aborted === 'maxStates');
-    // costSoFar can overshoot the cap by at most one expansion's worth of
-    // successors before the top-of-loop check trips; statesExplored (dequeues)
-    // stays well under. A generous bound proves it did not run away.
-    check(`${method}: state count stayed bounded by the cap`,
-        res && typeof res.statesExplored === 'number' && res.statesExplored <= CAP * 10);
+    check(`${method}: distinct-state metric stayed near the cap`,
+        res && typeof res.statesExplored === 'number' && res.statesExplored <= CAP + CAP_SLOP);
 }
 
 // --- The cap does not break normal solving: a reachable target still solves

@@ -433,10 +433,17 @@ export async function shapeSolver(
     // -----------------------------------------------------------------------
     // IDA* Search
     // -----------------------------------------------------------------------
+    // maxStates is the same contract as A*/BFS/Bidirectional: a ceiling on
+    // *distinct* state keys discovered (not cumulative node expansions). IDA*
+    // re-visits states across threshold passes, so expansions alone are not a
+    // memory bound and used to make the cap silently mean something else here.
+    // distinctStates tracks unique keys for the whole run; nodesExpanded is only
+    // for progress ("work done this pass / total").
     async function runIdaStar() {
         let threshold = getHeuristic(initialAvailableIds);
-        let statesExplored = 0;   // cumulative nodes expanded across all threshold passes
-        let passCount = 0;        // number of threshold-bounded passes run so far
+        let nodesExpanded = 0;     // cumulative expansions across threshold passes
+        const distinctStates = new Set();
+        let passCount = 0;         // number of threshold-bounded passes run so far
 
         while (!shouldCancel()) {
             passCount++;
@@ -451,6 +458,7 @@ export async function shapeSolver(
             // the goal. Cycle detection prevents a duplicate key from being on the stack
             // at once, so each delete-on-pop is unambiguous.
             const initialKey = getStateKey(initialAvailableIds);
+            distinctStates.add(initialKey);
             const pathKeys = new Set([initialKey]);
             const pathStack = [];
             const stack = [{
@@ -465,6 +473,9 @@ export async function shapeSolver(
             let solutionPath = null;
 
             while (stack.length > 0 && !shouldCancel()) {
+                // Same top-of-loop check as A* (costSoFar.size) / BFS (visited.size).
+                if (distinctStates.size > maxStates) { aborted = true; break; }
+
                 const frame = stack[stack.length - 1];
 
                 // A frame with no successorIterator is on its first visit: check its
@@ -474,9 +485,7 @@ export async function shapeSolver(
                 // re-expanded from one being visited for the first time.
                 if (!frame.successorIterator) {
                     nodesThisPass++;
-                    statesExplored++;
-
-                    if (statesExplored > maxStates) { aborted = true; break; }
+                    nodesExpanded++;
 
                     const f = frame.g + getHeuristic(frame.availableIds);
                     if (f > threshold) {
@@ -514,6 +523,7 @@ export async function shapeSolver(
                 const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
                 pathKeys.add(succKey);
                 pathStack.push(step);
+                distinctStates.add(succKey);
 
                 stack.push({
                     availableIds: succIds,
@@ -522,34 +532,37 @@ export async function shapeSolver(
                     stateKey: succKey
                 });
 
-                // Status update
-                if (statesExplored % 1000 === 0 || performance.now() - lastUpdate > 200) {
-                    onProgress(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Total:${statesExplored}`);
+                // Status update — report distinct visited (the cap metric) alongside
+                // expansion counts so progress matches A*/BFS wording.
+                if (nodesExpanded % 1000 === 0 || performance.now() - lastUpdate > 200) {
+                    onProgress(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Distinct:${distinctStates.size} | Expanded:${nodesExpanded}`);
                     lastUpdate = performance.now();
                     // Yield to event loop periodically for cancel checks
                     await new Promise(r => setTimeout(r, 0));
                 }
             }
 
+            // statesExplored reports distinct keys (same unit as BFS visited.size /
+            // the maxStates cap), not cumulative expansions across passes.
             if (found) {
-                return { solutionPath, depth: solutionPath.length, statesExplored: statesExplored };
+                return { solutionPath, depth: solutionPath.length, statesExplored: distinctStates.size };
             }
 
             if (aborted) {
-                onProgress(`IDA* | Aborted: hit ${maxStates}-node cap before solving`);
-                return { solutionPath: null, depth: null, statesExplored: statesExplored, aborted: 'maxStates' };
+                onProgress(`IDA* | Aborted: hit ${maxStates}-state cap before solving`);
+                return { solutionPath: null, depth: null, statesExplored: distinctStates.size, aborted: 'maxStates' };
             }
 
             if (nextThreshold === Infinity || shouldCancel()) {
-                return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
+                return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: distinctStates.size };
             }
 
-            onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Total nodes: ${statesExplored}`);
+            onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Distinct:${distinctStates.size} | Expanded:${nodesExpanded}`);
 
             threshold = nextThreshold;
         }
 
-        return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: statesExplored };
+        return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: distinctStates.size };
     }
 
     // -----------------------------------------------------------------------
@@ -641,6 +654,9 @@ export async function shapeSolver(
                 }
                 for (const desc of generateSuccessors(availableIds)) {
                     if (shouldCancel()) break;
+                    // Cap mid-level too: checking only at depth boundaries lets one
+                    // frontier flood well past maxStates before aborting.
+                    if (visited.size > maxStates) { aborted = true; break; }
                     const stateKey = successorStateKey(availableIds, desc);
                     if (!visited.has(stateKey)) {
                         visited.add(stateKey);
@@ -650,7 +666,9 @@ export async function shapeSolver(
                         nextDepthStates.push({ availableIds: succIds, stateKey, depth: depth + 1, score: newScore });
                     }
                 }
+                if (aborted) break;
             }
+            if (aborted) break;
             const prunedNextStates = pruneStatesAtDepth(nextDepthStates, maxStatesPerLevel);
             for (const state of prunedNextStates) {
                 queue.push(state);

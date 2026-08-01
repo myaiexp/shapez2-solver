@@ -105,6 +105,29 @@ async function run() {
         assert('CuRuSuWu:WuSuRuCu used a decomposition', r.strategyTrace.method !== 'direct-search');
     }
 
+    // --- complementary multi-layer (upper over empty lower cells) ------------
+    // by-layer would peel CuCu---- + ----SuSu, but stack gravity collapses them
+    // to CuCuSuSu — not the target. Production must reject that candidate (and
+    // with no other multi-layer split, return no-decomposition) rather than
+    // ship a path that fails pathReachesTarget. Tiny nodeBudget forces the
+    // decompose path so this does not pass only via lucky direct-search.
+    {
+        const target = 'CuCu----:----SuSu';
+        const r = await solveConstructive(target, DEFAULT_STARTS, ALL_OPS, {
+            maxLayers: 4, nodeBudget: 50,
+        });
+        if (r.solutionPath) {
+            // Direct search found a real solution (unlikely for Tier-1 floating
+            // halves) — it must still clear the goal gate, never a gravity-false path.
+            assertPathIsBuildable('CuCu----:----SuSu', r.solutionPath, target);
+        } else {
+            assert('CuCu----:----SuSu fails cleanly (no false by-layer success)',
+                r.aborted === 'no-decomposition');
+            assert('CuCu----:----SuSu has no strategyTrace when unsolved',
+                r.strategyTrace === null);
+        }
+    }
+
     // --- REUSE: identical pieces share one sub-plan, so its product must be
     // copied, never double-spent. Two shapes of reuse, and both matter:
     //   • CuRu----:CuRu---- reuses a BUILT intermediate -> needs a Belt Split

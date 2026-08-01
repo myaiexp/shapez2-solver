@@ -72,6 +72,21 @@ export async function solveConstructive(
 
     const rotationsOf = (code) => new Set(getAllRotations(getCachedShape(code), config));
 
+    // Left-fold stack of piece codes (same assembly flatten emits). Returns the
+    // final shape code, or null if stack produces nothing. Used to reject splits
+    // that look structurally valid but gravity-merge into a different shape —
+    // e.g. by-layer on CuCu----:----SuSu stacks to CuCuSuSu (upper half falls
+    // into empty lower cells), so the plan must not claim success.
+    function stackAssemble(pieces) {
+        let acc = pieces[0];
+        for (let i = 1; i < pieces.length; i++) {
+            const out = stack(getCachedShape(acc), getCachedShape(pieces[i]), config);
+            if (!out || !out[0]) return null;
+            acc = out[0].toShapeCode();
+        }
+        return acc;
+    }
+
     // Local id of the shape this plan produces: the last step that outputs an
     // acceptable code, or — for a 0-step solve — the matching starting shape's id
     // (core mints starting ids 0..n-1 in order, so the index IS the local id).
@@ -122,6 +137,10 @@ export async function solveConstructive(
             result = null;
         } else {
             // Search capped — try splits in order; keep the cheapest fully-solved one.
+            // Skip any split whose piece codes do not stack-assemble back to `code`
+            // (gravity can collapse complementary multi-layer halves). Without this
+            // gate, flatten would emit a real op path whose final inventory is a
+            // different shape — a false success.
             const splits = [
                 ['by-quadrant', splitByQuadrant(code)],
                 ['by-half', splitByHalf(code)],
@@ -130,6 +149,10 @@ export async function solveConstructive(
             let best = null;
             for (const [method, pieces] of splits) {
                 if (!pieces) continue;
+                if (stackAssemble(pieces) !== code) {
+                    onProgress(`Constructive | skip ${method} for ${code}: stack assembly ≠ target`);
+                    continue;
+                }
                 onProgress(`Constructive | decomposing ${code} via ${method} → ${pieces.join(' + ')}`);
                 const children = [];
                 let ok = true;
