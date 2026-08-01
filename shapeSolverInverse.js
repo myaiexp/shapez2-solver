@@ -1,17 +1,9 @@
 import {
     Shape, ShapePart, NOTHING_CHAR,
-    UNPAINTABLE_SHAPES, layerToCode, layersToCode,
+    UNPAINTABLE_SHAPES, layersToCode,
 } from './shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
-import {
-    isLeftHalfEmpty,
-    isRightHalfEmpty,
-    buildLeftHalfParts,
-    buildRightHalfParts,
-} from './shapeHalfGeometry.js';
-
-// Shared empty filler for inverse half rebuilds (layerToCode only reads .shape/.color).
-const EMPTY_PART = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);
+import { isLeftHalfEmpty, isRightHalfEmpty } from './shapeHalfGeometry.js';
 
 /**
  * Unpaint: set all paintable parts on the top layer to uncolored.
@@ -86,25 +78,30 @@ export function inverseUnstack(shape, config) {
 }
 
 /**
- * Uncut: the shape is one half of a cut result. Generate possible whole shapes
- * by pairing with an empty other half (same geometry as cut's left/right products).
+ * Uncut (Cutter inverse for Bidirectional): the shape is treated as one geometric
+ * half of a cut result.
+ *
+ * Geometry from shapeHalfGeometry (same as cut()): leading = RIGHT half, trailing
+ * = LEFT half; cut returns [left, right].
+ *
+ * Contract is the *identity empty-opposite* predecessor only: if exactly one
+ * geometric side is empty, re-emit this half (other side already empty). Cutting
+ * that whole yields the half plus empty, so Bidirectional can step through Cutter
+ * without inventing content. Does NOT generate non-empty mates or mirrors — a pure
+ * half is the only useful predecessor we currently contribute. Both-empty and
+ * both-occupied shapes return [].
  */
 export function inverseUncut(shape, config) {
-    const results = [];
-    if (shape.numLayers !== 1) return results;
+    if (shape.numLayers !== 1) return [];
 
     const layer = shape.layers[0];
+    const leftEmpty = isLeftHalfEmpty(layer);
+    const rightEmpty = isRightHalfEmpty(layer);
+    // Pure geometric half: exactly one side empty.
+    if (leftEmpty === rightEmpty) return [];
 
-    // Right half empty (leading) → this is cut's left product (trailing kept).
-    if (isRightHalfEmpty(layer)) {
-        results.push(layerToCode(buildLeftHalfParts(layer, EMPTY_PART)));
-    }
-    // Left half empty (trailing) → this is cut's right product (leading kept).
-    if (isLeftHalfEmpty(layer)) {
-        results.push(layerToCode(buildRightHalfParts(layer, EMPTY_PART)));
-    }
-
-    return results;
+    const code = shape.toShapeCode();
+    return code ? [code] : [];
 }
 
 /**

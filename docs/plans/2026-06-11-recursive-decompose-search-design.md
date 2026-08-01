@@ -71,7 +71,7 @@ intelligence is at the leaves.
 |---|---|---|---|
 | **by-layer** | each layer as a single-layer sub-target | `stack` bottom→top in layer order (gravity adds the separator) | multi-layer targets — the only way to peel layers |
 | **by-quadrant** | each occupied quadrant as a *positioned* single-quadrant sub-target (`Cu------`, `--Ru----`, …) | `stack` the pieces in any order — gravity merges disjoint same-layer quadrants (`Cu------`+`--Ru----`→`CuRu----`) | universal fallback for any flat layer |
-| **by-half** | left + right halves as 2-quadrant sub-targets | one `stack` (disjoint positions merge cleanly) | lets the search find a half-level trick (e.g. a Swapper) on a bigger piece |
+| **by-half** | left + right halves as 2-quadrant sub-targets (cut geometry: leading=right, trailing=left; return order [left, right]) | one `stack` (disjoint positions merge cleanly) | lets the search find a half-level trick (e.g. a Swapper) on a bigger piece |
 
 **Completeness:** by-layer + by-quadrant alone is *universally complete* for Tier-1
 shapes (any flat multi-layer shape decomposes layer→quadrant→single piece, all base
@@ -90,7 +90,7 @@ attempt. (Verified against the real ops: `stack` in `shapeOperations.js:128` run
 **Worked example — `CuRuSuWu`:** direct search caps → by-quadrant → 4 sub-targets
 `Cu------`,`--Ru----`,`----Su--`,`------Wu`; each a shallow base case search cracks in
 ~3 ops; assemble with 3 stacks. ~15 ops total — a guaranteed plan where search alone
-finds nothing. by-half offers `CuRu----`+`----SuWu` as an alternative; cost-selection
+finds nothing. by-half offers `----SuWu`+`CuRu----` (left then right, matching cut) as an alternative; cost-selection
 keeps whichever is cheaper.
 
 ## Cost metric (the "intelligent" definition)

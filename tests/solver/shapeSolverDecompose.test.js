@@ -43,11 +43,13 @@ check('splitByQuadrant single occupied is null (base case)', splitByQuadrant('Cu
 check('splitByQuadrant empty is null', splitByQuadrant('--------'), null);
 
 // --- splitByHalf: [left, right] in cut() order (trailing, leading) -----------
-// cut(CuRuSuWu) → [----SuWu, CuRu----]; splitByHalf must match that product order.
+// Leading {0,1}=right half, trailing {2,3}=left half. CuRuSuWu → left keeps
+// SuWu, right keeps CuRu (same codes as cut, same [left, right] order).
 check('splitByHalf full', splitByHalf('CuRuSuWu'), ['----SuWu', 'CuRu----']);
 check('splitByHalf gappy halves', splitByHalf('Cu--Su--'), ['----Su--', 'Cu------']);
-check('splitByHalf right-empty is null', splitByHalf('CuRu----'), null);
-check('splitByHalf left-empty is null', splitByHalf('----SuWu'), null);
+// Pure geometric right half (left/trailing empty) or pure left half (right/leading empty).
+check('splitByHalf left-empty is null', splitByHalf('CuRu----'), null);
+check('splitByHalf right-empty is null', splitByHalf('----SuWu'), null);
 check('splitByHalf multi-layer is null', splitByHalf('CuCuCuCu:Ru------'), null);
 
 // --- cost: reuse counted once, depth tie-break -------------------------------

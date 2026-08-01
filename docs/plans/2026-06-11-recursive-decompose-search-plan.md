@@ -54,7 +54,7 @@ Shape-code facts: 8 chars = 4 quadrants × 2 chars (`Cu`,`Ru`,`Su`,`Wu`, or `--`
 // Pieces are folded by the orchestrator via left-fold stack: reduce((acc,p)=>stack(acc,p)).
 splitByLayer(code: string): string[] | null     // null if single-layer; else layers BOTTOM→TOP
 splitByQuadrant(code: string): string[] | null   // SINGLE-LAYER only; null if multi-layer or <2 occupied quadrants; else one positioned single-quadrant code per occupied quadrant
-splitByHalf(code: string): string[] | null        // SINGLE-LAYER only; null if multi-layer or either half empty; else [leftHalf, rightHalf]
+splitByHalf(code: string): string[] | null        // SINGLE-LAYER only; null if multi-layer or either half empty; else [leftHalf, rightHalf] matching cut() geometry/order (leading=right, trailing=left)
 
 // Reuse-credited op count over a Plan tree, with critical-path depth as tie-break.
 cost(plan: Plan): number   // = (distinct steps when flattened, memoized sub-plans counted once) + depth * 1e-6
@@ -73,10 +73,10 @@ assertEqual(splitByQuadrant('CuCuCuCu'), ['Cu------','--Cu----','----Cu--','----
 assertEqual(splitByQuadrant('CuCuCuCu:RuRuRuRu'), null);  // multi-layer
 assertEqual(splitByQuadrant('Cu------'), null);            // <2 occupied quadrants (base case)
 
-// splitByHalf
-assertEqual(splitByHalf('CuRuSuWu'), ['CuRu----', '----SuWu']);
-assertEqual(splitByHalf('Cu--Su--'), ['Cu------', '----Su--']);
-assertEqual(splitByHalf('CuRu----'), ['CuRu----', null]??)  // right half empty -> whole thing returns null
+// splitByHalf — [left, right] like cut() (leading=right, trailing=left)
+assertEqual(splitByHalf('CuRuSuWu'), ['----SuWu', 'CuRu----']);
+assertEqual(splitByHalf('Cu--Su--'), ['----Su--', 'Cu------']);
+assertEqual(splitByHalf('CuRu----'), null);  // left half empty -> whole thing returns null
 assertEqual(splitByHalf('CuCuCuCu:Ru------'), null);  // multi-layer
 
 // cost: reuse counted once. Build two Plan fixtures:

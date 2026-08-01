@@ -39,9 +39,9 @@ check('symmetric rotator skips (Rotator CCW)', skip('Rotator CCW', 'CuCuCuCu'), 
 // CuRuCuRu rotated 180 maps back onto itself.
 check('two-fold shape skips Rotator 180', skip('Rotator 180', 'CuRuCuRu'), true);
 
-// One-sided cut: a half with an empty side would just reproduce the input.
-// cut convention: left = trailing, right = leading. CuCu---- is a right-only
-// half (left empty); ----SuWu is a left-only half (right empty).
+// One-sided cut: a half with an empty geometric side would just reproduce the input.
+// cut convention (shapeHalfGeometry): left = trailing, right = leading.
+// CuCu---- is a right-only half (left empty); ----SuWu is a left-only half (right empty).
 check('left-empty half skips Cutter', skip('Cutter', 'CuCu----'), true);
 check('right-empty half skips Cutter', skip('Cutter', '----SuWu'), true);
 check('left-empty half skips Half Destroyer', skip('Half Destroyer', 'CuCu----'), true);
@@ -59,11 +59,11 @@ check('two-fold shape NOT skipped by Rotator CW', skip('Rotator CW', 'CuRuCuRu')
 // Both halves occupied: a real cut that yields two distinct pieces.
 check('both-halves cutter not skipped', skip('Cutter', 'CuRuSuWu'), false);
 
-// Multi-layer complementary halves: each layer has one empty side, but on
-// OPPOSITE sides — so neither side is empty across ALL layers. cut() runs every
+// Multi-layer complementary halves: each layer has one empty geometric side, but
+// on OPPOSITE sides — so neither side is empty across ALL layers. cut() runs every
 // layer and yields two useful pieces (----SuSu and CuCu----), so the prune must
-// NOT skip. A layer-0-only check wrongly reads layer 0's empty right half and
-// skips, making ----SuSu unreachable from this start (audit finding).
+// NOT skip. A layer-0-only check wrongly reads layer 0's empty left half (trailing)
+// and skips, making ----SuSu unreachable from this start (audit finding).
 check('multi-layer complementary-half cutter not skipped', skip('Cutter', 'CuCu----:----SuSu'), false);
 check('multi-layer complementary-half Half Destroyer not skipped', skip('Half Destroyer', 'CuCu----:----SuSu'), false);
 

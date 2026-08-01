@@ -59,6 +59,7 @@ export function shouldSkipUnaryOp(opName, inputShape, {
         // halves sit on different layers (e.g. CuCu----:----SuSu cuts into two
         // useful pieces), silently making such targets unreachable via cutting.
         // Half boundaries come from shapeHalfGeometry (same as cut()), not floor(n/2).
+        // left/right mean geometric sides (trailing/leading), not array-index order.
         if (isLeftHalfEmptyShape(inputShape) || isRightHalfEmptyShape(inputShape)) return true;
     }
 
