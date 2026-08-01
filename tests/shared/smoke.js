@@ -8,7 +8,7 @@ import { getSimilarity } from './similarity.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
-import { invalidPathSteps, invalidPathIds, pathReachesTarget, invalidExplorerEdges } from './pathValidation.js';
+import { invalidPathSteps, invalidPathIds, pathReachesTarget, pathInventoryAcceptable, invalidExplorerEdges } from './pathValidation.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -153,6 +153,19 @@ for (const fixture of SOLVER_FIXTURES) {
     // makes a zero-op already-solved path pass rather than read as "no solution".
     if (!pathReachesTarget(path, fixture.target, { starts: fixture.starting, config, orientationSensitive: fixture.orientationSensitive })) {
         console.log(`✗ ${key} — path does not reach target ${fixture.target}`);
+        failed = true;
+        continue;
+    }
+
+    // preventWaste cleanliness: pathReachesTarget only requires the target to be
+    // *among* leftovers. Under preventWaste every inventory code must be an
+    // acceptable form of the target (same gate constructive.test.js uses).
+    if (fixture.preventWaste && !pathInventoryAcceptable(path, fixture.target, {
+        starts: fixture.starting,
+        config,
+        orientationSensitive: fixture.orientationSensitive,
+    })) {
+        console.log(`✗ ${key} — preventWaste path leaves non-target waste`);
         failed = true;
         continue;
     }

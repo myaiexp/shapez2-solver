@@ -26,15 +26,16 @@
 //   --json               emit machine-readable JSON
 //
 // Exit code is non-zero if any step/edge fails operation validation, if the id
-// bookkeeping is unbuildable (one shape fed to two consumers), or if the path
-// never actually produces the target.
+// bookkeeping is unbuildable (one shape fed to two consumers), if the path
+// never actually produces the target, or (with --prevent-waste) if leftovers
+// are not all acceptable forms of the target.
 
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { validateStep, validateExplorerEdges, invalidPathIds, pathReachesTarget } from './pathValidation.js';
+import { validateStep, validateExplorerEdges, invalidPathIds, pathReachesTarget, pathInventoryAcceptable } from './pathValidation.js';
 
 function parseArgs(argv) {
     const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
@@ -133,8 +134,26 @@ const idFailures = invalidPathIds(res.solutionPath, { starts: starting });
 // `starts` lets a zero-op already-solved answer pass instead of reading as a miss.
 const reachesTarget = pathReachesTarget(res.solutionPath, opts.target, { starts: starting, config: opConfig, orientationSensitive: !!opts.orientation });
 
+// preventWaste cleanliness: pathReachesTarget only requires the target among
+// leftovers. With --prevent-waste every inventory code must be acceptable.
+const inventoryClean = !opts.preventWaste || pathInventoryAcceptable(res.solutionPath, opts.target, {
+    starts: starting,
+    config: opConfig,
+    orientationSensitive: !!opts.orientation,
+});
+
 if (opts.json) {
-    console.log(JSON.stringify({ target: opts.target, solved: true, reachesTarget, depth: res.depth, steps: stepReports, invalid: bad, idFailures, statesExplored: res.statesExplored }, null, 2));
+    console.log(JSON.stringify({
+        target: opts.target,
+        solved: true,
+        reachesTarget,
+        inventoryClean,
+        depth: res.depth,
+        steps: stepReports,
+        invalid: bad,
+        idFailures,
+        statesExplored: res.statesExplored,
+    }, null, 2));
 } else {
     console.log(`target=${opts.target} method=${opts.method} depth=${res.depth} steps=${res.solutionPath.length} explored=${res.statesExplored}`);
     for (const r of stepReports) {
@@ -145,5 +164,6 @@ if (opts.json) {
     console.log(bad ? `*** ${bad} INVALID step(s) — solver produced an impossible path ***` : 'all steps valid');
     for (const reason of idFailures) console.log(`*** UNBUILDABLE id flow: ${reason} ***`);
     if (!reachesTarget) console.log(`*** path does not reach target ${opts.target} — final inventory lacks it ***`);
+    if (!inventoryClean) console.log(`*** preventWaste path leaves non-target waste ***`);
 }
-process.exit(bad || idFailures.length || !reachesTarget ? 1 : 0);
+process.exit(bad || idFailures.length || !reachesTarget || !inventoryClean ? 1 : 0);
