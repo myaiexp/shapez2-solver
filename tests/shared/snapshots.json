@@ -118,5 +118,10 @@
     "shapeCount": 3,
     "opCount": 1,
     "edgeCount": 3
+  },
+  "Explorer: painter-no-target": {
+    "shapeCount": 2,
+    "opCount": 1,
+    "edgeCount": 2
   }
 }

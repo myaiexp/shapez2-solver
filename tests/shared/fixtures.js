@@ -191,6 +191,17 @@ export const EXPLORER_FIXTURES = [
         depthLimit: 1,
         maxLayers: 4,
     },
+    // Painter without a target: enumerateUnaryColors walks referenceCodes (all
+    // inventory shapes). Explorer must pass an array (or array-producing getter),
+    // not a bare function — a function is not iterable (audit finding #6317).
+    // CrCrCrCr supplies a red circle color for CuCuCuCu so the op path is live.
+    {
+        name: 'painter-no-target',
+        starting: ['CuCuCuCu', 'CrCrCrCr'],
+        ops: ['Painter'],
+        depthLimit: 1,
+        maxLayers: 4,
+    },
 ];
 
 // Hand-written solution paths that buildLayout / smoke consume. Every path must

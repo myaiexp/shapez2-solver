@@ -106,6 +106,21 @@ const paintDesc = expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu',
 check('expandUnaryOp: painter → one recolored descriptor', paintDesc,
     [{ type: 'Painter', inputIds: [0], outputCodes: ['CrCrCrCr'], color: 'r' }]);
 
+// No target: referenceCodes must be an array of codes (solver materializes;
+// explorer uses a getter). A function would throw "is not iterable".
+// Reference CrCrCrCr supplies red for circle parts on the uncolored input.
+const noTargetPaint = expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu', shape('CuCuCuCu'), config, {
+    needsColor: true,
+    colorContext: {
+        target: null,
+        referenceCodes: ['CrCrCrCr'],
+        getShape: (code) => shape(code),
+    },
+});
+check('expandUnaryOp: painter without target uses referenceCodes array',
+    noTargetPaint,
+    [{ type: 'Painter', inputIds: [0], outputCodes: ['CrCrCrCr'], color: 'r' }]);
+
 // Monolayer-paint pruning threads through expandUnaryOp too.
 check('expandUnaryOp: multi-layer paint pruned under monolayerPainting',
     expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu:RuRuRuRu', shape('CuCuCuCu:RuRuRuRu'), config,

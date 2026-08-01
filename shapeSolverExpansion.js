@@ -71,7 +71,8 @@ export function shouldSkipUnaryOp(opName, inputShape, {
 }
 
 // Target-aware color enumeration aligned with shapeSolverCore generateSuccessors.
-// When target is null, unions colors implied by referenceCodes (all shapes in the run).
+// When target is null, unions colors implied by referenceCodes — always an array
+// of shape codes (solver materializes per expansion; explorer uses a live getter).
 export function enumerateUnaryColors(opName, inputShape, {
     target = null,
     targetCrystalColors = null,

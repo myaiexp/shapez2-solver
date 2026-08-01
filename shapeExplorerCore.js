@@ -49,14 +49,15 @@ export async function shapeExplorer(
         return getCachedShape(shapesList[id].code);
     }
 
-    function referenceCodes() {
-        return shapesList.map(s => s.code);
-    }
-
+    // Getter (not a method): enumerateUnaryColors for-of expects an array of
+    // codes. A live getter keeps the full inventory as shapes are discovered,
+    // matching the solver's per-expansion materialization of referenceCodes.
     const colorContext = {
         target,
         targetCrystalColors,
-        referenceCodes,
+        get referenceCodes() {
+            return shapesList.map(s => s.code);
+        },
         getShape: getCachedShape,
     };
 
@@ -89,8 +90,8 @@ export async function shapeExplorer(
         }
     }
 
-    function exploreUnaryOp(op, opName, primaryIds, newlyDiscovered) {
-        for (const id of primaryIds) {
+    function exploreUnaryOp(op, opName, frontierIds, newlyDiscovered) {
+        for (const id of frontierIds) {
             if (shouldCancel()) return;
 
             const inputCode = shapesList[id].code;
@@ -114,16 +115,17 @@ export async function shapeExplorer(
         }
     }
 
-    function exploreBinaryOp(op, opName, startIds, primaryIds, newlyDiscovered) {
+    // Binary BFS pairing: full inventory × previous-depth frontier (not start×start).
+    function exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered) {
         const isStacker = opName === 'Stacker';
 
-        for (const id1 of startIds) {
+        for (const id1 of allShapeIds) {
             if (shouldCancel()) return;
 
             const inputCode1 = shapesList[id1].code;
             const shape1 = getShapeById(id1);
 
-            for (const id2 of primaryIds) {
+            for (const id2 of frontierIds) {
                 if (shouldCancel()) return;
 
                 if (id1 === id2 && !isStacker) continue;
@@ -169,10 +171,10 @@ export async function shapeExplorer(
         }
 
         const newlyDiscovered = new Set();
-        const startIds = Array.from(availableIds);
-        const primaryIds = Array.from(frontier);
+        const allShapeIds = Array.from(availableIds);
+        const frontierIds = Array.from(frontier);
 
-        if (primaryIds.length === 0) break;
+        if (frontierIds.length === 0) break;
 
         for (const opName of enabledOperations) {
             if (shouldCancel()) {
@@ -183,9 +185,9 @@ export async function shapeExplorer(
             if (!op) continue;
 
             if (op.inputCount === 1) {
-                exploreUnaryOp(op, opName, primaryIds, newlyDiscovered);
+                exploreUnaryOp(op, opName, frontierIds, newlyDiscovered);
             } else if (op.inputCount === 2) {
-                exploreBinaryOp(op, opName, startIds, primaryIds, newlyDiscovered);
+                exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered);
             }
         }
         frontier = newlyDiscovered;
