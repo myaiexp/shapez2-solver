@@ -171,6 +171,19 @@ export const SOLVER_FIXTURES = [
         preventWaste: true,
         monolayerPainting: true,
     },
+    // (c) preventWaste when the target is already a start but another start is
+    //     leftover waste: solution is Trash-only on RuRuRuRu, leaving CuCuCuCu
+    //     unmentioned in the path. Inventory gates must seed unused starts or
+    //     this reads as "no target" / "empty inventory is clean" (finding #6417).
+    {
+        name: 'prevent-waste-target-as-start',
+        target: 'CuCuCuCu',
+        starting: ['CuCuCuCu', 'RuRuRuRu'],
+        ops: ['Cutter', 'Stacker', 'Trash'],
+        method: 'A*',
+        ...baseSolverParams,
+        preventWaste: true,
+    },
 ];
 
 export const EXPLORER_FIXTURES = [

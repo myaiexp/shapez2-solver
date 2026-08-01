@@ -17,8 +17,20 @@
 // op's in/out codes from edges and re-run the real operation (smoke + solve.mjs).
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { operations } from '../../shapeSolverOperations.js';
-import { getAllRotations } from '../../shapeRotation.js';
-import { simulateFinalInventoryMap } from '../../pathInventory.js';
+import {
+    simulateFinalInventoryMap,
+    finalInventoryCodes,
+} from '../../pathInventory.js';
+
+// Re-export production inventory predicates so harness imports stay one-stop
+// (pathValidation was the historical home; the domain rules live in pathInventory).
+export {
+    simulateFinalInventoryMap,
+    pathReachesTarget,
+    pathInventoryAcceptable,
+    acceptableCodes,
+    finalInventoryCodes,
+} from '../../pathInventory.js';
 
 // The claimed outputs of a step must be an order-preserving subsequence of what
 // the op actually produced (matching each produced entry at most once). Ordered,
@@ -208,48 +220,16 @@ export function pathIsValid(path, config, { starts } = {}) {
 
 // Replay a solution path's id bookkeeping to recover the shapes still on hand
 // after the last step. Codes-only view over the production Map core in
-// pathInventory.js — Constructive scrubPreventWaste uses the same Map so
-// preventWaste Trash emission and this harness gate cannot drift. Pass `starts`
-// so unused starting shapes remain visible (core start ids are 0..n-1).
+// pathInventory.js. Pass `starts` so unused starting shapes remain visible
+// (core start ids are 0..n-1) — needed for preventWaste target-as-start leftovers.
 export function simulateFinalInventory(path, { starts } = {}) {
     if (!path) return [];
-    return Array.from(simulateFinalInventoryMap(path, { starts }).values());
-}
-
-// Re-export the Map form so harnesses that need id→code (or callers comparing
-// against Constructive) share one import surface with the codes-only helper.
-export { simulateFinalInventoryMap };
-
-// True when the path's final inventory actually contains the target (any
-// rotation, unless orientationSensitive — mirroring the solver's acceptable
-// set). This is the goal gate that step-level op validation does NOT provide:
-// every step can be a real op yet assemble the wrong shape or trash the target.
-//
-// A ZERO-OP path is the solver's already-solved contract (empty solutionPath at
-// depth 0 when a start is already acceptable — see solverAlreadySolved.test.js),
-// not a failure. There are no steps to replay, so the final inventory simply IS
-// the starting set, which only the caller knows: pass `starts` and an empty path
-// succeeds iff one of them is acceptable. Without `starts` we cannot tell an
-// already-solved solve from an empty one, so we stay strict and reject.
-// Non-empty paths also need `starts` when the target is an unused start that
-// never appears as a step input (preventWaste Trash-only solutions).
-export function pathReachesTarget(path, target, { starts, config, orientationSensitive = false } = {}) {
-    if (!path) return false;
-    const acceptable = orientationSensitive
-        ? new Set([target])
-        : getAllRotations(Shape.fromShapeCode(target), config);
-    if (path.length === 0) return starts ? starts.some(code => acceptable.has(code)) : false;
-    return simulateFinalInventory(path, { starts }).some(code => acceptable.has(code));
+    return finalInventoryCodes(path, { starts });
 }
 
 // ---------------------------------------------------------------------------
-// Enabled-ops + preventWaste inventory gates
+// Enabled-ops gate (inventory goal/cleanliness predicates live in pathInventory)
 // ---------------------------------------------------------------------------
-// pathValidation's three core gates check physical constructibility, not the
-// caller's option flags. These helpers close that gap for harnesses that care:
-// a path must only use ops the user enabled, and under preventWaste every
-// leftover inventory code must be an acceptable form of the target.
-
 // Ops present in the path but absent from the allowed list. Empty ⇒ every step
 // is in the enabled set. A null/absent path yields no failures (callers gate
 // presence separately). Unknown/typo ops in the path also show up here when
@@ -263,28 +243,4 @@ export function invalidDisallowedOps(path, allowedOps) {
         if (!allowed.has(op)) bad.push(`step ${i}: disallowed op ${op}`);
     }
     return bad;
-}
-
-// preventWaste cleanliness: every code in the final inventory is an acceptable
-// form of the target (any rotation unless orientationSensitive). Distinct from
-// pathReachesTarget, which only requires the target to be *among* the leftovers.
-// A null path is not waste-free. Zero-op paths succeed iff every start (when
-// provided) is acceptable — without starts, only an empty inventory would pass,
-// and a zero-op path has no inventory to simulate, so starts are required.
-// Non-empty paths require a non-empty inventory of only acceptable codes —
-// empty `.every()` must not pass (trashing everything including the target is
-// not waste-free success). Pass `starts` so unused non-target starts are not
-// invisible (false-clean) and unused target starts remain in the inventory.
-export function pathInventoryAcceptable(path, target, { starts, config, orientationSensitive = false } = {}) {
-    if (!path) return false;
-    const cfg = config || new ShapeOperationConfig();
-    const acceptable = orientationSensitive
-        ? new Set([target])
-        : getAllRotations(Shape.fromShapeCode(target), cfg);
-    if (path.length === 0) {
-        if (!starts) return false;
-        return starts.every(code => acceptable.has(code));
-    }
-    const inventory = simulateFinalInventory(path, { starts });
-    return inventory.length > 0 && inventory.every(code => acceptable.has(code));
 }

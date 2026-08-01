@@ -249,6 +249,27 @@ async function run() {
         }
     }
 
+    // --- preventWaste + target already a start + leftover non-target start ---
+    // Must solve via Trash (not no-decomposition). The target start may never
+    // appear in the path; inventory gates seed unused starts (finding #6417).
+    {
+        const starts = ['CuCuCuCu', 'RuRuRuRu'];
+        const r = await solveConstructive('CuCuCuCu', starts, ALL_OPS, {
+            maxLayers: 4, preventWaste: true,
+        });
+        assert('target-as-start preventWaste solved', !!r.solutionPath && r.aborted === null);
+        if (r.solutionPath) {
+            assert('target-as-start preventWaste is not mislabeled no-decomposition',
+                r.aborted !== 'no-decomposition');
+            assert('target-as-start preventWaste reaches target',
+                pathReachesTarget(r.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+            assert('target-as-start preventWaste inventory is waste-free',
+                pathInventoryAcceptable(r.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+            assert('target-as-start preventWaste trashes the leftover start',
+                r.solutionPath.some((s) => s.operation === 'Trash'));
+        }
+    }
+
     // --- cancellation returns a null path ------------------------------------
     {
         const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4, shouldCancel: () => true });

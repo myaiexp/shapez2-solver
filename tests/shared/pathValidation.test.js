@@ -234,5 +234,18 @@ check('inventoryAcceptable: with starts, unused non-target start fails cleanline
         config: cfg, starts: STARTS,
     }));
 
+// Unused-start leftover (finding #6417): Trash the waste start, leave the target
+// start unmentioned in the path. Path-local inventory alone is empty after the
+// Trash — gates must count unused starts or this case is invisible.
+const TRASH_LEFTOVER_START = step('Trash', [io(1, 'RuRuRuRu')], []);
+check('goal: Trash-only path still reaches unused target start',
+    pathReachesTarget([TRASH_LEFTOVER_START], 'CuCuCuCu', { config: cfg, starts: STARTS }));
+check('inventoryAcceptable: Trash leftover start leaves only the target start',
+    pathInventoryAcceptable([TRASH_LEFTOVER_START], 'CuCuCuCu', { config: cfg, starts: STARTS }));
+check('inventoryAcceptable: without trashing the leftover start, waste remains',
+    !pathInventoryAcceptable([], 'CuCuCuCu', { config: cfg, starts: STARTS }));
+check('goal: without starts, Trash-only path cannot see the unused target',
+    !pathReachesTarget([TRASH_LEFTOVER_START], 'CuCuCuCu', { config: cfg }));
+
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

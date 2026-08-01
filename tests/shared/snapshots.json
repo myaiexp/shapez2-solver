@@ -123,5 +123,9 @@
     "shapeCount": 2,
     "opCount": 1,
     "edgeCount": 2
+  },
+  "Solver: prevent-waste-target-as-start": {
+    "numOps": 1,
+    "depth": 1
   }
 }

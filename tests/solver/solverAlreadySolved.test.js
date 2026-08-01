@@ -10,9 +10,10 @@
 // of the goal-check / path-reconstruction can't silently regress it into a
 // spurious search (or a null "no solution").
 import { shapeSolver } from '../../shapeSolverCore.js';
+import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
-import { pathInventoryAcceptable, pathReachesTarget } from '../shared/pathValidation.js';
+import { pathReachesTarget, pathInventoryAcceptable } from '../shared/pathValidation.js';
 
 let passed = 0;
 let total = 0;
@@ -28,6 +29,7 @@ const ALL_OPS = Object.keys(operations);
 const METHODS = ['A*', 'BFS', 'IDA*', 'Bidirectional'];
 const noCancel = () => false;
 const noop = () => {};
+const cfg = new ShapeOperationConfig(4);
 
 // Assert a result is the canonical already-solved answer: an empty (zero-op)
 // solution at depth 0, found cleanly (not aborted, not a null cancel).
@@ -85,27 +87,57 @@ for (const method of METHODS) {
     assertAlreadySolved('A* exact-equals (orientation-sensitive)', res);
 }
 
-// --- Case E: preventWaste + target already among starts (finding #6416) ------
-// With extra non-target starts on hand, preventWaste must Trash them and keep
-// the target. The path typically never names the target start as an input;
-// inventory simulation seeds starts so the final inventory still holds it.
+// --- Case E: Constructive also short-circuits when a start is already the target ---
 {
-    const res = await solve('CuCuCuCu', ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'], {
-        method: 'A*', preventWaste: true,
+    const res = await solveConstructive('CuCuCuCu', ['CuCuCuCu'], ALL_OPS, {
+        maxLayers: 4, shouldCancel: noCancel, onProgress: noop,
     });
-    check('preventWaste target∈starts: returns a result', res != null);
-    check('preventWaste target∈starts: solves', res != null && Array.isArray(res.solutionPath));
-    check('preventWaste target∈starts: not aborted', res != null && !res.aborted);
-    check('preventWaste target∈starts: path has Trash for waste',
-        res != null && Array.isArray(res.solutionPath)
-        && res.solutionPath.some((s) => s.operation === 'Trash'));
-    // Final inventory gate (shared with Constructive) must pass when starts are seeded.
-    const cfg = new ShapeOperationConfig(4);
-    const starts = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
-    check('preventWaste target∈starts: final inventory holds target',
-        res != null && pathReachesTarget(res.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
-    check('preventWaste target∈starts: inventory is waste-free',
-        res != null && pathInventoryAcceptable(res.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+    assertAlreadySolved('Constructive exact-equals', res);
+}
+
+// --- Case F: preventWaste + target-as-start + leftover non-target start ------
+// Not zero-op: leftovers must be Trashed. Two starts keeps IDA* bounded; four
+// default starts under preventWaste can explode IDA* before maxStates bites.
+// Covers every core method + Constructive (findings #6416 / #6417).
+{
+    const starts = ['CuCuCuCu', 'RuRuRuRu'];
+    for (const method of METHODS) {
+        const res = await solve('CuCuCuCu', starts, { method, preventWaste: true });
+        const label = `${method} preventWaste target-as-start`;
+        check(`${label}: solved`, res != null && Array.isArray(res.solutionPath) && !res.aborted);
+        if (res?.solutionPath) {
+            check(`${label}: reaches target`,
+                pathReachesTarget(res.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+            check(`${label}: inventory waste-free`,
+                pathInventoryAcceptable(res.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+            check(`${label}: trashes leftover start`,
+                res.solutionPath.some((s) => s.operation === 'Trash'));
+        }
+    }
+    // A* with the full default start set (master #6416 regression).
+    {
+        const four = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
+        const res = await solve('CuCuCuCu', four, { method: 'A*', preventWaste: true });
+        check('A* preventWaste four-starts: solved',
+            res != null && Array.isArray(res.solutionPath) && !res.aborted);
+        check('A* preventWaste four-starts: inventory waste-free',
+            res != null && pathInventoryAcceptable(res.solutionPath, 'CuCuCuCu', {
+                starts: four, config: cfg,
+            }));
+    }
+    const cres = await solveConstructive('CuCuCuCu', starts, ALL_OPS, {
+        maxLayers: 4, preventWaste: true, shouldCancel: noCancel, onProgress: noop,
+    });
+    check('Constructive preventWaste target-as-start: solved',
+        cres != null && Array.isArray(cres.solutionPath) && !cres.aborted);
+    if (cres?.solutionPath) {
+        check('Constructive preventWaste target-as-start: reaches target',
+            pathReachesTarget(cres.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+        check('Constructive preventWaste target-as-start: inventory waste-free',
+            pathInventoryAcceptable(cres.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+        check('Constructive preventWaste target-as-start: trashes leftover',
+            cres.solutionPath.some((s) => s.operation === 'Trash'));
+    }
 }
 
 console.log(`[${passed}/${total} passed]`);

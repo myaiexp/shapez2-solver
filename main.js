@@ -440,6 +440,8 @@ byId('solve-btn').addEventListener('click', () => {
                     status.textContent = `No solution found — search hit the state limit (${result.statesExplored} states). Try BFS, a larger heuristic divisor, or a simpler target.`;
                 } else if (result?.aborted === 'preventWaste') {
                     status.textContent = 'No solution found — a plan exists but leftover waste cannot be removed (enable Trash, or disable Prevent Waste).';
+                } else if (result?.aborted === 'path-invalid') {
+                    status.textContent = 'No solution found — constructive assembly produced a path that does not hold the target.';
                 } else if (result?.aborted === 'no-decomposition') {
                     status.textContent = `No solution found — no constructive split solved this target within the node budget (${result.statesExplored} states).`;
                 } else {

@@ -12,7 +12,11 @@ import { ShapeOperationConfig } from './shapeClass.js';
 import { stack } from './shapeOperations.js';
 import { getAllRotations } from './shapeRotation.js';
 import { getCachedShape } from './shapeSolverCache.js';
-import { simulateFinalInventoryMap } from './pathInventory.js';
+import {
+    simulateFinalInventoryMap,
+    acceptableCodes,
+    pathReachesTarget,
+} from './pathInventory.js';
 
 // Options mirror shapeSolver's (minus the search-method-specific caps): a single
 // named object so call sites don't re-spell the shared flag/numeric sequence. All
@@ -306,14 +310,12 @@ export async function solveConstructive(
     // searches intentionally ignore preventWaste (waste is fine while building
     // a piece); only the top-level path must be clean. Returns null when waste
     // remains and Trash is disabled — the plan is then not a valid preventWaste
-    // solution. Inventory walk is the shared production helper (pathInventory)
-    // so harness pathInventoryAcceptable cannot drift from this scrub. Starts
-    // are seeded so unused non-target starts are trashed too (core's preventWaste
+    // solution. Acceptable set + start-seeded inventory walk come from
+    // pathInventory so harness pathInventoryAcceptable cannot drift from this
+    // scrub. Unused non-target starts are trashed too (core's preventWaste
     // contract), not silently dropped as "invisible" leftovers.
     function scrubPreventWaste(path) {
-        const acceptable = orientationSensitive
-            ? new Set([targetShapeCode])
-            : rotationsOf(targetShapeCode);
+        const acceptable = acceptableCodes(targetShapeCode, { orientationSensitive, config });
         const inventory = simulateFinalInventoryMap(path, { starts: startingShapeCodes });
 
         const cleaned = path.slice();
@@ -330,23 +332,11 @@ export async function solveConstructive(
         return cleaned;
     }
 
-    // Defense in depth: final inventory must hold the target (any rotation when
-    // not orientation-sensitive). Catches any assembly/id bug that slipped past
-    // stackProduct rejection (which only checks the Plan tree, not the flat path).
-    // Seed starts so a target that is an unused start (never a step input) still
-    // counts — the usual preventWaste path that only Trashes byproducts.
-    function pathHoldsTarget(path) {
-        const acceptable = orientationSensitive
-            ? new Set([targetShapeCode])
-            : rotationsOf(targetShapeCode);
-        if (path.length === 0) {
-            return startingShapeCodes.some((c) => acceptable.has(c));
-        }
-        for (const code of simulateFinalInventoryMap(path, { starts: startingShapeCodes }).values()) {
-            if (acceptable.has(code)) return true;
-        }
-        return false;
-    }
+    const inventoryOpts = {
+        starts: startingShapeCodes,
+        config,
+        orientationSensitive,
+    };
 
     const rootPlan = await solvePlan(targetShapeCode, true);
 
@@ -358,10 +348,13 @@ export async function solveConstructive(
     }
 
     let solutionPath = flatten(rootPlan);
-    if (!pathHoldsTarget(solutionPath)) {
+    // Defense in depth: final hand must hold the target (shared pathReachesTarget
+    // — same rule as the CI gate). Catches assembly/id bugs that slipped past
+    // stackProduct rejection (Plan tree only). Distinct abort from missing splits.
+    if (!pathReachesTarget(solutionPath, targetShapeCode, inventoryOpts)) {
         return {
             solutionPath: null, depth: null, statesExplored: statesTotal,
-            aborted: shouldCancel() ? null : 'no-decomposition',
+            aborted: shouldCancel() ? null : 'path-invalid',
             strategyTrace: buildTrace(rootPlan)
         };
     }
