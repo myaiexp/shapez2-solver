@@ -3,6 +3,15 @@ import {
     UNPAINTABLE_SHAPES, layerToCode, layersToCode,
 } from './shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
+import {
+    isLeftHalfEmpty,
+    isRightHalfEmpty,
+    buildLeftHalfParts,
+    buildRightHalfParts,
+} from './shapeHalfGeometry.js';
+
+// Shared empty filler for inverse half rebuilds (layerToCode only reads .shape/.color).
+const EMPTY_PART = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);
 
 /**
  * Unpaint: set all paintable parts on the top layer to uncolored.
@@ -78,31 +87,21 @@ export function inverseUnstack(shape, config) {
 
 /**
  * Uncut: the shape is one half of a cut result. Generate possible whole shapes
- * by pairing with an empty half or a mirrored copy.
+ * by pairing with an empty other half (same geometry as cut's left/right products).
  */
 export function inverseUncut(shape, config) {
     const results = [];
     if (shape.numLayers !== 1) return results;
 
-    const numParts = shape.numParts;
-    const half = Math.floor(numParts / 2);
     const layer = shape.layers[0];
 
-    // Check if this is a left half (right side empty) or right half (left side empty)
-    const leftEmpty = layer.slice(0, half).every(p => p.shape === NOTHING_CHAR);
-    const rightEmpty = layer.slice(half).every(p => p.shape === NOTHING_CHAR);
-
-    if (rightEmpty) {
-        // This was the left output of a cut — the original had these parts on the left
-        // and anything on the right
-        const wholeParts = layer.map((p, i) => i < half ? p : new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-        // Just stacking with empty right gives us back
-        results.push(layerToCode(wholeParts));
+    // Right half empty (leading) → this is cut's left product (trailing kept).
+    if (isRightHalfEmpty(layer)) {
+        results.push(layerToCode(buildLeftHalfParts(layer, EMPTY_PART)));
     }
-    if (leftEmpty) {
-        // This was the right output
-        const wholeParts = layer.map((p, i) => i >= half ? p : new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
-        results.push(layerToCode(wholeParts));
+    // Left half empty (trailing) → this is cut's right product (leading kept).
+    if (isLeftHalfEmpty(layer)) {
+        results.push(layerToCode(buildRightHalfParts(layer, EMPTY_PART)));
     }
 
     return results;

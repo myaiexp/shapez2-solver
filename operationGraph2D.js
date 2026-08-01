@@ -1,6 +1,7 @@
 import { colorValues, createShapeCanvas } from './shapeRendering.js';
 import { getCurrentColorMode } from './colorMode.js';
 import { cyInstance, setCyInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
+import { operations } from './shapeSolverOperations.js';
 
 let lastSolutionPath = null;
 
@@ -123,11 +124,11 @@ export function renderGraph(solutionPath) {
         let nodeClasses = 'op';
         let backgroundColor = '#000';
 
-        if (operation === 'Painter' || operation === 'Crystal Generator') {
-            const color = params.color;
+        if (operations[operation]?.needsColor) {
+            const color = params?.color;
             opLabel += ` (${color})`;
             const colorMode = getCurrentColorMode();
-            if (colorValues[colorMode][color]) {
+            if (color && colorValues[colorMode][color]) {
                 backgroundColor = colorValues[colorMode][color];
                 nodeClasses += ' colored-op';
             }

@@ -40,9 +40,11 @@ check('symmetric rotator skips (Rotator CCW)', skip('Rotator CCW', 'CuCuCuCu'), 
 check('two-fold shape skips Rotator 180', skip('Rotator 180', 'CuRuCuRu'), true);
 
 // One-sided cut: a half with an empty side would just reproduce the input.
-check('right-empty half skips Cutter', skip('Cutter', 'CuCu----'), true);
-check('left-empty half skips Cutter', skip('Cutter', '----SuWu'), true);
-check('right-empty half skips Half Destroyer', skip('Half Destroyer', 'CuCu----'), true);
+// cut convention: left = trailing, right = leading. CuCu---- is a right-only
+// half (left empty); ----SuWu is a left-only half (right empty).
+check('left-empty half skips Cutter', skip('Cutter', 'CuCu----'), true);
+check('right-empty half skips Cutter', skip('Cutter', '----SuWu'), true);
+check('left-empty half skips Half Destroyer', skip('Half Destroyer', 'CuCu----'), true);
 
 // Monolayer painting restricts Painter to single-layer inputs.
 check('multi-layer paint skips under monolayerPainting',

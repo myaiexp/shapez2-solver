@@ -1,4 +1,3 @@
-import { NOTHING_CHAR } from './shapeClass.js';
 import { getAllRotations } from './shapeRotation.js';
 import { getPaintColors, getCrystalColors } from './shapeColorAnalysis.js';
 import {
@@ -6,6 +5,7 @@ import {
     getCachedColoredUnaryResult,
     getCachedBinaryResult
 } from './shapeSolverCache.js';
+import { isLeftHalfEmptyShape, isRightHalfEmptyShape } from './shapeHalfGeometry.js';
 
 // Build a single-input successor descriptor from an op's raw output shapes.
 // Returns null when no usable output remains.
@@ -58,10 +58,8 @@ export function shouldSkipUnaryOp(opName, inputShape, {
         // Inspecting layer 0 alone wrongly prunes multi-layer shapes whose empty
         // halves sit on different layers (e.g. CuCu----:----SuSu cuts into two
         // useful pieces), silently making such targets unreachable via cutting.
-        const half = Math.floor(inputShape.numParts / 2);
-        const leftEmpty = inputShape.layers.every(layer => layer.slice(0, half).every(p => p.shape === NOTHING_CHAR));
-        const rightEmpty = inputShape.layers.every(layer => layer.slice(half).every(p => p.shape === NOTHING_CHAR));
-        if (leftEmpty || rightEmpty) return true;
+        // Half boundaries come from shapeHalfGeometry (same as cut()), not floor(n/2).
+        if (isLeftHalfEmptyShape(inputShape) || isRightHalfEmptyShape(inputShape)) return true;
     }
 
     if (monolayerPainting && opName === 'Painter' && inputShape.layers.length !== 1) {

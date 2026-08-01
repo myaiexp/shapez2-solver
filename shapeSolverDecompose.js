@@ -7,6 +7,12 @@
 
 import { getCachedShape } from './shapeSolverCache.js';
 import { SHAPE_LAYER_SEPARATOR, NOTHING_CHAR, layerToCode, ShapePart } from './shapeClass.js';
+import {
+    isLeftHalfEmpty,
+    isRightHalfEmpty,
+    buildLeftHalfParts,
+    buildRightHalfParts,
+} from './shapeHalfGeometry.js';
 
 // A single empty ('--') part, reused read-only as filler for unoccupied slots.
 // layerToCode only reads .shape/.color, so sharing one instance is safe.
@@ -39,20 +45,18 @@ export function splitByQuadrant(code) {
     });
 }
 
-// Single-layer only. [leftHalf, rightHalf] as positioned 2-quadrant codes. Null
-// for multi-layer input or when either half is entirely empty (a half-split into
-// one empty piece is useless — by-quadrant covers that case).
+// Single-layer only. [leftHalf, rightHalf] in cut() product order (trailing,
+// leading) as positioned codes. Null for multi-layer input or when either half
+// is entirely empty (a half-split into one empty piece is useless — by-quadrant
+// covers that case). Geometry from shapeHalfGeometry so odd/hex part counts match cut.
 export function splitByHalf(code) {
     if (isMultiLayer(code)) return null;
     const layer = getCachedShape(code).layers[0];
-    const n = layer.length;
-    const half = Math.floor(n / 2);
-    const leftOccupied = layer.slice(0, half).some((p) => p.shape !== NOTHING_CHAR);
-    const rightOccupied = layer.slice(half).some((p) => p.shape !== NOTHING_CHAR);
-    if (!leftOccupied || !rightOccupied) return null;
-    const left = layer.map((p, i) => (i < half ? p : EMPTY_PART));
-    const right = layer.map((p, i) => (i >= half ? p : EMPTY_PART));
-    return [layerToCode(left), layerToCode(right)];
+    if (isLeftHalfEmpty(layer) || isRightHalfEmpty(layer)) return null;
+    return [
+        layerToCode(buildLeftHalfParts(layer, EMPTY_PART)),
+        layerToCode(buildRightHalfParts(layer, EMPTY_PART)),
+    ];
 }
 
 // ---------------------------------------------------------------------------

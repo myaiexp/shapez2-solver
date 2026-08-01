@@ -1,5 +1,6 @@
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { $, $all, byId } from './domUtils.js';
+import { operations } from './shapeSolverOperations.js';
 
 export const STORAGE_KEY = 'shapez2-solver-state-v1';
 export const SCHEMA_VERSION = 1;
@@ -67,10 +68,9 @@ export function clearState() {
 // renderGraph/buildLayout — either throwing mid-render (leaving a half-applied
 // UI) or drawing an inconsistent graph. Each step must carry a non-empty
 // operation name plus input/output endpoint arrays whose entries expose a string
-// shape code and an id; colored ops (Painter / Crystal Generator) additionally
-// need a params.color string, which the renderer dereferences unconditionally.
-const COLORED_OPS = new Set(['Painter', 'Crystal Generator']);
-
+// shape code and an id; ops with needsColor (Painter / Crystal Generator, via
+// the shared operations table) additionally need a params.color string, which
+// the renderer dereferences unconditionally.
 function isValidEndpoint(e) {
     return !!e && typeof e === 'object'
         && typeof e.shape === 'string' && e.shape.length > 0
@@ -82,7 +82,7 @@ function isValidStep(step) {
     if (typeof step.operation !== 'string' || step.operation.length === 0) return false;
     if (!Array.isArray(step.inputs) || !step.inputs.every(isValidEndpoint)) return false;
     if (!Array.isArray(step.outputs) || !step.outputs.every(isValidEndpoint)) return false;
-    if (COLORED_OPS.has(step.operation) && (!step.params || typeof step.params.color !== 'string')) return false;
+    if (operations[step.operation]?.needsColor && (!step.params || typeof step.params.color !== 'string')) return false;
     return true;
 }
 

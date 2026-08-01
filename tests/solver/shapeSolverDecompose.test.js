@@ -42,9 +42,10 @@ check('splitByQuadrant multi-layer is null', splitByQuadrant('CuCuCuCu:RuRuRuRu'
 check('splitByQuadrant single occupied is null (base case)', splitByQuadrant('Cu------'), null);
 check('splitByQuadrant empty is null', splitByQuadrant('--------'), null);
 
-// --- splitByHalf: left + right halves, null if either half empty -------------
-check('splitByHalf full', splitByHalf('CuRuSuWu'), ['CuRu----', '----SuWu']);
-check('splitByHalf gappy halves', splitByHalf('Cu--Su--'), ['Cu------', '----Su--']);
+// --- splitByHalf: [left, right] in cut() order (trailing, leading) -----------
+// cut(CuRuSuWu) → [----SuWu, CuRu----]; splitByHalf must match that product order.
+check('splitByHalf full', splitByHalf('CuRuSuWu'), ['----SuWu', 'CuRu----']);
+check('splitByHalf gappy halves', splitByHalf('Cu--Su--'), ['----Su--', 'Cu------']);
 check('splitByHalf right-empty is null', splitByHalf('CuRu----'), null);
 check('splitByHalf left-empty is null', splitByHalf('----SuWu'), null);
 check('splitByHalf multi-layer is null', splitByHalf('CuCuCuCu:Ru------'), null);

@@ -18,15 +18,12 @@ import {
     cleanUpEmptyUpperLayers,
     requireSameNumParts
 } from './shapeLayerMechanics.js';
+import { leftHalfSize, rightHalfSize } from './shapeHalfGeometry.js';
 
 // Shape Operations
-
-// Quadrants are indexed clockwise from top-right (0=TR, 1=BR, 2=BL, 3=TL), so the
-// LEADING quadrants {0,1} form the right half and the TRAILING ones {2,3} the left
-// half. Every half-split below keeps that convention, and cut() returns the halves
-// in [left, right] order.
-const leftHalfSize = numParts => Math.ceil(numParts / 2);   // trailing quadrants
-const rightHalfSize = numParts => numParts - leftHalfSize(numParts); // leading quadrants
+// Half-split sizes and left/right naming come from shapeHalfGeometry.js (cut
+// returns [left, right] = trailing / leading). Do not re-derive Math.floor(n/2)
+// elsewhere — that silently disagrees for odd part counts.
 
 const emptyLayer = numParts => Array(numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
 
