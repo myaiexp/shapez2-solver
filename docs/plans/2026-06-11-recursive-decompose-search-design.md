@@ -73,9 +73,13 @@ intelligence is at the leaves.
 | **by-quadrant** | each occupied quadrant as a *positioned* single-quadrant sub-target (`Cu------`, `--Ru----`, …) | `stack` the pieces in any order — gravity merges disjoint same-layer quadrants (`Cu------`+`--Ru----`→`CuRu----`) | universal fallback for any flat layer |
 | **by-half** | left + right halves as 2-quadrant sub-targets (cut geometry: leading=right, trailing=left; return order [left, right]) | one `stack` (disjoint positions merge cleanly) | lets the search find a half-level trick (e.g. a Swapper) on a bigger piece |
 
-**Completeness:** by-layer + by-quadrant alone is *universally complete* for Tier-1
-shapes (any flat multi-layer shape decomposes layer→quadrant→single piece, all base
-cases). **by-half is purely an extra candidate** for cheaper/cleverer plans — cost
+**Completeness:** by-layer + by-quadrant alone is *complete for stack-stable Tier-1
+shapes* — any multi-layer target whose layers stack (bottom→top) without gravity
+collapsing upper parts into empty lower cells. Complementary multi-layer codes
+(e.g. `CuCu----:----SuSu`) do **not** reassemble under `stack` (they fall into
+`CuCuSuSu`); the planner rejects those candidates via a pre-recurse assembly
+check and returns `no-decomposition` rather than a false-success path.
+**by-half is purely an extra candidate** for cheaper/cleverer plans — cost
 selection discards it if not cheaper, so it can only help.
 
 **Why assembly is always `stack`:** each piece sub-target is the *positioned* sub-shape,
