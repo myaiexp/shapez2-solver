@@ -41,6 +41,11 @@ export async function solveConstructive(
     // has to stop crediting it, or the planner picks reuse-heavy plans that are
     // no longer cheap. `null` reuseCost = charge the sub-plan again in full.
     const beltSplitEnabled = enabledOperations.includes('Belt Split');
+    // Every decomposition assembles pieces with a left-fold of Stacker. Without
+    // Stacker enabled we cannot emit that op, so splits are skipped entirely and
+    // only the bounded direct search may solve the node.
+    const stackerEnabled = enabledOperations.includes('Stacker');
+    const trashEnabled = enabledOperations.includes('Trash');
     const costOpts = { reuseCost: beltSplitEnabled ? 1 : null };
 
     // One bounded A* search for a single sub-target. Pieces are searched
@@ -111,6 +116,10 @@ export async function solveConstructive(
                 outputId: findOutputId(res.solutionPath, acceptable),
                 statesExplored: res.statesExplored, children: []
             };
+        } else if (!stackerEnabled) {
+            // Direct search failed/capped and we cannot assemble pieces without
+            // Stacker — treat as unsolved at this node (no illegal Stacker emit).
+            result = null;
         } else {
             // Search capped — try splits in order; keep the cheapest fully-solved one.
             const splits = [
@@ -270,6 +279,46 @@ export async function solveConstructive(
         };
     }
 
+    // Append Trash steps for every non-acceptable leftover so preventWaste's
+    // "final inventory is only target rotations" contract holds. Sub-piece
+    // searches intentionally ignore preventWaste (waste is fine while building
+    // a piece); only the top-level path must be clean. Returns null when waste
+    // remains and Trash is disabled — the plan is then not a valid preventWaste
+    // solution.
+    function scrubPreventWaste(path) {
+        const acceptable = orientationSensitive
+            ? new Set([targetShapeCode])
+            : rotationsOf(targetShapeCode);
+        // Id-level final inventory (same walk as pathValidation.simulateFinalInventory).
+        const producedIds = new Set();
+        for (const step of path) for (const out of step.outputs) producedIds.add(out.id);
+        const inventory = new Map();
+        for (const step of path) {
+            for (const inp of step.inputs) {
+                if (!producedIds.has(inp.id) && !inventory.has(inp.id)) {
+                    inventory.set(inp.id, inp.shape);
+                }
+            }
+        }
+        for (const step of path) {
+            for (const inp of step.inputs) inventory.delete(inp.id);
+            for (const out of step.outputs) inventory.set(out.id, out.shape);
+        }
+
+        const cleaned = path.slice();
+        for (const [id, code] of inventory) {
+            if (acceptable.has(code)) continue;
+            if (!trashEnabled) return null;
+            cleaned.push({
+                operation: 'Trash',
+                inputs: [{ id, shape: code }],
+                outputs: [],
+                params: {}
+            });
+        }
+        return cleaned;
+    }
+
     const rootPlan = await solvePlan(targetShapeCode, true);
 
     if (!rootPlan) {
@@ -279,7 +328,17 @@ export async function solveConstructive(
         };
     }
 
-    const solutionPath = flatten(rootPlan);
+    let solutionPath = flatten(rootPlan);
+    if (preventWaste) {
+        solutionPath = scrubPreventWaste(solutionPath);
+        if (!solutionPath) {
+            return {
+                solutionPath: null, depth: null, statesExplored: statesTotal,
+                aborted: shouldCancel() ? null : 'no-decomposition',
+                strategyTrace: buildTrace(rootPlan)
+            };
+        }
+    }
     return {
         solutionPath, depth: solutionPath.length, statesExplored: statesTotal,
         aborted: null, strategyTrace: buildTrace(rootPlan)

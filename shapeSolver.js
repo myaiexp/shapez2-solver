@@ -12,12 +12,19 @@ self.onmessage = async function (e) {
 
     if (action === 'solve') {
         cancelled = false;
+        // Three distinct budgets — keep the names separate end-to-end:
+        //   maxStatesPerLevel  BFS beam width (per-depth prune)
+        //   maxStates          global distinct-state ceiling (optional; browser omits → Infinity)
+        //   nodeBudget         Constructive per-node A* budget (fail-fast → decompose)
+        // The UI shares one numeric field for beam vs nodeBudget (label switches by
+        // method); the payload always uses the correct key so callers never alias them.
         const {
             targetShapeCode,
             startingShapeCodes,
             enabledOperations,
             maxLayers,
             maxStatesPerLevel,
+            nodeBudget,
             preventWaste,
             orientationSensitive,
             monolayerPainting,
@@ -26,9 +33,8 @@ self.onmessage = async function (e) {
             maxStates
         } = data;
         try {
-            // The Constructive planner calls core shapeSolver as a bounded subroutine,
-            // so it is dispatched here (not in core) to avoid an import cycle. It reuses
-            // the Max States control as its per-node search budget (fail-fast → decompose).
+            // Constructive calls core shapeSolver as a bounded subroutine and is
+            // dispatched here (not in core) to avoid an import cycle.
             const result = searchMethod === 'Constructive'
                 ? await solveConstructive(
                     targetShapeCode,
@@ -42,7 +48,7 @@ self.onmessage = async function (e) {
                         heuristicDivisor,
                         shouldCancel,
                         onProgress,
-                        nodeBudget: maxStatesPerLevel || 4000,
+                        nodeBudget: nodeBudget || 4000,
                     }
                 )
                 : await shapeSolver(

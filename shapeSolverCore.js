@@ -25,8 +25,10 @@ const BIDIRECTIONAL_BACKWARD_DEPTH = 4;
 // args are the genuinely-positional "what to solve"). This keeps call sites from
 // re-spelling a long boolean/numeric sequence by hand — in particular it makes the
 // two caps (maxStatesPerLevel = BFS beam width, maxStates = global state ceiling)
-// impossible to swap silently. Every knob has a default here so callers pass only
-// what differs from the app's typical non-orientation-sensitive, no-prevent-waste
+// impossible to swap silently. A third budget — Constructive's per-node A*
+// nodeBudget — lives only on solveConstructive and must never be aliased to
+// either of these. Every knob has a default here so callers pass only what
+// differs from the app's typical non-orientation-sensitive, no-prevent-waste
 // A* solve.
 export async function shapeSolver(
     targetShapeCode,

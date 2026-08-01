@@ -13,7 +13,13 @@
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { invalidPathSteps, invalidPathIds, pathReachesTarget } from '../shared/pathValidation.js';
+import {
+    invalidPathSteps,
+    invalidPathIds,
+    pathReachesTarget,
+    invalidDisallowedOps,
+    pathInventoryAcceptable,
+} from '../shared/pathValidation.js';
 
 const DEFAULT_STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
 const ALL_OPS = Object.keys(operations);
@@ -28,13 +34,18 @@ function assert(name, cond, detail) {
 
 // The three gates, each reported with the shared validator's own reasons so a
 // failure names the offending step rather than just flipping a boolean.
-function assertPathIsBuildable(label, path, target) {
+// When `ops` is given, also reject any step outside that enabled set.
+function assertPathIsBuildable(label, path, target, { ops } = {}) {
     const badSteps = invalidPathSteps(path, cfg);
     assert(`${label} every step is a real op`, badSteps.length === 0, badSteps.join(' | '));
     const badIds = invalidPathIds(path, { starts: DEFAULT_STARTS });
     assert(`${label} id flow is buildable (single-consume)`, badIds.length === 0, badIds.join(' | '));
     assert(`${label} final inventory holds the target`,
         pathReachesTarget(path, target, { starts: DEFAULT_STARTS, config: cfg }));
+    if (ops) {
+        const badOps = invalidDisallowedOps(path, ops);
+        assert(`${label} only uses enabled ops`, badOps.length === 0, badOps.join(' | '));
+    }
 }
 
 async function run() {
@@ -123,11 +134,65 @@ async function run() {
         const noSplit = ALL_OPS.filter((op) => op !== 'Belt Split');
         const r = await solveConstructive('CuRu----:CuRu----', DEFAULT_STARTS, noSplit, { maxLayers: 4 });
         assert('CuRu----:CuRu---- (no Belt Split) solved', !!r.solutionPath);
-        assertPathIsBuildable('CuRu----:CuRu---- (no Belt Split)', r.solutionPath, 'CuRu----:CuRu----');
+        assertPathIsBuildable('CuRu----:CuRu---- (no Belt Split)', r.solutionPath, 'CuRu----:CuRu----', { ops: noSplit });
         assert('CuRu----:CuRu---- (no Belt Split) emits no disabled op',
             !r.solutionPath.some((s) => !noSplit.includes(s.operation)));
         assert('CuRu----:CuRu---- (no Belt Split) re-builds the shared piece',
             r.solutionPath.filter((s) => s.operation === 'Stacker').length === 3);
+    }
+
+    // --- Stacker DISABLED: assembly is a left-fold of Stacker, so decomposition
+    // must not emit Stacker when the user excluded it. Multi-distinct-quadrant
+    // targets that need stacking therefore fail cleanly (null path) rather than
+    // shipping an illegal op that pathValidation's core gates would still accept.
+    {
+        const noStacker = ALL_OPS.filter((op) => op !== 'Stacker');
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, noStacker, { maxLayers: 4 });
+        if (r.solutionPath) {
+            assertPathIsBuildable('CuRuSuWu (no Stacker)', r.solutionPath, 'CuRuSuWu', { ops: noStacker });
+            assert('CuRuSuWu (no Stacker) emits no Stacker',
+                !r.solutionPath.some((s) => s.operation === 'Stacker'));
+        } else {
+            assert('CuRuSuWu (no Stacker) fails without emitting Stacker', r.solutionPath === null);
+        }
+    }
+
+    // --- preventWaste: true on a decomposing multi-quadrant target. Sub-piece
+    // searches leave cut leftovers; the top-level path must either trash them
+    // (Trash enabled) so every final inventory code is an acceptable rotation of
+    // the target, or fail. pathReachesTarget alone is not enough — it only asks
+    // that the target is *among* leftovers.
+    {
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, {
+            maxLayers: 4, preventWaste: true,
+        });
+        assert('CuRuSuWu (preventWaste) solved', !!r.solutionPath);
+        if (r.solutionPath) {
+            assertPathIsBuildable('CuRuSuWu (preventWaste)', r.solutionPath, 'CuRuSuWu', { ops: ALL_OPS });
+            assert('CuRuSuWu (preventWaste) inventory is waste-free',
+                pathInventoryAcceptable(r.solutionPath, 'CuRuSuWu', {
+                    starts: DEFAULT_STARTS, config: cfg,
+                }));
+        }
+    }
+
+    // preventWaste without Trash: leftover cut byproducts cannot be removed, so
+    // a decomposing solve must not claim success with a dirty inventory.
+    {
+        const noTrash = ALL_OPS.filter((op) => op !== 'Trash');
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, noTrash, {
+            maxLayers: 4, preventWaste: true,
+        });
+        if (r.solutionPath) {
+            assertPathIsBuildable('CuRuSuWu (preventWaste, no Trash)', r.solutionPath, 'CuRuSuWu', { ops: noTrash });
+            assert('CuRuSuWu (preventWaste, no Trash) inventory is waste-free',
+                pathInventoryAcceptable(r.solutionPath, 'CuRuSuWu', {
+                    starts: DEFAULT_STARTS, config: cfg,
+                }));
+        } else {
+            assert('CuRuSuWu (preventWaste, no Trash) fails rather than leave waste',
+                r.solutionPath === null);
+        }
     }
 
     // --- cancellation returns a null path ------------------------------------

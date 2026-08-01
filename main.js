@@ -354,7 +354,11 @@ byId('solve-btn').addEventListener('click', () => {
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
 
     const maxLayers = parseInt(byId('max-layers').value) || 4;
-    const maxStatesPerLevel = parseInt(byId('max-states-per-level').value) || 1000;
+    // Shared numeric control drives two distinct payload fields by method:
+    // maxStatesPerLevel (BFS beam width) vs nodeBudget (Constructive per-node
+    // A* cap). Never call this "Max States" — that name is the third budget,
+    // maxStates (global ceiling), which the browser leaves uncapped.
+    const budgetInput = parseInt(byId('max-states-per-level').value) || 1000;
     const preventWaste = byId('prevent-waste').checked;
     const orientationSensitive = byId('orientation-sensitive').checked;
     const monolayerPainting = byId('monolayer-painting').checked;
@@ -397,7 +401,9 @@ byId('solve-btn').addEventListener('click', () => {
             startingShapeCodes: starting,
             enabledOperations: ops,
             maxLayers,
-            maxStatesPerLevel,
+            // Distinct identifiers end-to-end (see shapeSolver.js worker comment).
+            maxStatesPerLevel: budgetInput,
+            nodeBudget: budgetInput,
             preventWaste,
             orientationSensitive,
             monolayerPainting,
@@ -494,19 +500,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Search method toggle: A*/IDA*/Bidirectional use the heuristic divisor;
-    // BFS uses the Max States cap; Constructive reuses Max States as its per-node
-    // search budget and has no heuristic divisor.
+    // BFS shows beam width (maxStatesPerLevel); Constructive shows its per-node
+    // A* budget (nodeBudget). Same DOM input, two payload keys — not the global
+    // maxStates ceiling (browser stays uncapped and relies on Cancel).
     byId('search-method-select').addEventListener('change', (e) => {
         const method = e.target.value;
         const heuristicGroup = byId('heuristic-divisor').closest('.option-group');
-        const maxStatesGroup = byId('max-states-per-level').closest('.option-group');
+        const budgetGroup = byId('max-states-per-level').closest('.option-group');
         const usesHeuristic = method === 'A*' || method === 'IDA*' || method === 'Bidirectional';
-        const usesMaxStates = method === 'BFS' || method === 'Constructive';
+        const usesBudgetControl = method === 'BFS' || method === 'Constructive';
         heuristicGroup.style.display = usesHeuristic ? 'block' : 'none';
-        maxStatesGroup.style.display = usesMaxStates ? 'block' : 'none';
-        // Same input drives two distinct concepts: BFS beam width vs. the
-        // Constructive per-node search budget. Label it for the active method.
-        maxStatesGroup.querySelector('label').textContent =
+        budgetGroup.style.display = usesBudgetControl ? 'block' : 'none';
+        // Same input, two concepts: BFS beam width vs Constructive nodeBudget.
+        budgetGroup.querySelector('label').textContent =
             method === 'Constructive' ? 'Node Search Budget' : 'Max States Per Level';
     });
 

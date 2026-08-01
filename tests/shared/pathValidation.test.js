@@ -14,7 +14,9 @@ import {
     invalidExplorerEdges,
     pathIsValid,
     simulateFinalInventory,
-    pathReachesTarget
+    pathReachesTarget,
+    invalidDisallowedOps,
+    pathInventoryAcceptable,
 } from './pathValidation.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
 
@@ -171,6 +173,35 @@ check('explore: fabricated output edge is rejected',
     invalidExplorerEdges(fabricatedExploreOut, cfg).length === 1);
 check('explore: null graph has no invalid edges',
     invalidExplorerEdges(null, cfg).length === 0);
+
+// --- invalidDisallowedOps: enabled-ops subset --------------------------------
+check('opsAllowed: path using only listed ops passes',
+    invalidDisallowedOps([CUT, STACK], ['Cutter', 'Stacker']).length === 0);
+check('opsAllowed: a disabled Stacker is rejected',
+    invalidDisallowedOps([CUT, STACK], ['Cutter']).length === 1);
+check('opsAllowed: null path has no disallowed ops',
+    invalidDisallowedOps(null, ['Cutter']).length === 0);
+
+// --- pathInventoryAcceptable: preventWaste cleanliness -----------------------
+// Symmetric CuCuCuCu halves are rotations of each other, so use an asymmetric
+// cut: CuRu---- is the target and ----SuWu is genuine waste.
+const CUT_ASYM = step('Cutter', [io(0, 'CuRuSuWu')], [io(2, '----SuWu'), io(3, 'CuRu----')]);
+check('inventoryAcceptable: leftovers that are not the target fail',
+    !pathInventoryAcceptable([CUT_ASYM], 'CuRu----', { config: cfg, starts: ['CuRuSuWu'] }));
+check('inventoryAcceptable: trashing the waste half leaves only the target',
+    pathInventoryAcceptable(
+        [CUT_ASYM, step('Trash', [io(2, '----SuWu')], [])],
+        'CuRu----', { config: cfg, starts: ['CuRuSuWu'] }));
+// pathReachesTarget still passes when waste remains — that is the gap this gate closes.
+check('inventoryAcceptable: reaches-target alone is not waste-free',
+    pathReachesTarget([CUT_ASYM], 'CuRu----', { config: cfg, starts: ['CuRuSuWu'] })
+    && !pathInventoryAcceptable([CUT_ASYM], 'CuRu----', { config: cfg, starts: ['CuRuSuWu'] }));
+check('inventoryAcceptable: null path is not waste-free',
+    !pathInventoryAcceptable(null, 'CuCuCuCu', { config: cfg, starts: STARTS }));
+check('inventoryAcceptable: zero-op succeeds when every start is the target',
+    pathInventoryAcceptable([], 'CuCuCuCu', { config: cfg, starts: ['CuCuCuCu'] }));
+check('inventoryAcceptable: zero-op fails when an extra non-target start remains',
+    !pathInventoryAcceptable([], 'CuCuCuCu', { config: cfg, starts: STARTS }));
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

@@ -247,3 +247,45 @@ export function pathReachesTarget(path, target, { starts, config, orientationSen
     if (path.length === 0) return starts ? starts.some(code => acceptable.has(code)) : false;
     return simulateFinalInventory(path).some(code => acceptable.has(code));
 }
+
+// ---------------------------------------------------------------------------
+// Enabled-ops + preventWaste inventory gates
+// ---------------------------------------------------------------------------
+// pathValidation's three core gates check physical constructibility, not the
+// caller's option flags. These helpers close that gap for harnesses that care:
+// a path must only use ops the user enabled, and under preventWaste every
+// leftover inventory code must be an acceptable form of the target.
+
+// Ops present in the path but absent from the allowed list. Empty ⇒ every step
+// is in the enabled set. A null/absent path yields no failures (callers gate
+// presence separately). Unknown/typo ops in the path also show up here when
+// they are not in `allowedOps`.
+export function invalidDisallowedOps(path, allowedOps) {
+    if (!path) return [];
+    const allowed = new Set(allowedOps);
+    const bad = [];
+    for (let i = 0; i < path.length; i++) {
+        const op = path[i].operation;
+        if (!allowed.has(op)) bad.push(`step ${i}: disallowed op ${op}`);
+    }
+    return bad;
+}
+
+// preventWaste cleanliness: every code in the final inventory is an acceptable
+// form of the target (any rotation unless orientationSensitive). Distinct from
+// pathReachesTarget, which only requires the target to be *among* the leftovers.
+// A null path is not waste-free. Zero-op paths succeed iff every start (when
+// provided) is acceptable — without starts, only an empty inventory would pass,
+// and a zero-op path has no inventory to simulate, so starts are required.
+export function pathInventoryAcceptable(path, target, { starts, config, orientationSensitive = false } = {}) {
+    if (!path) return false;
+    const cfg = config || new ShapeOperationConfig();
+    const acceptable = orientationSensitive
+        ? new Set([target])
+        : getAllRotations(Shape.fromShapeCode(target), cfg);
+    if (path.length === 0) {
+        if (!starts) return false;
+        return starts.every(code => acceptable.has(code));
+    }
+    return simulateFinalInventory(path).every(code => acceptable.has(code));
+}
