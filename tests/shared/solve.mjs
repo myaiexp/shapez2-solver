@@ -34,7 +34,7 @@ import { operations } from '../../shapeSolverOperations.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { validateStep, invalidPathIds, pathReachesTarget } from './pathValidation.js';
+import { validateStep, validateExplorerEdges, invalidPathIds, pathReachesTarget } from './pathValidation.js';
 
 function parseArgs(argv) {
     const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
@@ -75,20 +75,8 @@ const shouldCancel = () => Date.now() > deadline;
 if (opts.explore != null) {
     const g = await shapeExplorer(starting, ops, opts.explore, opts.maxLayers, shouldCancel, () => {});
     if (!g) { console.error('explore: cancelled/timed out'); process.exit(2); }
-    const codeOf = new Map(g.shapes.map(s => [s.id, s.code]));
-    const inputs = new Map(), outputs = new Map();
-    for (const e of g.edges) {
-        if (e.target.startsWith('op-')) (inputs.get(e.target) || inputs.set(e.target, []).get(e.target)).push(e.source);
-        else if (e.source.startsWith('op-')) (outputs.get(e.source) || outputs.set(e.source, []).get(e.source)).push(e.target);
-    }
-    let bad = 0;
-    const edgeReports = g.ops.map(o => {
-        const inCodes = (inputs.get(o.id) || []).map(id => codeOf.get(id));
-        const outCodes = (outputs.get(o.id) || []).map(id => codeOf.get(id));
-        const v = validateStep(o.type, inCodes, outCodes, o.params?.color, opConfig);
-        if (!v.valid) bad++;
-        return { op: o.type, inputs: inCodes, outputs: outCodes, valid: v.valid, reason: v.reason };
-    });
+    const edgeReports = validateExplorerEdges(g, opConfig);
+    const bad = edgeReports.filter((r) => !r.valid).length;
     if (opts.json) {
         console.log(JSON.stringify({ shapes: g.shapes.length, ops: g.ops.length, invalid: bad, edges: edgeReports }, null, 2));
     } else {

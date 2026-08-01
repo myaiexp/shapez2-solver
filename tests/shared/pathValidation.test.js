@@ -11,6 +11,7 @@ import {
     orderedSubsequenceFailure,
     invalidPathSteps,
     invalidPathIds,
+    invalidExplorerEdges,
     pathIsValid,
     simulateFinalInventory,
     pathReachesTarget
@@ -135,6 +136,41 @@ check('goal: zero-op path stays strict when starts are unknown',
     !pathReachesTarget([], 'CuCuCuCu', { config: cfg }));
 check('valid: a zero-op path is trivially valid (nothing to replay)',
     pathIsValid([], cfg, { starts: STARTS }));
+
+// --- invalidExplorerEdges: explorer graph op replay -------------------------
+// Hand-built graph mirrors explorer wire shape: shape-* / op-* ids + edges.
+const realExploreCut = {
+    shapes: [
+        { id: 'shape-0', code: 'CuCuCuCu' },
+        { id: 'shape-1', code: '----CuCu' },
+        { id: 'shape-2', code: 'CuCu----' },
+    ],
+    ops: [{ id: 'op-0', type: 'Cutter', params: {} }],
+    edges: [
+        { source: 'shape-0', target: 'op-0' },
+        { source: 'op-0', target: 'shape-1' },
+        { source: 'op-0', target: 'shape-2' },
+    ],
+};
+check('explore: a real cut graph has no invalid edges',
+    invalidExplorerEdges(realExploreCut, cfg).length === 0,
+    invalidExplorerEdges(realExploreCut, cfg).join(' | '));
+
+const fabricatedExploreOut = {
+    shapes: [
+        { id: 'shape-0', code: 'CuCuCuCu' },
+        { id: 'shape-1', code: 'RuRuRuRu' },
+    ],
+    ops: [{ id: 'op-0', type: 'Cutter', params: {} }],
+    edges: [
+        { source: 'shape-0', target: 'op-0' },
+        { source: 'op-0', target: 'shape-1' },
+    ],
+};
+check('explore: fabricated output edge is rejected',
+    invalidExplorerEdges(fabricatedExploreOut, cfg).length === 1);
+check('explore: null graph has no invalid edges',
+    invalidExplorerEdges(null, cfg).length === 0);
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

@@ -8,7 +8,7 @@ import { getSimilarity } from './similarity.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
-import { invalidPathSteps, invalidPathIds, pathReachesTarget } from './pathValidation.js';
+import { invalidPathSteps, invalidPathIds, pathReachesTarget, invalidExplorerEdges } from './pathValidation.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -190,6 +190,16 @@ for (const fixture of EXPLORER_FIXTURES) {
         () => false,
         () => {}
     );
+    // Structural snapshots alone miss wrong expand/prune that preserves counts.
+    // Re-validate every edge as a real op (same gate as solve.mjs --explore).
+    const edgeConfig = new ShapeOperationConfig(fixture.maxLayers ?? 4);
+    const badEdges = invalidExplorerEdges(graph, edgeConfig);
+    if (badEdges.length) {
+        console.log(`\u2717 ${key} \u2014 ${badEdges.length} invalid edge(s):`);
+        for (const msg of badEdges) console.log(`    ${msg}`);
+        failed = true;
+        continue;
+    }
     const actual = {
         shapeCount: graph?.shapes?.length ?? null,
         opCount: graph?.ops?.length ?? null,

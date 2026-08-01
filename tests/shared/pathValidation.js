@@ -8,10 +8,13 @@
 // and solverStateCap.test.js so the path-integrity gate can't drift between the
 // four (e.g. one passing an op config while the others silently don't).
 //
-// Three independent gates live here, and a path must clear all of them:
+// Three independent gates live here for solver paths, and a path must clear all:
 //   1. invalidPathSteps — every step is a real op on its claimed inputs
 //   2. invalidPathIds   — the id bookkeeping is physical (single-consume)
 //   3. pathReachesTarget — the final inventory actually holds the target
+//
+// Explorer graphs use validateExplorerEdges / invalidExplorerEdges: rebuild each
+// op's in/out codes from edges and re-run the real operation (smoke + solve.mjs).
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { getAllRotations } from '../../shapeRotation.js';
@@ -89,6 +92,43 @@ export function invalidPathSteps(path, config) {
         if (reason) bad.push(`${step.operation}: ${inputs.join('+')} -> ${reason} (got ${produced.join(',')})`);
     }
     return bad;
+}
+
+// ---------------------------------------------------------------------------
+// Explorer graph edge validation — same op gate, different wire shape
+// ---------------------------------------------------------------------------
+// The space explorer returns { shapes, ops, edges }, not a solution path. Rebuild
+// each op's claimed input/output codes from the edge list and re-run the real
+// operation so a wrong expand/prune that keeps the same node/edge counts still
+// fails CI. Empty (`--------`) outputs stay: the explorer keeps them as nodes
+// and they remain a subsequence of what the op produces.
+
+// Per-op reports for solve.mjs --json / detailed CLI output.
+export function validateExplorerEdges(graph, config) {
+    if (!graph?.ops) return [];
+    const codeOf = new Map((graph.shapes || []).map((s) => [s.id, s.code]));
+    const inputs = new Map();
+    const outputs = new Map();
+    for (const e of graph.edges || []) {
+        if (e.target.startsWith('op-')) {
+            (inputs.get(e.target) || inputs.set(e.target, []).get(e.target)).push(e.source);
+        } else if (e.source.startsWith('op-')) {
+            (outputs.get(e.source) || outputs.set(e.source, []).get(e.source)).push(e.target);
+        }
+    }
+    return graph.ops.map((o) => {
+        const inCodes = (inputs.get(o.id) || []).map((id) => codeOf.get(id));
+        const outCodes = (outputs.get(o.id) || []).map((id) => codeOf.get(id));
+        const v = validateStep(o.type, inCodes, outCodes, o.params?.color, config);
+        return { op: o.type, inputs: inCodes, outputs: outCodes, valid: v.valid, reason: v.reason };
+    });
+}
+
+// Human-readable failures for smoke — empty ⇒ every explorer edge is a real op.
+export function invalidExplorerEdges(graph, config) {
+    return validateExplorerEdges(graph, config)
+        .filter((r) => !r.valid)
+        .map((r) => `${r.op}: ${r.inputs.join('+')} -> ${r.reason}`);
 }
 
 // ---------------------------------------------------------------------------

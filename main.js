@@ -224,6 +224,10 @@ let solverWorker = null;
 // would silently mis-route clicks). Tracking ownership here also lets a new job
 // reset the OTHER action's button.
 let activeJob = null;
+// Monotonic generation for the shared worker slot. finishJob() bumps it so any
+// already-queued main-thread message from a terminated worker is ignored even
+// if its handler still runs after cancel/replace (classic multi-job race).
+let jobGeneration = 0;
 
 // True while `btn` owns the worker, i.e. a click on it means "cancel", not "start".
 const isJobRunning = (btn) => activeJob?.btn === btn;
@@ -233,11 +237,19 @@ const isJobRunning = (btn) => activeJob?.btn === btn;
 // AND before starting a new job — so starting Explore mid-Solve (or vice versa)
 // can never leave the other button stuck on 'Cancel'.
 function finishJob() {
+    // Invalidate first so a message already scheduled for this turn cannot land
+    // after teardown and clobber status / graph / persisted solution.
+    jobGeneration += 1;
     if (activeJob) {
         activeJob.btn.textContent = activeJob.idleLabel;
         activeJob = null;
     }
     if (solverWorker) {
+        // Drop handlers before terminate so a late event has no listener to run
+        // (generation still guards the case where a callback was already queued).
+        solverWorker.onmessage = null;
+        solverWorker.onerror = null;
+        solverWorker.onmessageerror = null;
         solverWorker.terminate();
         solverWorker = null;
     }
@@ -251,6 +263,17 @@ function cancelActiveJob() {
     byId('status').textContent = 'Cancelled.';
 }
 
+// Clear flowchart + blueprint presentation for a failed/aborted solve so status,
+// graph, blueprint, and lastSolution stay consistent (and reRenderGraph is a no-op).
+function clearSolutionPresentation() {
+    renderGraph(null);
+    currentBlueprintLayout = null;
+    if (blueprintRenderer) {
+        blueprintRenderer.setLayout(null);
+    }
+    lastSolution = null;
+}
+
 // Starts a job — never cancels one. Callers guard with isJobRunning() and route
 // cancel clicks to cancelActiveJob() before gathering any inputs.
 function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
@@ -260,10 +283,15 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
     // action, since a click on this btn while it owns the worker was routed to
     // cancelActiveJob) and kills its worker before we spin up a fresh one.
     finishJob();
+    // Capture after finishJob so this job owns the post-teardown generation.
+    const jobId = jobGeneration;
+    const isCurrent = () => jobId === jobGeneration;
+
     solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
     activeJob = { btn, idleLabel };
 
     solverWorker.onmessage = ({ data: msg }) => {
+        if (!isCurrent()) return;
         const { type, message, result } = msg;
 
         if (type === 'status') {
@@ -280,11 +308,13 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
         if (type === 'result') {
             try {
                 onResult(result);
-                if (persistOnComplete) persist();
+                // Re-check after onResult: a nested cancel during the callback
+                // (unlikely but cheap) must not persist a superseded solution.
+                if (persistOnComplete && isCurrent()) persist();
             } catch (err) {
-                status.textContent = `Error: ${err.message}`;
+                if (isCurrent()) status.textContent = `Error: ${err.message}`;
             } finally {
-                finishJob();
+                if (isCurrent()) finishJob();
             }
         }
     };
@@ -292,10 +322,12 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
     // A worker that throws before posting a terminal message (onerror) or sends
     // an undeserializable one (onmessageerror) still has to release the UI.
     solverWorker.onerror = (e) => {
+        if (!isCurrent()) return;
         status.textContent = `Error: ${e.message || 'worker crashed'}`;
         finishJob();
     };
     solverWorker.onmessageerror = () => {
+        if (!isCurrent()) return;
         status.textContent = 'Error: worker sent an unreadable message.';
         finishJob();
     };
@@ -397,11 +429,10 @@ byId('solve-btn').addEventListener('click', () => {
                     solveTimeSec: t,
                 };
             } else {
-                currentBlueprintLayout = null;
+                clearSolutionPresentation();
                 status.textContent = result?.aborted === 'maxStates'
                     ? `No solution found — search hit the state limit (${result.statesExplored} states). Try BFS, a larger heuristic divisor, or a simpler target.`
                     : 'No solution found.';
-                lastSolution = null;
             }
         }
     });

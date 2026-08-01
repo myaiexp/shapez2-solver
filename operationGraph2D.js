@@ -101,6 +101,12 @@ function buildGraph2DLayout(direction, extra = {}) {
     };
 }
 
+// Drop the cached path so reRenderGraph (edge-style changes) cannot revive a
+// graph the UI has already cleared — failed solves and Explore both need this.
+export function clearLastSolutionPath() {
+    lastSolutionPath = null;
+}
+
 export function renderGraph(solutionPath) {
     const container = document.getElementById('graph-container');
     container.replaceChildren();
@@ -108,7 +114,13 @@ export function renderGraph(solutionPath) {
     destroy2DGraph();
     destroySpaceGraph();
 
-    if (!solutionPath || solutionPath.length === 0) return;
+    // Always update the cache, including null/empty clears. The early return
+    // used to leave lastSolutionPath pointing at the prior success, so status
+    // could say "no solution" while edge-style re-renders drew the old chain.
+    if (!solutionPath || solutionPath.length === 0) {
+        lastSolutionPath = null;
+        return;
+    }
 
     lastSolutionPath = solutionPath;
 

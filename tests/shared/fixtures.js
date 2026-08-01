@@ -181,6 +181,16 @@ export const EXPLORER_FIXTURES = [
         depthLimit: 2,
         maxLayers: 4,
     },
+    // Multi-layer complementary-half cut: over-pruning that drops one half (or
+    // the whole cut) changes counts and fails edge validation. Mirrors the
+    // expandUnaryOp unit coverage with an end-to-end explorer fixture.
+    {
+        name: 'multilayer-complementary-cut',
+        starting: ['CuCu----:----SuSu'],
+        ops: ['Cutter'],
+        depthLimit: 1,
+        maxLayers: 4,
+    },
 ];
 
 // Hand-written solution paths that buildLayout / smoke consume. Every path must

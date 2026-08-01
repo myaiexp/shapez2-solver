@@ -1,5 +1,6 @@
 import { createShapeCanvas } from './shapeRendering.js';
 import { setGraph3dInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
+import { clearLastSolutionPath } from './operationGraph2D.js';
 
 function makeNodeSprite(image, scale) {
     const tex = new THREE.TextureLoader().load(image, t => { t.colorSpace = THREE.SRGBColorSpace; t.premultiplyAlpha = false; });
@@ -16,6 +17,9 @@ export function renderSpaceGraph(graph) {
 
     destroySpaceGraph();
     destroy2DGraph();
+    // Explore replaces the flowchart view; forget the prior solve path so an
+    // edge-style change cannot reRenderGraph the old 2D chain over the space graph.
+    clearLastSolutionPath();
 
     if (!graph) return;
 

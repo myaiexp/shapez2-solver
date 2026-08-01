@@ -113,5 +113,10 @@
   "Solver: already-solved": {
     "numOps": 0,
     "depth": 0
+  },
+  "Explorer: multilayer-complementary-cut": {
+    "shapeCount": 3,
+    "opCount": 1,
+    "edgeCount": 3
   }
 }
