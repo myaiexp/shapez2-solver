@@ -11,7 +11,8 @@
 // spurious search (or a null "no solution").
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { operations } from '../../shapeSolverOperations.js';
-import { Shape } from '../../shapeClass.js';
+import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
+import { pathInventoryAcceptable, pathReachesTarget } from '../shared/pathValidation.js';
 
 let passed = 0;
 let total = 0;
@@ -82,6 +83,29 @@ for (const method of METHODS) {
 {
     const res = await solve('CuRuSuWu', ['CuRuSuWu'], { method: 'A*', orientationSensitive: true });
     assertAlreadySolved('A* exact-equals (orientation-sensitive)', res);
+}
+
+// --- Case E: preventWaste + target already among starts (finding #6416) ------
+// With extra non-target starts on hand, preventWaste must Trash them and keep
+// the target. The path typically never names the target start as an input;
+// inventory simulation seeds starts so the final inventory still holds it.
+{
+    const res = await solve('CuCuCuCu', ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'], {
+        method: 'A*', preventWaste: true,
+    });
+    check('preventWaste target∈starts: returns a result', res != null);
+    check('preventWaste target∈starts: solves', res != null && Array.isArray(res.solutionPath));
+    check('preventWaste target∈starts: not aborted', res != null && !res.aborted);
+    check('preventWaste target∈starts: path has Trash for waste',
+        res != null && Array.isArray(res.solutionPath)
+        && res.solutionPath.some((s) => s.operation === 'Trash'));
+    // Final inventory gate (shared with Constructive) must pass when starts are seeded.
+    const cfg = new ShapeOperationConfig(4);
+    const starts = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
+    check('preventWaste target∈starts: final inventory holds target',
+        res != null && pathReachesTarget(res.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
+    check('preventWaste target∈starts: inventory is waste-free',
+        res != null && pathInventoryAcceptable(res.solutionPath, 'CuCuCuCu', { starts, config: cfg }));
 }
 
 console.log(`[${passed}/${total} passed]`);

@@ -201,6 +201,27 @@ async function run() {
         }
     }
 
+    // --- preventWaste + target already in starts (finding #6416) --------------
+    // Core finds a Trash/stack path that never touches the target start id; inventory
+    // simulation must seed unused starts or pathHoldsTarget false-rejects with
+    // aborted:'no-decomposition' after a successful direct-search.
+    {
+        const r = await solveConstructive('CuCuCuCu', DEFAULT_STARTS, ALL_OPS, {
+            maxLayers: 4, preventWaste: true,
+        });
+        assert('CuCuCuCu (preventWaste, target∈starts) solved', !!r.solutionPath,
+            `aborted=${r.aborted}`);
+        if (r.solutionPath) {
+            assertPathIsBuildable('CuCuCuCu (preventWaste, target∈starts)', r.solutionPath, 'CuCuCuCu', {
+                ops: ALL_OPS,
+            });
+            assert('CuCuCuCu (preventWaste, target∈starts) inventory is waste-free',
+                pathInventoryAcceptable(r.solutionPath, 'CuCuCuCu', {
+                    starts: DEFAULT_STARTS, config: cfg,
+                }));
+        }
+    }
+
     // preventWaste without Trash: leftover cut byproducts cannot be removed, so
     // a decomposing solve must not claim success with a dirty inventory. When it
     // fails, aborted is 'preventWaste' (not 'no-decomposition') — a plan tree

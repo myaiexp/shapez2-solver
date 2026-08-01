@@ -51,6 +51,10 @@ for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
     check(`${method}: hard target reports aborted='maxStates'`, res && res.aborted === 'maxStates');
     check(`${method}: distinct-state metric stayed near the cap`,
         res && typeof res.statesExplored === 'number' && res.statesExplored <= CAP + CAP_SLOP);
+    // statesExplored is the distinct-key count (same unit as maxStates) for every
+    // method — A*/Bidirectional used to report node expansions instead (#6422).
+    check(`${method}: statesExplored is at least the cap floor (distinct keys)`,
+        res && typeof res.statesExplored === 'number' && res.statesExplored >= CAP);
 }
 
 // --- The cap does not break normal solving: a reachable target still solves

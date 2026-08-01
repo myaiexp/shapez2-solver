@@ -307,12 +307,14 @@ export async function solveConstructive(
     // a piece); only the top-level path must be clean. Returns null when waste
     // remains and Trash is disabled — the plan is then not a valid preventWaste
     // solution. Inventory walk is the shared production helper (pathInventory)
-    // so harness pathInventoryAcceptable cannot drift from this scrub.
+    // so harness pathInventoryAcceptable cannot drift from this scrub. Starts
+    // are seeded so unused non-target starts are trashed too (core's preventWaste
+    // contract), not silently dropped as "invisible" leftovers.
     function scrubPreventWaste(path) {
         const acceptable = orientationSensitive
             ? new Set([targetShapeCode])
             : rotationsOf(targetShapeCode);
-        const inventory = simulateFinalInventoryMap(path);
+        const inventory = simulateFinalInventoryMap(path, { starts: startingShapeCodes });
 
         const cleaned = path.slice();
         for (const [id, code] of inventory) {
@@ -331,6 +333,8 @@ export async function solveConstructive(
     // Defense in depth: final inventory must hold the target (any rotation when
     // not orientation-sensitive). Catches any assembly/id bug that slipped past
     // stackProduct rejection (which only checks the Plan tree, not the flat path).
+    // Seed starts so a target that is an unused start (never a step input) still
+    // counts — the usual preventWaste path that only Trashes byproducts.
     function pathHoldsTarget(path) {
         const acceptable = orientationSensitive
             ? new Set([targetShapeCode])
@@ -338,7 +342,7 @@ export async function solveConstructive(
         if (path.length === 0) {
             return startingShapeCodes.some((c) => acceptable.has(c));
         }
-        for (const code of simulateFinalInventoryMap(path).values()) {
+        for (const code of simulateFinalInventoryMap(path, { starts: startingShapeCodes }).values()) {
             if (acceptable.has(code)) return true;
         }
         return false;

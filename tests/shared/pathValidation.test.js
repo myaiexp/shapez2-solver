@@ -111,6 +111,14 @@ check('inventory: consumed inputs leave, outputs stay',
     JSON.stringify(simulateFinalInventory([CUT, STACK])) === JSON.stringify(['----CuCu', 'RuRuRuRu:CuCu----']));
 check('inventory: a trashed product is gone',
     JSON.stringify(simulateFinalInventory([CUT, step('Trash', [io(3, 'CuCu----')], [])])) === JSON.stringify(['----CuCu']));
+// Unused starts never appear as step inputs — seed them via `starts` so preventWaste
+// Trash-only paths still see the target (and leftover non-targets) on hand (#6416).
+const TRASH_RU = step('Trash', [io(1, 'RuRuRuRu')], []);
+check('inventory: unused start is seeded when starts are given',
+    JSON.stringify(simulateFinalInventory([TRASH_RU], { starts: STARTS }).sort())
+    === JSON.stringify(['CuCuCuCu']));
+check('inventory: without starts, unused start is invisible',
+    JSON.stringify(simulateFinalInventory([TRASH_RU])) === JSON.stringify([]));
 
 // --- pathReachesTarget: the goal gate ----------------------------------------
 check('goal: the assembled target is found',
@@ -126,6 +134,11 @@ check('goal: a target that was built and then trashed is not reached',
         'RuRuRuRu:CuCu----', { config: cfg, starts: STARTS }));
 check('goal: a null path never reaches the target',
     !pathReachesTarget(null, 'CuCuCuCu', { config: cfg, starts: STARTS }));
+// preventWaste path that only Trashes non-target starts — target is unused start id 0.
+check('goal: unused target start still counts when starts are seeded',
+    pathReachesTarget([TRASH_RU], 'CuCuCuCu', { config: cfg, starts: STARTS }));
+check('goal: unused target start is missed without starts seed',
+    !pathReachesTarget([TRASH_RU], 'CuCuCuCu', { config: cfg }));
 
 // The already-solved contract: zero ops IS the solution when a start matches.
 check('goal: zero-op path succeeds when a start is the target',
@@ -202,6 +215,24 @@ check('inventoryAcceptable: zero-op succeeds when every start is the target',
     pathInventoryAcceptable([], 'CuCuCuCu', { config: cfg, starts: ['CuCuCuCu'] }));
 check('inventoryAcceptable: zero-op fails when an extra non-target start remains',
     !pathInventoryAcceptable([], 'CuCuCuCu', { config: cfg, starts: STARTS }));
+// Empty inventory must not pass via [].every() — trashing the only leftover is not success.
+check('inventoryAcceptable: empty final inventory is not waste-free',
+    !pathInventoryAcceptable(
+        [step('Trash', [io(0, 'CuCuCuCu')], [])],
+        'CuCuCuCu', { config: cfg, starts: ['CuCuCuCu'] }));
+// Trash only the non-target start; unused target start remains → clean.
+check('inventoryAcceptable: unused target start + trashed waste is clean',
+    pathInventoryAcceptable([TRASH_RU], 'CuCuCuCu', { config: cfg, starts: STARTS }));
+// Cut keeps CuCu---- as target and trashes the other half — without seeding starts,
+// unused RuRuRuRu is invisible and the path looks clean; with starts it fails (#6416).
+const CUT_KEEP_LEFT = step('Cutter', [io(0, 'CuCuCuCu')], [io(2, '----CuCu'), io(3, 'CuCu----')]);
+const TRASH_RIGHT_HALF = step('Trash', [io(2, '----CuCu')], []);
+check('inventoryAcceptable: without starts, unused non-target start is invisible (false-clean)',
+    pathInventoryAcceptable([CUT_KEEP_LEFT, TRASH_RIGHT_HALF], 'CuCu----', { config: cfg }));
+check('inventoryAcceptable: with starts, unused non-target start fails cleanliness',
+    !pathInventoryAcceptable([CUT_KEEP_LEFT, TRASH_RIGHT_HALF], 'CuCu----', {
+        config: cfg, starts: STARTS,
+    }));
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

@@ -209,10 +209,11 @@ export function pathIsValid(path, config, { starts } = {}) {
 // Replay a solution path's id bookkeeping to recover the shapes still on hand
 // after the last step. Codes-only view over the production Map core in
 // pathInventory.js — Constructive scrubPreventWaste uses the same Map so
-// preventWaste Trash emission and this harness gate cannot drift.
-export function simulateFinalInventory(path) {
+// preventWaste Trash emission and this harness gate cannot drift. Pass `starts`
+// so unused starting shapes remain visible (core start ids are 0..n-1).
+export function simulateFinalInventory(path, { starts } = {}) {
     if (!path) return [];
-    return Array.from(simulateFinalInventoryMap(path).values());
+    return Array.from(simulateFinalInventoryMap(path, { starts }).values());
 }
 
 // Re-export the Map form so harnesses that need id→code (or callers comparing
@@ -230,13 +231,15 @@ export { simulateFinalInventoryMap };
 // the starting set, which only the caller knows: pass `starts` and an empty path
 // succeeds iff one of them is acceptable. Without `starts` we cannot tell an
 // already-solved solve from an empty one, so we stay strict and reject.
+// Non-empty paths also need `starts` when the target is an unused start that
+// never appears as a step input (preventWaste Trash-only solutions).
 export function pathReachesTarget(path, target, { starts, config, orientationSensitive = false } = {}) {
     if (!path) return false;
     const acceptable = orientationSensitive
         ? new Set([target])
         : getAllRotations(Shape.fromShapeCode(target), config);
     if (path.length === 0) return starts ? starts.some(code => acceptable.has(code)) : false;
-    return simulateFinalInventory(path).some(code => acceptable.has(code));
+    return simulateFinalInventory(path, { starts }).some(code => acceptable.has(code));
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +271,10 @@ export function invalidDisallowedOps(path, allowedOps) {
 // A null path is not waste-free. Zero-op paths succeed iff every start (when
 // provided) is acceptable — without starts, only an empty inventory would pass,
 // and a zero-op path has no inventory to simulate, so starts are required.
+// Non-empty paths require a non-empty inventory of only acceptable codes —
+// empty `.every()` must not pass (trashing everything including the target is
+// not waste-free success). Pass `starts` so unused non-target starts are not
+// invisible (false-clean) and unused target starts remain in the inventory.
 export function pathInventoryAcceptable(path, target, { starts, config, orientationSensitive = false } = {}) {
     if (!path) return false;
     const cfg = config || new ShapeOperationConfig();
@@ -278,5 +285,6 @@ export function pathInventoryAcceptable(path, target, { starts, config, orientat
         if (!starts) return false;
         return starts.every(code => acceptable.has(code));
     }
-    return simulateFinalInventory(path).every(code => acceptable.has(code));
+    const inventory = simulateFinalInventory(path, { starts });
+    return inventory.length > 0 && inventory.every(code => acceptable.has(code));
 }

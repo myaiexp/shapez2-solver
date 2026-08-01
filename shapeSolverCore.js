@@ -387,13 +387,16 @@ export async function shapeSolver(
         costSoFar.set(initialKey, 0);
         open.enqueue({availableIds: new Set(initialAvailableIds), stateKey: initialKey}, 0 + heuristicFn(initialAvailableIds));
 
-        let statesExplored = 0;
+        // nodesExpanded is work done (dequeues); statesExplored is the public
+        // result field and matches BFS/IDA*/maxStates: distinct state keys in
+        // costSoFar (not expansions — one state can be re-opened cheaper).
+        let nodesExpanded = 0;
 
         while (open.size() > 0 && !shouldCancel()) {
             if (costSoFar.size > maxStates) { aborted = true; break; }
             const currentItem = open.dequeue();
             if (!currentItem) break;
-            statesExplored++;
+            nodesExpanded++;
 
             const {availableIds, stateKey} = currentItem.val;
             const g = costSoFar.get(stateKey);
@@ -402,7 +405,7 @@ export async function shapeSolver(
                 return {
                     solutionPath: reconstructPath(cameFrom, stateKey, initialKey),
                     depth: g,
-                    statesExplored
+                    statesExplored: costSoFar.size
                 };
             }
 
@@ -418,8 +421,8 @@ export async function shapeSolver(
                 }
             }
 
-            if (statesExplored % 500 === 0 || performance.now() - lastUpdate > 200) {
-                onProgress(`${label} | g=${g} | Open:${open.size()} | Explored:${statesExplored} | Total visited:${costSoFar.size}${progressSuffix}`);
+            if (nodesExpanded % 500 === 0 || performance.now() - lastUpdate > 200) {
+                onProgress(`${label} | g=${g} | Open:${open.size()} | Explored:${nodesExpanded} | Total visited:${costSoFar.size}${progressSuffix}`);
                 lastUpdate = performance.now();
                 // Yield to the event loop so a long search stays cancellable, matching IDA*.
                 await new Promise(r => setTimeout(r, 0));
@@ -427,7 +430,10 @@ export async function shapeSolver(
         }
 
         if (aborted) onProgress(`${label} | Aborted: hit ${maxStates}-state cap before solving${abortHint}`);
-        return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored, aborted: aborted ? 'maxStates' : null};
+        return shouldCancel() ? null : {
+            solutionPath: null, depth: null, statesExplored: costSoFar.size,
+            aborted: aborted ? 'maxStates' : null
+        };
     }
 
     // -----------------------------------------------------------------------
