@@ -183,6 +183,12 @@ export const EXPLORER_FIXTURES = [
     },
 ];
 
+// Hand-written solution paths that buildLayout / smoke consume. Every path must
+// clear invalidPathSteps + invalidPathIds (smoke gates both before snapshotting
+// counts): Cutter outputs are [left, right] order, Painter recolors only the
+// top layer, and Stacker gravity-merges same-layer halves rather than inventing
+// multi-layer products. Keep narrative coverage (branch/merge, belt-split
+// pass-through, multi-source depth, machine-fed split) without fabricating ops.
 export const LAYOUT_FIXTURES = [
     {
         name: 'simple-cut-stack',
@@ -190,13 +196,15 @@ export const LAYOUT_FIXTURES = [
             {
                 operation: 'Cutter',
                 inputs: [{ id: 'src', shape: 'CuCuCuCu' }],
-                outputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+                // cut() returns [left, right] = [----CuCu, CuCu----]
+                outputs: [{ id: 'L', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
                 params: {}
             },
             {
                 operation: 'Stacker',
-                inputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
-                outputs: [{ id: 'final', shape: 'CuCuCuCu:CuCuCuCu' }],
+                inputs: [{ id: 'L', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
+                // Same-layer halves gravity-merge back to a full circle.
+                outputs: [{ id: 'final', shape: 'CuCuCuCu' }],
                 params: {}
             },
         ]
@@ -214,19 +222,19 @@ export const LAYOUT_FIXTURES = [
             {
                 operation: 'Cutter',
                 inputs: [{ id: 'src', shape: 'CuCuCuCu' }],
-                outputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+                outputs: [{ id: 'L', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
                 params: {}
             },
             {
                 operation: 'Painter',
-                inputs: [{ id: 'L', shape: 'CuCu----' }],
-                outputs: [{ id: 'P', shape: 'CrCr----' }],
+                inputs: [{ id: 'L', shape: '----CuCu' }],
+                outputs: [{ id: 'P', shape: '----CrCr' }],
                 params: { color: 'r' }
             },
             {
                 operation: 'Stacker',
-                inputs: [{ id: 'P', shape: 'CrCr----' }, { id: 'R', shape: '----CuCu' }],
-                outputs: [{ id: 'F', shape: 'CrCr----:----CuCu' }],
+                inputs: [{ id: 'P', shape: '----CrCr' }, { id: 'R', shape: 'CuCu----' }],
+                outputs: [{ id: 'F', shape: 'CuCuCrCr' }],
                 params: {}
             },
         ]
@@ -261,9 +269,10 @@ export const LAYOUT_FIXTURES = [
     },
 
     // Multiple source shapes and two independent chains that converge: one chain
-    // stacks two sources then paints the result, the other cuts a third source;
-    // a final Stacker merges them. Produces a wider, deeper grid (more rows and
-    // columns) than any other fixture, and leaves an unused terminal output.
+    // stacks two sources then paints the result (top layer only), the other cuts a
+    // third source; a final Stacker merges them. Produces a wider, deeper grid
+    // (more rows and columns) than any other fixture, and leaves an unused
+    // terminal output (the Cutter's right half).
     {
         name: 'multi-source-deep',
         solutionPath: [
@@ -276,19 +285,20 @@ export const LAYOUT_FIXTURES = [
             {
                 operation: 'Painter',
                 inputs: [{ id: 's1', shape: 'CuCuCuCu:RuRuRuRu' }],
-                outputs: [{ id: 'p1', shape: 'CgCgCgCg:RuRuRuRu' }],
+                // Painter recolors only the top layer.
+                outputs: [{ id: 'p1', shape: 'CuCuCuCu:RgRgRgRg' }],
                 params: { color: 'g' }
             },
             {
                 operation: 'Cutter',
                 inputs: [{ id: 'c', shape: 'SuSuSuSu' }],
-                outputs: [{ id: 'cl', shape: 'SuSu----' }, { id: 'cr', shape: '----SuSu' }],
+                outputs: [{ id: 'cl', shape: '----SuSu' }, { id: 'cr', shape: 'SuSu----' }],
                 params: {}
             },
             {
                 operation: 'Stacker',
-                inputs: [{ id: 'p1', shape: 'CgCgCgCg:RuRuRuRu' }, { id: 'cl', shape: 'SuSu----' }],
-                outputs: [{ id: 'F', shape: 'SuSu----:CgCgCgCg:RuRuRuRu' }],
+                inputs: [{ id: 'p1', shape: 'CuCuCuCu:RgRgRgRg' }, { id: 'cl', shape: '----SuSu' }],
+                outputs: [{ id: 'F', shape: 'CuCuCuCu:RgRgRgRg:----SuSu' }],
                 params: {}
             },
         ]
@@ -307,24 +317,24 @@ export const LAYOUT_FIXTURES = [
             {
                 operation: 'Cutter',
                 inputs: [{ id: 'src', shape: 'CuCuCuCu' }],
-                outputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+                outputs: [{ id: 'L', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
                 params: {}
             },
             {
                 operation: 'Belt Split',
-                inputs: [{ id: 'L', shape: 'CuCu----' }],
-                outputs: [{ id: 'L1', shape: 'CuCu----' }, { id: 'L2', shape: 'CuCu----' }],
+                inputs: [{ id: 'L', shape: '----CuCu' }],
+                outputs: [{ id: 'L1', shape: '----CuCu' }, { id: 'L2', shape: '----CuCu' }],
                 params: {}
             },
             {
                 operation: 'Rotator CW',
-                inputs: [{ id: 'L1', shape: 'CuCu----' }],
-                outputs: [{ id: 'rL', shape: '--CuCu--' }],
+                inputs: [{ id: 'L1', shape: '----CuCu' }],
+                outputs: [{ id: 'rL', shape: 'Cu----Cu' }],
                 params: {}
             },
             {
                 operation: 'Stacker',
-                inputs: [{ id: 'L2', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+                inputs: [{ id: 'L2', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
                 outputs: [{ id: 'F', shape: 'CuCuCuCu' }],
                 params: {}
             },

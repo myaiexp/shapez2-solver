@@ -1,10 +1,11 @@
 // Unit test: the blueprint layout binds each machine output SHAPE to the correct
-// physical port COLUMN. smoke.js only snapshots counts (machineCount/beltCount/
-// grid size) and the routeBelt unit tests only check belt geometry — none verify
-// that a Cutter's left-half shape actually leaves its left port column and its
-// right-half shape leaves its right port column. A left/right port inversion
-// anywhere in placeMachines → buildPortLookup → routeAllBelts would pass every
-// other test; this one fails on it.
+// physical port COLUMN. smoke.js gates path validity and snapshots counts
+// (machineCount/beltCount/grid size); the routeBelt unit tests only check belt
+// geometry — none of those verify that a Cutter's left-half shape actually
+// leaves its left port column and its right-half shape leaves its right port
+// column. A left/right port inversion anywhere in placeMachines →
+// buildPortLookup → routeAllBelts would pass every other test; this one fails
+// on it.
 //
 // Run with: node tests/blueprint/portShapeMapping.test.js
 import { buildLayout } from '../../blueprintLayout.js';

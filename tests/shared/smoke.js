@@ -65,6 +65,24 @@ for (const fixture of PURE_OP_CHECKS) {
 for (const fixture of LAYOUT_FIXTURES) {
     const key = `Layout: ${fixture.name}`;
     total++;
+    // Correctness gate (independent of the snapshot): layout fixtures are
+    // hand-written, so a swapped Cutter port order or fabricated stack product
+    // would still produce stable machine/belt counts and hide port-order
+    // regressions. Refuse to snapshot an unbuildable path.
+    const layoutConfig = new ShapeOperationConfig(4);
+    const badLayoutSteps = invalidPathSteps(fixture.solutionPath, layoutConfig);
+    if (badLayoutSteps.length) {
+        console.log(`\u2717 ${key} \u2014 INVALID path: ${badLayoutSteps.join(' | ')}`);
+        failed = true;
+        continue;
+    }
+    const badLayoutIds = invalidPathIds(fixture.solutionPath);
+    if (badLayoutIds.length) {
+        console.log(`\u2717 ${key} \u2014 UNBUILDABLE id flow: ${badLayoutIds.join(' | ')}`);
+        failed = true;
+        continue;
+    }
+
     const layout = buildLayout(fixture.solutionPath);
     const actual = {
         machineCount: layout.machines.length,

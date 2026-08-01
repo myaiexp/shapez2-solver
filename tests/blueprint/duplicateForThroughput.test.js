@@ -7,6 +7,8 @@
 // math, distinct copy columns, belt kinds/counts, and grid expansion.
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
 import { MACHINE_GAP } from '../../blueprintPositions.js';
+import { ShapeOperationConfig } from '../../shapeClass.js';
+import { pathIsValid } from '../shared/pathValidation.js';
 
 let passed = 0;
 let total = 0;
@@ -18,20 +20,26 @@ function check(name, cond) {
     else { console.log(`✗ ${name}`); failed = true; }
 }
 
+// cut() returns [left, right] = [----CuCu, CuCu----]; stacking them gravity-
+// merges back to CuCuCuCu. Must pass the shared path gate so this suite does
+// not dogfood a swapped-port / fabricated-product sequence (finding #6249).
 const solutionPath = [
     {
         operation: 'Cutter',
         inputs: [{ id: 'src', shape: 'CuCuCuCu' }],
-        outputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+        outputs: [{ id: 'L', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
         params: {}
     },
     {
         operation: 'Stacker',
-        inputs: [{ id: 'L', shape: 'CuCu----' }, { id: 'R', shape: '----CuCu' }],
+        inputs: [{ id: 'L', shape: '----CuCu' }, { id: 'R', shape: 'CuCu----' }],
         outputs: [{ id: 'out', shape: 'CuCuCuCu' }],
         params: {}
     }
 ];
+
+check('fixture is a physically valid op path',
+    pathIsValid(solutionPath, new ShapeOperationConfig(4)));
 
 const layout = buildLayout(solutionPath);
 const origMachineCount = layout.machines.length;
