@@ -1,5 +1,5 @@
-// Shape-part drawing primitive for renderShape — draws a single shape quadrant
-// with its color/border and shadow for stacked layers.
+// Shape-part drawers for renderShape — fill/stroke thunks for one quadrant.
+// Stroke is deferred so borders overlay after every part in the layer fills.
 import { colorValues } from './shapeRenderingColors.js';
 
 export const QUAD_MODE = "quad";
@@ -40,31 +40,31 @@ function drawPolygon(ctx, points) {
     ctx.closePath();
 }
 
-export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, colorMode, borderScale) {
+export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometryMode, colorMode, borderScale) {
 
     const drawShadow = layerIndex != 0;
     const color = colorValues[colorMode][partColor];
     const curBorderSize = borderSize / borderScale;
 
     function standardDraw(drawPath) {
-        return [
-            (() => {
+        return {
+            fill() {
                 drawPath();
                 ctx.fillStyle = color;
                 ctx.fill();
-            }),
-            (() => {
+            },
+            stroke() {
                 drawPath();
                 ctx.strokeStyle = shapeBorderColor;
                 ctx.lineWidth = curBorderSize;
                 ctx.lineJoin = "round";
                 ctx.stroke();
-            })
-        ];
+            }
+        };
     }
 
     if (partShape == "-") {
-        return [(() => { }), (() => { })]
+        return { fill() {}, stroke() {} };
     }
 
     if (partShape == "C") {
@@ -167,8 +167,8 @@ export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, 
             pinCenterY = 1 - (sqrt6 / 6);
         }
         const pinRadius = 1 / 6;
-        return [
-            (() => {
+        return {
+            fill() {
                 if (drawShadow) {
                     ctx.beginPath();
                     ctx.arc(pinCenterX, pinCenterY, pinRadius + (curBorderSize / 2), 0, 2 * Math.PI);
@@ -181,9 +181,9 @@ export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, 
                 ctx.closePath();
                 ctx.fillStyle = pinColor;
                 ctx.fill();
-            }),
-            (() => { })
-        ];
+            },
+            stroke() {}
+        };
     }
 
     if (partShape == "c") {
@@ -194,8 +194,8 @@ export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, 
             const stopAngle1 = radians(360 - (90 - darkenedAreasOffset));
             const startAngle2 = radians(360 - (22.5 - darkenedAreasOffset));
             const stopAngle2 = radians(360 - (45 - darkenedAreasOffset));
-            return [
-                (() => {
+            return {
+                fill() {
                     if (drawShadow) {
                         ctx.beginPath();
                         ctx.moveTo(0, 1);
@@ -219,9 +219,9 @@ export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, 
                     ctx.closePath();
                     ctx.fillStyle = darkenedColor;
                     ctx.fill();
-                }),
-                (() => { })
-            ];
+                },
+                stroke() {}
+            };
         } else if (geometryMode == HEX_MODE) {
             const points = [
                 [0, 0],
@@ -240,8 +240,8 @@ export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, 
             } else {
                 darkenedArea = [sideMiddlePoint, points[1], points[2]];
             }
-            return [
-                (() => {
+            return {
+                fill() {
                     if (drawShadow) {
                         drawPolygon(ctx, shadowPoints);
                         ctx.fillStyle = shadowColor;
@@ -253,9 +253,9 @@ export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, 
                     drawPolygon(ctx, darkenedArea);
                     ctx.fillStyle = darkenedColor;
                     ctx.fill();
-                }),
-                (() => { })
-            ];
+                },
+                stroke() {}
+            };
         }
     }
 

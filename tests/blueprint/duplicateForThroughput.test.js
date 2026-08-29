@@ -87,17 +87,23 @@ check('multiplier 3: split belt count equals source machine count',
 check('multiplier 3: merge belt count grows by one per source machine',
     dup.belts.filter(b => b.kind === 'merge').length === origMergeCount + origMachineCount);
 
-// --- distinct x columns per source machine (multiplier 2, unshifted layout) ----
+// Distinct columns on the unshifted buildLayout() result at multiplier 3 —
+// the case that actually hits the x=0 clamp. Multiplier 2 at x=0 happens to
+// stay distinct even with per-copy Math.max(0, copyX); multiplier 3 does not
+// (finding #8224).
 {
-    const dup2 = duplicateForThroughput(layout, 2);
     for (const source of layout.machines) {
-        const copies = dup2.machines.filter(
+        const copies = dup.machines.filter(
             m => m.operation === source.operation && m.y === source.y && m.floor === source.floor
         );
         const xs = copies.map(m => m.x);
-        check(`multiplier 2: ${source.operation} copies occupy distinct x columns`,
-            xs.length === 2 && new Set(xs).size === 2);
+        check(`multiplier 3: ${source.operation} copies occupy distinct x columns on unshifted layout (x=${source.x})`,
+            xs.length === MULT && new Set(xs).size === MULT);
     }
+
+    const cutterXs = dup.machines.filter(m => m.operation === 'Cutter').map(m => m.x);
+    check('left-edge clamp: Cutter copies sit at [0, 3, 6] (group shifted, not per-copy clamped)',
+        cutterXs.length === MULT && cutterXs[0] === 0 && cutterXs[1] === 3 && cutterXs[2] === 6);
 }
 
 // --- exact centering math (multiplier 3, machine shifted away from x=0 clamp) ---
@@ -108,9 +114,9 @@ check('multiplier 3: merge belt count grows by one per source machine',
 
     const mw = cutter.def.width;
     const totalWidth = MULT * mw + (MULT - 1) * MACHINE_GAP;
-    const startX = cutter.x - Math.floor((totalWidth - mw) / 2);
+    const startX = Math.max(0, cutter.x - Math.floor((totalWidth - mw) / 2));
     const expectedXs = Array.from({ length: MULT }, (_, copy) =>
-        Math.max(0, startX + copy * (mw + MACHINE_GAP))
+        startX + copy * (mw + MACHINE_GAP)
     );
 
     const dupCentered = duplicateForThroughput(centered, MULT);

@@ -96,15 +96,18 @@ export function duplicateForThroughput(layout, multiplier = 1) {
 
         const mw = def.width || 1;
 
-        // Place N copies side by side, centered on original position
+        // Place N copies side by side, centered on the original position.
+        // Clamp the group's start, not each copy: per-copy Math.max(0, copyX)
+        // collapses neighbors onto the origin when the original sits at x=0
+        // (finding #8224).
         const totalWidth = multiplier * mw + (multiplier - 1) * MACHINE_GAP;
-        const startX = machine.x - Math.floor((totalWidth - mw) / 2);
+        const startX = Math.max(0, machine.x - Math.floor((totalWidth - mw) / 2));
 
         for (let copy = 0; copy < multiplier; copy++) {
             const copyX = startX + copy * (mw + MACHINE_GAP);
             newMachines.push({
                 ...machine,
-                x: Math.max(0, copyX)
+                x: copyX
             });
         }
 
@@ -127,7 +130,7 @@ export function duplicateForThroughput(layout, multiplier = 1) {
 
             // Route from splitter to each copy's input
             for (let copy = 0; copy < multiplier; copy++) {
-                const copyX = Math.max(0, startX + copy * (mw + MACHINE_GAP));
+                const copyX = startX + copy * (mw + MACHINE_GAP);
                 if (copyX !== splitX) {
                     // Horizontal belt from splitter to copy
                     const dir = copyX > splitX ? 'E' : 'W';

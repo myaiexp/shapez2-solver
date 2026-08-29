@@ -101,6 +101,45 @@ function buildGraph2DLayout(direction, extra = {}) {
     };
 }
 
+// Curve extras keyed by the edge-style select. Shared by `edge` and
+// `edge.branch` so branch edges reuse the same values.
+const EDGE_CURVE = {
+    curved: {
+        'curve-style': 'unbundled-bezier',
+        'control-point-weights': 0.5
+    },
+    straight: {
+        'curve-style': 'straight'
+    },
+    orthogonal: {
+        'curve-style': 'taxi',
+        'taxi-direction': 'auto',
+        'taxi-turn': 40,
+        'taxi-turn-min-distance': 20
+    },
+    stepped: {
+        'curve-style': 'segments',
+        'control-point-distances': [50, 50, 50],
+        'control-point-weights': [0.33, 0.66, 1]
+    }
+};
+
+function addShapeNode(elements, nodeMap, { id, shape }) {
+    const nodeId = `shape-${id}`;
+    if (nodeMap[nodeId]) return nodeId;
+    const shapeCanvas = createShapeCanvas(shape, 120);
+    elements.push({
+        data: {
+            id: nodeId,
+            label: shape,
+            shapeCanvas: shapeCanvas.toDataURL()
+        },
+        classes: 'shape'
+    });
+    nodeMap[nodeId] = true;
+    return nodeId;
+}
+
 // Drop the cached path so reRenderGraph (edge-style changes) cannot revive a
 // graph the UI has already cleared — failed solves and Explore both need this.
 export function clearLastSolutionPath() {
@@ -129,9 +168,24 @@ export function renderGraph(solutionPath) {
 
     solutionPath.forEach((step, stepIndex) => {
         const { operation, inputs, outputs, params } = step;
-        const opId = `op-${stepIndex}`;
 
-        // Operation node
+        for (const input of inputs) addShapeNode(elements, nodeMap, input);
+        for (const output of outputs) addShapeNode(elements, nodeMap, output);
+
+        // Belt Split is an edge-only pass: shape→shape branch edges, no op node.
+        if (operation === 'Belt Split') {
+            for (const input of inputs) {
+                for (const output of outputs) {
+                    elements.push({
+                        data: { source: `shape-${input.id}`, target: `shape-${output.id}` },
+                        classes: 'branch'
+                    });
+                }
+            }
+            return;
+        }
+
+        const opId = `op-${stepIndex}`;
         let opLabel = operation;
         let nodeClasses = 'op';
         let backgroundColor = '#000';
@@ -146,66 +200,22 @@ export function renderGraph(solutionPath) {
             }
         }
 
-        let imageName = operation.toLowerCase().replace(/\s+/g, '-');
+        const imageName = operation.toLowerCase().replace(/\s+/g, '-');
+        elements.push({
+            data: {
+                id: opId,
+                label: opLabel,
+                image: `images/operations/${imageName}.png`,
+                backgroundColor: backgroundColor
+            },
+            classes: nodeClasses
+        });
 
-        if (operation !== 'Belt Split') {
-            elements.push({
-                data: {
-                    id: opId,
-                    label: opLabel,
-                    image: `images/operations/${imageName}.png`,
-                    backgroundColor: backgroundColor
-                },
-                classes: nodeClasses
-            });
+        for (const input of inputs) {
+            elements.push({ data: { source: `shape-${input.id}`, target: opId } });
         }
-
-        // Input shapes
-        inputs.forEach(input => {
-            const nodeId = `shape-${input.id}`;
-            if (!nodeMap[nodeId]) {
-                const shapeCanvas = createShapeCanvas(input.shape, 120);
-                elements.push({
-                    data: {
-                        id: nodeId,
-                        label: input.shape,
-                        shapeCanvas: shapeCanvas.toDataURL()
-                    },
-                    classes: 'shape'
-                });
-                nodeMap[nodeId] = true;
-            }
-            if (operation !== 'Belt Split') {
-                elements.push({ data: { source: nodeId, target: opId } });
-            }
-        });
-
-        // Output shapes
-        outputs.forEach(output => {
-            const nodeId = `shape-${output.id}`;
-            if (!nodeMap[nodeId]) {
-                const shapeCanvas = createShapeCanvas((output.shape), 120);
-                elements.push({
-                    data: {
-                        id: nodeId,
-                        label: output.shape,
-                        shapeCanvas: shapeCanvas.toDataURL()
-                    },
-                    classes: 'shape'
-                });
-                nodeMap[nodeId] = true;
-            }
-            if (operation !== 'Belt Split') {
-                elements.push({ data: { source: opId, target: nodeId } });
-            }
-        });
-
-        if (operation === 'Belt Split') {
-            inputs.forEach(input => {
-                outputs.forEach(output => {
-                    elements.push({ data: { source: `shape-${input.id}`, target: `shape-${output.id}` }, classes: 'branch' });
-                });
-            });
+        for (const output of outputs) {
+            elements.push({ data: { source: opId, target: `shape-${output.id}` } });
         }
     });
 
@@ -215,43 +225,15 @@ export function renderGraph(solutionPath) {
     const edgeStyleSelect = document.getElementById('edge-style-select');
     const selectedEdgeStyle = edgeStyleSelect ? edgeStyleSelect.value : 'curved';
 
-    let edgeStyle = {
+    const curveStyle = EDGE_CURVE[selectedEdgeStyle] || { 'curve-style': 'bezier' };
+    const edgeStyle = {
         'width': 2,
         'line-color': '#aaa',
         'target-arrow-color': '#aaa',
-        'target-arrow-shape': 'triangle'
+        'target-arrow-shape': 'triangle',
+        ...curveStyle
     };
-
-    switch(selectedEdgeStyle) {
-        case 'curved':
-            edgeStyle['curve-style'] = 'unbundled-bezier';
-            edgeStyle['control-point-weights'] = 0.5;
-            break;
-        case 'straight':
-            edgeStyle['curve-style'] = 'straight';
-            break;
-        case 'orthogonal':
-            edgeStyle['curve-style'] = 'taxi';
-            edgeStyle['taxi-direction'] = 'auto';
-            edgeStyle['taxi-turn'] = 40;
-            edgeStyle['taxi-turn-min-distance'] = 20;
-            break;
-        case 'stepped':
-            edgeStyle['curve-style'] = 'segments';
-            edgeStyle['control-point-distances'] = [50, 50, 50];
-            edgeStyle['control-point-weights'] = [0.33, 0.66, 1];
-            break;
-    }
-
-    let branchStyle = {
-        'curve-style': selectedEdgeStyle === 'orthogonal' ? 'taxi' : (selectedEdgeStyle === 'curved' ? 'unbundled-bezier' : (edgeStyle['curve-style'] || 'bezier')),
-        'control-point-weights': selectedEdgeStyle === 'curved' ? 0.5 : undefined
-    };
-    if (selectedEdgeStyle === 'orthogonal') {
-        branchStyle['taxi-direction'] = 'auto';
-        branchStyle['taxi-turn'] = 40;
-        branchStyle['taxi-turn-min-distance'] = 20;
-    }
+    const branchStyle = { ...curveStyle };
 
     const cy = cytoscape({
         container,

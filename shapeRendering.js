@@ -1,6 +1,6 @@
 // Special thanks to https://github.com/Loupau38/loupau38.github.io/blob/main/assets/scripts/shapeViewer.js
 import { getCurrentColorMode } from './colorMode.js';
-import { renderPart, QUAD_MODE, HEX_MODE } from './shapeRenderingPart.js';
+import { buildPartDrawers, QUAD_MODE, HEX_MODE } from './shapeRenderingPart.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { Shape, SHAPE_LAYER_SEPARATOR } from './shapeClass.js';
 
@@ -69,7 +69,7 @@ export function renderShape(context, size, shapeCode, geometryMode, colorMode) {
 
             context.save();
             rotateContext(context, partIndex, numParts);
-            const [shapeRenderer, borderRenderer] = renderPart(
+            const { fill, stroke } = buildPartDrawers(
                 context,
                 partShape,
                 partColor,
@@ -78,8 +78,8 @@ export function renderShape(context, size, shapeCode, geometryMode, colorMode) {
                 colorMode,
                 shapeDiameter * curLayerScale * 0.5
             );
-            shapeRenderer();
-            partBorders.push(borderRenderer);
+            fill();
+            partBorders.push(stroke);
 
             context.restore();
 
