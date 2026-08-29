@@ -40,7 +40,7 @@ function drawPolygon(ctx, points) {
     ctx.closePath();
 }
 
-export function renderPart(ctx, partShape, partColor, layerIndex, shapesMode, colorMode, borderScale) {
+export function renderPart(ctx, partShape, partColor, layerIndex, geometryMode, colorMode, borderScale) {
 
     const drawShadow = layerIndex != 0;
     const color = colorValues[colorMode][partColor];
@@ -159,10 +159,10 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesMode, co
     if (partShape == "P") {
         let pinCenterX;
         let pinCenterY;
-        if (shapesMode == QUAD_MODE) {
+        if (geometryMode == QUAD_MODE) {
             pinCenterX = 1 / 3;
             pinCenterY = 2 / 3;
-        } else if (shapesMode == HEX_MODE) {
+        } else if (geometryMode == HEX_MODE) {
             pinCenterX = sqrt2 / 6;
             pinCenterY = 1 - (sqrt6 / 6);
         }
@@ -188,7 +188,7 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesMode, co
 
     if (partShape == "c") {
         const darkenedColor = darkenColor(color);
-        if (shapesMode == QUAD_MODE) {
+        if (geometryMode == QUAD_MODE) {
             const darkenedAreasOffset = layerIndex % 2 == 0 ? 0 : 22.5;
             const startAngle1 = radians(360 - (67.5 - darkenedAreasOffset));
             const stopAngle1 = radians(360 - (90 - darkenedAreasOffset));
@@ -222,7 +222,7 @@ export function renderPart(ctx, partShape, partColor, layerIndex, shapesMode, co
                 }),
                 (() => { })
             ];
-        } else if (shapesMode == HEX_MODE) {
+        } else if (geometryMode == HEX_MODE) {
             const points = [
                 [0, 0],
                 [sqrt3 / 2, 0.5],

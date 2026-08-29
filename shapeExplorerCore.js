@@ -8,6 +8,15 @@ import {
 import { getCrystalColors } from './shapeColorAnalysis.js';
 import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
 
+// Short-array equality for Stacker outputCodes (typically length 1).
+function sameCodes(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
 // Breadth-first space explorer for the visualization: starting from the given
 // shapes, repeatedly applies every enabled operation up to `depthLimit`, building
 // a graph of shape nodes / operation nodes / edges. Shares operation expansion
@@ -72,7 +81,7 @@ export async function shapeExplorer(
 
     // Record one operation node and its edges: the op node, an edge from each input
     // shape, and an edge to each output shape (registering newly-discovered outputs
-    // into availableIds and the per-depth frontier). Shared by the unary and binary
+    // into discoveredIds and the per-depth frontier). Shared by the unary and binary
     // exploration paths, which previously each carried a verbatim copy of this tail.
     function recordOperation(opName, params, inputIds, outputCodes, newlyDiscovered) {
         const opId = `op-${nextOpId++}`;
@@ -83,7 +92,7 @@ export async function shapeExplorer(
         for (const oc of outputCodes) {
             const { id: outId, added } = addShapeIfNew(oc);
             if (added) {
-                availableIds.add(outId);
+                discoveredIds.add(outId);
                 newlyDiscovered.add(outId);
             }
             edges.push({ source: opId, target: `shape-${outId}` });
@@ -134,36 +143,36 @@ export async function shapeExplorer(
                 const inputCode2 = shapesList[id2].code;
                 const shape2 = getShapeById(id2);
 
-                if (isStacker && id1 !== id2) {
-                    const descA = expandBinaryOp(
-                        opName, op, id1, id2,
-                        inputCode1, inputCode2, shape1, shape2, config, { useCache: true }
-                    );
-                    const descB = expandBinaryOp(
-                        opName, op, id2, id1,
-                        inputCode2, inputCode1, shape2, shape1, config, { useCache: true }
-                    );
-                    const same = descA && descB
-                        && JSON.stringify(descA.outputCodes) === JSON.stringify(descB.outputCodes);
-                    if (same && id1 > id2) continue;
-                }
-
                 const desc = expandBinaryOp(
                     opName, op, id1, id2,
                     inputCode1, inputCode2, shape1, shape2, config, { useCache: true }
                 );
-                if (desc) recordDescriptor(desc, newlyDiscovered);
+                if (!desc) continue;
+
+                // Stacker(A,B) and Stacker(B,A) can yield the same product
+                // (complementary halves). Record only the lower-id order then;
+                // keep both when they differ. Reverse-expand only for the
+                // higher-id order, which is the one we might skip.
+                if (isStacker && id1 > id2) {
+                    const descRev = expandBinaryOp(
+                        opName, op, id2, id1,
+                        inputCode2, inputCode1, shape2, shape1, config, { useCache: true }
+                    );
+                    if (descRev && sameCodes(desc.outputCodes, descRev.outputCodes)) continue;
+                }
+
+                recordDescriptor(desc, newlyDiscovered);
             }
         }
     }
 
-    const availableIds = new Set();
+    const discoveredIds = new Set();
     for (const code of startingShapeCodes) {
         const { id } = addShapeIfNew(code);
-        availableIds.add(id);
+        discoveredIds.add(id);
     }
 
-    let frontier = new Set(availableIds);
+    let frontier = new Set(discoveredIds);
 
     for (let depth = 1; depth <= depthLimit; depth++) {
         if (shouldCancel()) {
@@ -171,7 +180,7 @@ export async function shapeExplorer(
         }
 
         const newlyDiscovered = new Set();
-        const allShapeIds = Array.from(availableIds);
+        const allShapeIds = Array.from(discoveredIds);
         const frontierIds = Array.from(frontier);
 
         if (frontierIds.length === 0) break;

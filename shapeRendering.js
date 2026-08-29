@@ -34,7 +34,7 @@ function rotateContext(ctx, partIndex, numParts) {
     ctx.translate(0, -1);
 }
 
-export function renderShape(context, size, shapeCode, shapesMode, colorMode) {
+export function renderShape(context, size, shapeCode, geometryMode, colorMode) {
 
     const parsed = Shape.fromShapeCode(shapeCode);
     const numLayers = parsed.numLayers;
@@ -74,7 +74,7 @@ export function renderShape(context, size, shapeCode, shapesMode, colorMode) {
                 partShape,
                 partColor,
                 layerIndex,
-                shapesMode,
+                geometryMode,
                 colorMode,
                 shapeDiameter * curLayerScale * 0.5
             );
@@ -111,9 +111,9 @@ export function createShapeCanvas(shapeCode, size = 100) {
     // Determine quad/hex geometry mode based on shapeCode
     const firstLayer = shapeCode.split(SHAPE_LAYER_SEPARATOR)[0];
     const numParts = firstLayer.length / 2;
-    const shapesMode = numParts === 6 ? HEX_MODE : QUAD_MODE;
+    const geometryMode = numParts === 6 ? HEX_MODE : QUAD_MODE;
 
-    renderShape(ctx, size, shapeCode, shapesMode, colorMode);
+    renderShape(ctx, size, shapeCode, geometryMode, colorMode);
     return canvas;
 }
 
