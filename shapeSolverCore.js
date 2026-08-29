@@ -10,6 +10,7 @@ import {
 import { buildBackwardReachability } from './shapeSolverBackward.js';
 import { operations } from './shapeSolverOperations.js';
 import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
+import { acceptableCodes } from './pathInventory.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
 // precompute outward from the target before the forward A* runs. 4 trades map
@@ -65,16 +66,10 @@ export async function shapeSolver(
     let depth = 0;
     let aborted = false;  // set true when the maxStates cap is hit
 
-    // Precompute acceptable shape codes
-    const acceptable = new Set();
-    if (orientationSensitive) {
-        acceptable.add(targetShapeCode);
-    } else {
-        const rotations = getAllRotations(target, config);
-        for (const code of rotations) {
-            acceptable.add(code);
-        }
-    }
+    // Precompute acceptable shape codes (exact match vs every rotation).
+    // Pass the cached target so we don't re-parse; isGoal is a thin has/every
+    // over this set (same predicates as pathReachesTarget / pathInventoryAcceptable).
+    const acceptable = acceptableCodes(targetShapeCode, { orientationSensitive, config, shape: target });
 
     // Initialize shapes with unique IDs. This maps id -> shape CODE (a string);
     // getCachedShape is the only path from a code to a Shape instance, so the

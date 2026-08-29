@@ -10,7 +10,6 @@ import { shapeSolver } from './shapeSolverCore.js';
 import { splitByLayer, splitByQuadrant, splitByHalf, cost, opCountOf, isBareStart } from './shapeSolverDecompose.js';
 import { ShapeOperationConfig } from './shapeClass.js';
 import { stack } from './shapeOperations.js';
-import { getAllRotations } from './shapeRotation.js';
 import { getCachedShape } from './shapeSolverCache.js';
 import {
     simulateFinalInventoryMap,
@@ -75,8 +74,6 @@ export async function solveConstructive(
         return res;
     }
 
-    const rotationsOf = (code) => new Set(getAllRotations(getCachedShape(code), config));
-
     // Left-fold stack of piece codes (same op flatten emits). Gravity-merge can
     // collapse gappy multi-layer pairs into a wrong single-layer product
     // (e.g. CuCu---- + ----SuSu → CuCuSuSu), so candidates whose product is not
@@ -126,9 +123,14 @@ export async function solveConstructive(
         const res = await coreSearch(code, nodeOrientationSensitive, nodePreventWaste);
         if (res === null) return null; // cancelled
 
+        const acceptable = acceptableCodes(code, {
+            orientationSensitive: nodeOrientationSensitive,
+            config,
+            shape: getCachedShape(code),
+        });
+
         let result;
         if (res.solutionPath) {
-            const acceptable = nodeOrientationSensitive ? new Set([code]) : rotationsOf(code);
             result = {
                 target: code, method: 'direct-search', steps: res.solutionPath,
                 outputId: findOutputId(res.solutionPath, acceptable),
@@ -162,9 +164,7 @@ export async function solveConstructive(
                 // assembly product must match exactly — rotation-tolerant only
                 // when the TOP node allows rotations (sub-nodes never do).
                 const product = stackProduct(pieces);
-                const productOk = nodeOrientationSensitive
-                    ? product === code
-                    : rotationsOf(code).has(product);
+                const productOk = acceptable.has(product);
                 if (!productOk) continue;
                 const candidate = { target: code, method, steps: [], outputId: null, statesExplored: 0, children };
                 if (best === null || cost(candidate, costOpts) < cost(best, costOpts)) best = candidate;

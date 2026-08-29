@@ -119,6 +119,20 @@ export function breakCrystals(layers, layerIndex, partIndex) {
     }
 }
 
+// Shatter crystals on layers[layerIndex] that are fused to otherLayer at the
+// same part index. Overflow (stack slice / pin-push drop) severs that vertical
+// fusion; the connected group in `layers` must go with it. Only the adjacent
+// removed layer is passed — crystalsFused is a type check, not an adjacency
+// check, so a non-adjacent overflow layer would false-shatter.
+export function breakCrystalsFusedToLayer(layers, layerIndex, otherLayer) {
+    const layer = layers[layerIndex];
+    for (let partIndex = 0; partIndex < layer.length; partIndex++) {
+        if (crystalsFused(layer[partIndex], otherLayer[partIndex])) {
+            breakCrystals(layers, layerIndex, partIndex);
+        }
+    }
+}
+
 export function makeLayersFall(layers) {
     function gravityGroups(layer) {
         const handledIndexes = new Set();

@@ -13,12 +13,18 @@ import {
 import {
     crystalsFused,
     breakCrystals,
+    breakCrystalsFusedToLayer,
     cloneLayers,
     makeLayersFall,
     cleanUpEmptyUpperLayers,
     requireSameNumParts
 } from './shapeLayerMechanics.js';
-import { leftHalfSize, rightHalfSize } from './shapeHalfGeometry.js';
+import {
+    leftHalfSize,
+    rightHalfSize,
+    buildLeftHalfParts,
+    buildRightHalfParts,
+} from './shapeHalfGeometry.js';
 
 // Shape Operations
 // Half-split sizes and left/right naming come from shapeHalfGeometry.js (cut
@@ -28,7 +34,6 @@ import { leftHalfSize, rightHalfSize } from './shapeHalfGeometry.js';
 const emptyLayer = numParts => Array(numParts).fill(new ShapePart(NOTHING_CHAR, NOTHING_CHAR));
 
 export function cut(shape, config = new ShapeOperationConfig()) {
-    const leftSize = leftHalfSize(shape.numParts);
     const rightSize = rightHalfSize(shape.numParts);
 
     // The blade travels a full diameter, so it crosses the ring at TWO places: the
@@ -48,19 +53,12 @@ export function cut(shape, config = new ShapeOperationConfig()) {
         }
     }
 
+    const empty = new ShapePart(NOTHING_CHAR, NOTHING_CHAR);
     const leftLayers = [];
     const rightLayers = [];
     for (const layer of layers) {
-        // Left half: trailing quadrants survive, leading ones are emptied.
-        leftLayers.push([
-            ...emptyLayer(rightSize),
-            ...layer.slice(-leftSize)
-        ]);
-        // Right half: leading quadrants survive, trailing ones are emptied.
-        rightLayers.push([
-            ...layer.slice(0, -leftSize),
-            ...emptyLayer(leftSize)
-        ]);
+        leftLayers.push(buildLeftHalfParts(layer, empty));
+        rightLayers.push(buildRightHalfParts(layer, empty));
     }
 
     // Each half settles under gravity on its own, so they can end up with
@@ -126,7 +124,14 @@ export const stack = requireSameNumParts(function(bottomShape, topShape, config 
         ...cloneLayers(topShape.layers)
     ];
     const processed = cleanUpEmptyUpperLayers(makeLayersFall(newLayers));
-    return [new Shape(processed.slice(0, config.maxShapeLayers))];
+    if (processed.length <= config.maxShapeLayers) {
+        return [new Shape(processed)];
+    }
+    // Gravity can leave crystals fused across the cap. Slice without a shatter
+    // would keep the cut group (pin-push overflow already severs that fusion).
+    const kept = processed.slice(0, config.maxShapeLayers);
+    breakCrystalsFusedToLayer(kept, kept.length - 1, processed[config.maxShapeLayers]);
+    return [new Shape(cleanUpEmptyUpperLayers(kept))];
 });
 
 export function topPaint(shape, color, config = new ShapeOperationConfig()) {
@@ -156,12 +161,7 @@ export function pushPin(shape, config = new ShapeOperationConfig()) {
     } else {
         newLayers = [addedPins, ...layers.slice(0, config.maxShapeLayers - 1)];
         const removedLayer = layers[config.maxShapeLayers - 1];
-        for (let partIndex = 0; partIndex < newLayers[newLayers.length - 1].length; partIndex++) {
-            const part = newLayers[newLayers.length - 1][partIndex];
-            if (crystalsFused(part, removedLayer[partIndex])) {
-                breakCrystals(newLayers, newLayers.length - 1, partIndex);
-            }
-        }
+        breakCrystalsFusedToLayer(newLayers, newLayers.length - 1, removedLayer);
     }
 
     const processed = cleanUpEmptyUpperLayers(makeLayersFall(newLayers));

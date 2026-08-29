@@ -4,7 +4,7 @@
 // connected-component traversal helpers (getConnectedSingleLayer wrap-around,
 // getConnectedMultiLayer up/down layer linking) with the crystalsFused predicate.
 import { Shape, ShapePart, ShapeOperationConfig } from '../../shapeClass.js';
-import { cut, pushPin, genCrystal } from '../../shapeOperations.js';
+import { cut, pushPin, genCrystal, stack } from '../../shapeOperations.js';
 import {
     crystalsFused,
     getConnectedSingleLayer,
@@ -77,6 +77,28 @@ check('pushPin: drops the top layer on overflow',
 check('pushPin: shatters crystals fused across the dropped overflow layer',
     codes(pushPin(Shape.fromShapeCode('cr--:cr--'), new ShapeOperationConfig(2))),
     ['P---']);
+
+// stack() gravity-merges first, then slices extra layers. A bottom already
+// taller than maxLayers with crystals fused across the cut (layer max-1 to
+// max) must shatter that group — the same overflow contract as pushPin.
+// Legal-height inputs rarely hit this (the empty spacer shatters falling
+// crystals before they can fuse across the cap); over-tall codes do.
+check('stack: shatters crystals fused across the dropped overflow layer',
+    codes(stack(
+        Shape.fromShapeCode('Cu--:cr--:cr--'),
+        Shape.fromShapeCode('Ru--'),
+        new ShapeOperationConfig(2)
+    )),
+    ['Cu--']);
+
+// Contrast: overflow of solids (no fusion) just drops the extra layer.
+check('stack: overflow drops extra solid layers without shattering',
+    codes(stack(
+        Shape.fromShapeCode('CuCuCuCu:CuCuCuCu:CuCuCuCu'),
+        Shape.fromShapeCode('RuRuRuRu:SuSuSuSu'),
+        new ShapeOperationConfig(4)
+    )),
+    ['CuCuCuCu:CuCuCuCu:CuCuCuCu:RuRuRuRu']);
 
 // --- breakCrystals via cut ----------------------------------------------
 // A full ring of fused crystals is fused across BOTH cut seams. Cutting

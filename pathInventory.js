@@ -44,11 +44,13 @@ export function finalInventoryCodes(path, { starts } = {}) {
 }
 
 // Acceptable form(s) of the target: exact code when orientation-sensitive,
-// otherwise every rotation under the given op config.
-export function acceptableCodes(target, { orientationSensitive = false, config } = {}) {
+// otherwise every rotation under the given op config. `shape` is an optional
+// already-parsed Shape (solver cache) so callers do not re-parse the code.
+export function acceptableCodes(target, { orientationSensitive = false, config, shape } = {}) {
     if (orientationSensitive) return new Set([target]);
     const cfg = config || new ShapeOperationConfig();
-    return new Set(getAllRotations(Shape.fromShapeCode(target), cfg));
+    const parsed = shape || Shape.fromShapeCode(target);
+    return new Set(getAllRotations(parsed, cfg));
 }
 
 // True when the path's final hand holds the target (any acceptable rotation
