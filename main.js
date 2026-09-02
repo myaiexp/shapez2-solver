@@ -470,6 +470,9 @@ byId('explore-btn').addEventListener('click', () => {
     const depthLimit = clampExploreDepth(byId('depth-limit-input').value);
     const maxLayers = parseInt(byId('max-layers').value) || 4;
     const targetShapeCode = byId('target-shape').value.trim() || null;
+    // Empty target is optional for Explore (color-context heuristics only);
+    // a non-empty value must pass the same allowlist Solve already uses.
+    if (targetShapeCode && !showValidationErrors(targetShapeCode, 'target shape')) return;
 
     for (const code of starting) {
         if (!showValidationErrors(code, 'starting shape')) return;

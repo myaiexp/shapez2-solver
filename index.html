@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; worker-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+    <!-- script-src lists the four CDN files pinned in the <script> tags at the
+         bottom of this file (exact paths, not the unpkg/jsDelivr origins).
+         Bumping a library version or SRI hash must update this list too. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com/cytoscape@3.33.4/dist/cytoscape.min.js https://unpkg.com/cytoscape-dagre@3.0.0/cytoscape-dagre.js https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.79.1/dist/3d-force-graph.min.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; worker-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
     <title>Shapez 2 Solver</title>
     <link rel="stylesheet" href="styles.css?v=__COMMIT__">
     <link rel="icon" type="image/x-icon" href="images/favicon.ico?v=__COMMIT__">
@@ -252,7 +255,9 @@
     <!-- 3D transformation-space explorer (operationGraphSpace.js): three.js + 3d-force-graph, both actively used.
          three.js is pinned at 0.160.1 — the LAST release shipping the UMD global build (build/three.min.js -> window.THREE).
          0.161+ are ESM-only, so bumping three (and the paired 3d-force-graph) requires migrating this no-build app
-         to an ESM importmap. Do NOT naively bump the version: the file 404s and window.THREE disappears. -->
+         to an ESM importmap. Do NOT naively bump the version: the file 404s and window.THREE disappears.
+         Any version or SRI change here (or on the cytoscape tags above) must also update the script-src
+         path list in the Content-Security-Policy meta tag. -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js" integrity="sha384-qOkzR5Ke/XkQxuGVJ9hpFEpDlcoLtWwVYhnJf06cLIZa2vaIptSqaubivErzmD5O" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.79.1/dist/3d-force-graph.min.js" integrity="sha384-rPBTChNmfoK7+PgrfhGgo2vR12+Pc+e4lg2YZYKUyXi2HLVWpzesq43bHEnnuFTl" crossorigin="anonymous"></script>
 

@@ -73,6 +73,8 @@ checkInvalid('double separator → empty middle layer (Cu::Ru)', 'Cu::Ru', 'is e
 // --- Rule: valid shape characters ---
 checkInvalid('invalid shape char (Zu)', 'Zu', "'Z' is not a valid shape");
 checkInvalid('invalid shape char lowercase (su)', 'su', "'s' is not a valid shape");
+checkInvalid('HTML payload rejected as shape chars', '<img src=x onerror=alert(1)>', 'is not a valid shape');
+checkInvalid('non-shape garbage (zzzz) rejected', 'zzzz', 'is not a valid shape');
 checkValid('control: each valid structural shape (CuRuSuWuHuFuGu)', 'CuRuSuWuHuFuGu');
 
 // --- Rule: valid color characters ---

@@ -10,7 +10,7 @@
 - **UI**: Plain HTML + CSS, no framework
 - **Graph visualization**: Cytoscape.js 3.33.4 + cytoscape-dagre 3.0.0 (flowchart); three.js 0.160.1 + 3d-force-graph 1.79.1 (space explorer). All four loaded via CDN in `index.html`.
 - **No build system** — static files served directly, all imports via ES module `<script type="module">`
-- **CSP + SRI** — `index.html` sets a strict Content-Security-Policy (`script-src 'self' https://unpkg.com https://cdn.jsdelivr.net`, `object-src 'none'`, `form-action 'none'`, …) and every CDN script carries an SRI `integrity` hash. Adding a library or bumping a version requires updating both the `script-src` host list and the hash.
+- **CSP + SRI** — `index.html` sets a strict Content-Security-Policy (`script-src 'self'` plus the four pinned CDN file paths, `object-src 'none'`, `form-action 'none'`, …) and every CDN script carries an SRI `integrity` hash. Adding a library or bumping a version requires updating both the `script-src` path list and the hash.
 
 ## Project Structure
 
