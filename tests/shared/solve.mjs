@@ -60,7 +60,8 @@ function parseArgs(argv) {
 }
 
 // Step/edge operation validation (applyOp + validateStep) lives in the shared
-// tests/shared/pathValidation.js so all four harnesses stay in lockstep. Empty
+// tests/shared/pathValidation.js so every harness and suite that validates a
+// path stays in lockstep. Empty
 // (`--------`) outputs are kept there: the explorer keeps them as nodes and the
 // solver drops them, so both stay a subset of the produced set.
 

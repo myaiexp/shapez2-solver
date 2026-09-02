@@ -8,12 +8,13 @@
 
 - **Language**: Vanilla JavaScript (ES modules)
 - **UI**: Plain HTML + CSS, no framework
-- **Graph visualization**: Cytoscape.js (loaded via CDN in index.html)
+- **Graph visualization**: Cytoscape.js 3.33.4 + cytoscape-dagre 3.0.0 (flowchart); three.js 0.160.1 + 3d-force-graph 1.79.1 (space explorer). All four loaded via CDN in `index.html`.
 - **No build system** — static files served directly, all imports via ES module `<script type="module">`
+- **CSP + SRI** — `index.html` sets a strict Content-Security-Policy (`script-src 'self' https://unpkg.com https://cdn.jsdelivr.net`, `object-src 'none'`, `form-action 'none'`, …) and every CDN script carries an SRI `integrity` hash. Adding a library or bumping a version requires updating both the `script-src` host list and the hash.
 
 ## Project Structure
 
-Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintLayout`, `blueprintRenderer` — is a public-entry-point file with a small set of sibling helper files prefixed by the same name (e.g., `shapeSolverCache.js`, `blueprintTopology.js`). `shapeSolver.js` is a thin Web Worker wrapper around the algorithm in `shapeSolverCore.js`.
+Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintLayout`, `blueprintRenderer` — is a public-entry-point file with a small set of sibling helper files prefixed by the same name (e.g., `shapeSolverCache.js`, `blueprintTopology.js`). `shapeSolver.js` is a thin Web Worker wrapper around the algorithm in `shapeSolverCore.js`. The space explorer is a fifth cluster: `shapeExplorerCore.js` plus `operationGraphSpace.js` (3D force graph).
 
 ## Deployment
 
@@ -28,35 +29,58 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 
 - **No build step** — everything runs as vanilla ES modules in the browser
 - **Shape codes** use Shapez 2 notation (e.g., `CuRuSuWu`, `P-P-P-P-`, multi-layer with `:` separator)
-- **Search methods**: BFS (breadth-first, exhaustive), A\* (heuristic, faster for complex shapes), IDA\*, Bidirectional, and **Constructive** (decompose-and-search — splits hard multi-quadrant targets into search-sized pieces and assembles them by stacking; see Known Issues)
-- **Graph rendering** via Cytoscape.js with multiple edge styles (curved, straight, orthogonal, stepped)
+- **Search methods**: BFS, A\*, IDA\*, Bidirectional, and **Constructive** (decompose-and-search for hard multi-quadrant targets; see [solver internals](docs/solver-internals.md))
+- **Flowchart** via Cytoscape.js with multiple edge styles (curved, straight, orthogonal, stepped)
+- **Space explorer** — BFS of the transformation space, rendered as a `ForceGraph3D` (three.js) that replaces the flowchart view; UI depth is clamped (see [solver internals](docs/solver-internals.md))
 - **Color modes**: RGB, RYB, CMYK — affects both shape rendering and available paint colors
 - **Blueprint view** converts solver output to a 2D factory grid layout with machines and belt routing, rendered on canvas with pan/zoom/hover
-- **Tabbed output**: Flowchart (Cytoscape.js graph) and Blueprint (canvas grid) views, switchable via tabs
+- **Blueprint string export** — `Copy Blueprint` produces a `SHAPEZ2-2-…$` string pasteable into the game (`blueprintExport.js`; format in [blueprint reference](docs/shapez-2-blueprint-reference.md))
+- **Tabbed output**: Flowchart (Cytoscape.js) and Blueprint (canvas grid), switchable via tabs
+- **localStorage persistence** — restores solver inputs, last solution, and view state across refresh (`persistence.js`; [design](docs/plans/2026-04-22-persistent-solver-state-design.md)). `Reset Saved State` clears it.
+- **Solver options**: `preventWaste`, `orientationSensitive`, `monolayerPainting`, `filterUnusedShapes`, and `throughputMultiplier` (duplicates machines in the blueprint layout and inserts splitters/mergers)
 
 ## Known Issues / Tech Debt
 
 - Blueprint layout is single-floor only (floor switching UI exists but all machines placed on floor 0)
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
 - Building data footprints not fully verified against in-game values
-- No linter configured (tests do exist — see Conventions below)
-- Solver A\* uses a per-slot **clean sub-shape coverage** heuristic (`getHeuristic`/`_matchAndCoverage` in `shapeSolverCore.js`, idea #1677): each target (layer,quadrant) is scored by the cheapest way any held shape can supply it (0 if a clean piece already covers it, up to 3 to isolate, 4 to fabricate), summed, plus a stack-to-merge term. `heuristicDivisor` (default 0.1) then weights it (weighted A\*, W = 1/divisor), so it's intentionally inadmissible for speed and paths aren't guaranteed shortest — use a larger divisor or BFS for more optimal/bounded search.
-- Solver supports an optional `maxStates` cap (param, default `Infinity` — the browser app runs **uncapped** and relies on the Cancel button, since an OOM there only crashes the user's own tab). The `tests/shared/solve.mjs` harness defaults to 100k so hard targets can't OOM helm's cgroup. On the cap the search aborts gracefully with `{ aborted: 'maxStates' }`. Successor ids are minted lazily (only for states the search keeps), so the `shapes` Map no longer grows with every edge generated (idea #1675).
-- The space **explorer** has no state cap — its BFS re-applies every enabled op across the whole frontier each level, so depth is the only bound on growth. `exploreDepth.js` therefore clamps it to 1–8 (empty/invalid → 3) at both the UI parse and the worker boundary; the `tests/shared/solve.mjs --explore N` harness calls `shapeExplorer` directly and stays unclamped for deliberate deep runs.
-- **Multi-distinct-quadrant targets are now solved by the Constructive method (was: not solvable by forward search at any cap).** Reachable, genuinely simple targets like `CuRuSuWu` (one quadrant cut from each of the four default starts, then stacked, ~15 ops) are NOT found within any reasonable state cap by A\*/BFS/IDA\*/Bidirectional — the wall is **frontier width / state multiplicity near the goal** (thousands of near-equivalent partial assemblies over the multiset-of-shapes state space; the powerset blows up regardless of heuristic). The coverage heuristic (idea #1677) improved the gradient but did not breach this structural limit. The fix shipped as the **Constructive** method (`shapeSolverConstructive.js` + `shapeSolverDecompose.js`, design doc `docs/plans/2026-06-11-recursive-decompose-search-design.md`): it tries the bounded core A\* first at every node (so clever shortcuts like `CuCuRuRu`→1 Swapper are preserved), and only on a cap does it split the target (by-quadrant / by-half / by-layer), recurse on the pieces, and pick the cheapest assembled plan by reuse-credited op count (decomposition depth as tie-break). **Pieces are searched orientation-sensitive** so each lands in its exact target quadrant and assembly `stack`s gravity-merge with no rotation; memoised sub-targets are built once (ids offset into disjoint global ranges) and their product **copied per consumer** — an explicit `Belt Split` chain, or a second feed when the piece is itself a starting shape. Handing one id to two consumers is unbuildable (the blueprint has a single output port per id) and is what `invalidPathIds` in the shared test harness now rejects. The worker dispatches `searchMethod==='Constructive'` to it (core never imports the planner → no cycle), reusing the Max States control as the per-node budget. Scope is Tier-1: uncolored flat structural shapes (C/R/S/W in any arrangement, single- or multi-layer); color/crystal/pin tiers are deferred. Decomposition candidates whose left-fold `stack` product is not the parent (gappy complementary multi-layer pairs that gravity-collapse, e.g. `CuCu----:----SuSu`) are rejected — floating upper parts need pins/crystals (out of Tier-1). Abort reasons: `{ aborted: 'no-decomposition' }` when no solving split remains; `{ aborted: 'preventWaste' }` when a plan exists but leftovers cannot be trashed (Trash disabled under preventWaste); `{ aborted: 'path-invalid' }` when flatten yields a path whose final inventory lacks the target (assembly/id bug, not a missing split). Final-inventory predicates (`pathReachesTarget`, `pathInventoryAcceptable`, `acceptableCodes`, unused-start multiset) live in production `pathInventory.js` (shared with the harness gate) so preventWaste scrub and CI stay lockstep.
+- No linter configured (tests do exist — see [testing](docs/testing.md))
+- A\* coverage heuristic is intentionally inadmissible (weighted A\*); paths aren't guaranteed shortest — [solver internals](docs/solver-internals.md)
+- Three distinct search budgets (`maxStates`, `maxStatesPerLevel`, `nodeBudget`) — the browser leaves the global ceiling uncapped; do not call the shared input "Max States". Details: [solver internals](docs/solver-internals.md)
+- Space explorer has no state cap; UI depth is clamped to 1–8 — [solver internals](docs/solver-internals.md)
+- Multi-distinct-quadrant targets (`CuRuSuWu` and kin) are not found by forward search at any reasonable cap; **Constructive** decomposes and assembles them. Scope, abort codes, inventory rules: [solver internals](docs/solver-internals.md). Design: [2026-06-11](docs/plans/2026-06-11-recursive-decompose-search-design.md)
 - Forked originally from another solver repo; added A\* search and visual improvements
 
 ## Conventions
 
-- **No first-line description comments on source files.** This is a public repo; filenames are descriptive enough. The auto-generated context tree convention used in private projects does not apply here.
-- **Orchestrator exception to the 300-line rule.** A few files intentionally exceed 300 lines because their job is coordinating tightly-coupled steps that don't extract cleanly:
-  - `shapeSolverCore.js` (~735 lines) — the search algorithm has many inner closures over shared state (caches, target, config, shape map). Extracting them would require passing 5–10 args per call or restructuring around a SolverContext object — both worse than the current shape. (A*/Bidirectional share one `runBestFirst` helper since they differ only by heuristic. The space explorer — which shares none of these closures — lives in its own `shapeExplorerCore.js`, importing only the `operations` table from here.)
-  - `blueprintRenderer.js` (~430 lines) — class shell that owns canvas state, event handlers, tooltip DOM, and the public API. Each method does one named thing; splitting tooltip/events into separate modules would require threading instance state through.
-  - `main.js` (~610 lines) — DOM app entry point. Each handler wires one named button/event to an imported module; most lines are glue, not logic. Splitting would scatter shared module-level state (solver worker, blueprint renderer, current layout, persistence flags) across files with circular dependencies.
-  - `blueprintPositions.js` (~330 lines) — `assignPositions` is a thin orchestrator over a forward-flowing placement pipeline: `placeMachines` → `buildPortLookup` → `propagateBeltSplits` → `routeAllBelts` → `computeFloorCount`, each a single-purpose function. The phases share the `ROW_PITCH`/`MACHINE_GAP` constants this file exports (and `blueprintLayout` imports back), so hoisting them into a separate module would create a circular import and fragment a tightly-coupled pipeline. Kept in one file as the pipeline coordinator.
-- **Tests are plain `node tests/**/*.js` scripts** (no framework), grouped by subsystem into `tests/{shape,solver,blueprint,shared}/` — mirroring the source's prefix-grouping. `shared/` holds the harness (`fixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`) plus cross-cutting app tests (`colorMode`, `persistence`). `pathValidation.js` is the single correctness gate behind all four harnesses — a path must clear three independent checks: every step replays as a real op, the ids flow physically (each consumed once; fan-out needs a `Belt Split`), and the final inventory holds the target (a zero-op path passes iff a starting shape is acceptable). It has its own unit suite, `pathValidation.test.js`, because a hole in the gate silently unblocks every harness at once. `similarity.js` is the solver's retired pre-#1677 heuristic — test-only, kept because smoke snapshots it as a pure op; never import it from app code. The full suite is zero-dependency and runs in well under a second. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/shared/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites. Shape ops must never mutate their input `Shape` objects — the solver shares parsed shapes via `getCachedShape`, so in-place mutation corrupts the cache and yields impossible paths; `tests/shape/shapeCacheIntegrity.test.js` guards this.
-- **Two test gates run the same suite.** CI (the `test` job in `.github/workflows/pages.yml`) runs it on every push to `master`, and the Pages **deploy is gated on it** (`deploy: needs: test`) — a red test blocks shipping to mase.fi/shapez. Locally, `.githooks/pre-commit` runs it before each commit; activate once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).
-- **Headless solve/explore harness.** `node tests/shared/solve.mjs <target> [--start a,b,c] [--ops ...] [--method A*|BFS] [--timeout ms] [--json]` runs a solve and validates every step is a real operation; `node tests/shared/solve.mjs --explore <depth>` does the same for the space explorer. Use it to reproduce and diagnose solver/operation bugs from the CLI without the browser.
+- **No first-line description comments** on source files (public repo; filenames are enough). File-size exceptions and the 300-line rule: [architecture conventions](docs/architecture-conventions.md)
+- **Tests** are plain `node tests/**/*.js` scripts. Layout, the path-validation gate, CI/pre-commit, and the headless harness: [testing](docs/testing.md)
+
+## Documentation
+
+All docs live under `docs/` (design/plan pairs under `docs/plans/`). `.claude/` is Helm session context only.
+
+### Maps
+
+- [testing.md](docs/testing.md) — test layout, pathValidation gate, CI/pre-commit, `solve.mjs`
+- [architecture-conventions.md](docs/architecture-conventions.md) — 300-line rule, orchestrator exceptions
+- [solver-internals.md](docs/solver-internals.md) — heuristic, budgets, explorer bound, Constructive scope and abort codes
+
+### Design
+
+- [factory-blueprint-design.md](docs/plans/2026-03-04-factory-blueprint-design.md) — 2D factory layout from solver output
+- [factory-blueprint-impl.md](docs/plans/2026-03-04-factory-blueprint-impl.md) — implementation plan for the blueprint view
+- [modularize-large-files-design.md](docs/plans/2026-04-18-modularize-large-files-design.md) — split of the original 300+ line files
+- [modularize-large-files-plan.md](docs/plans/2026-04-18-modularize-large-files-plan.md) — implementation plan for that split
+- [persistent-solver-state-design.md](docs/plans/2026-04-22-persistent-solver-state-design.md) — localStorage restore of inputs/solution/view
+- [persistent-solver-state-plan.md](docs/plans/2026-04-22-persistent-solver-state-plan.md) — implementation plan for persistence
+- [recursive-decompose-search-design.md](docs/plans/2026-06-11-recursive-decompose-search-design.md) — Constructive decompose-and-search
+- [recursive-decompose-search-plan.md](docs/plans/2026-06-11-recursive-decompose-search-plan.md) — implementation plan for Constructive
+
+### References
+
+- [shapez-2-reference.md](docs/shapez-2-reference.md) — in-game machine footprints, belt mechanics
+- [shapez-2-blueprint-reference.md](docs/shapez-2-blueprint-reference.md) — `SHAPEZ2-2-…$` string format (`blueprintExport.js` `@see`s this)
 
 ## Roadmap & Ideation
 

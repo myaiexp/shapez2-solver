@@ -4,9 +4,9 @@
 // operation on its claimed input codes and confirms the claimed outputs are a
 // SUBSET of what the op actually produces (the search drops empties/no-ops, so
 // subset — not equality — is the contract). This module is the single source of
-// truth for that check, imported by smoke.js, solve.mjs, constructive.test.js
-// and solverStateCap.test.js so the path-integrity gate can't drift between the
-// four (e.g. one passing an op config while the others silently don't).
+// truth for that check, imported by every harness and suite that validates a
+// path so the path-integrity gate can't drift (e.g. one passing an op config
+// while the others silently don't).
 //
 // Three independent gates live here for solver paths, and a path must clear all:
 //   1. invalidPathSteps — every step is a real op on its claimed inputs
