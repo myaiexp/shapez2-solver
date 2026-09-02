@@ -8,8 +8,11 @@ import {
     REFINED_Y_CHAR
 } from './shapeClass.js';
 
-// Valid shape characters (updated for Shapez 2 1.0 — includes refined X/Y)
-const VALID_SHAPES = [
+// Valid shape characters (updated for Shapez 2 1.0 — includes refined X/Y).
+// Exported so the renderer contract test can iterate the same lists the
+// validator uses — a new shape/color char that validates but cannot be drawn
+// fails that test instead of shipping.
+export const VALID_SHAPES = [
     NOTHING_CHAR,
     PIN_CHAR,
     CRYSTAL_CHAR,
@@ -24,8 +27,7 @@ const VALID_SHAPES = [
     REFINED_Y_CHAR  // 1.0 refined/exotic Y
 ];
 
-// Valid color characters
-const VALID_COLORS = [
+export const VALID_COLORS = [
     NOTHING_CHAR,
     'u', // uncolored
     'r', // red
@@ -119,6 +121,10 @@ function validateLayer(layer, layerIndex) {
 
         if (shape === PIN_CHAR && color !== NOTHING_CHAR) {
             errors.push(`${partLabel}: A 'Pin' shape cannot have a color.`);
+        }
+
+        if (shape !== NOTHING_CHAR && shape !== PIN_CHAR && color === NOTHING_CHAR) {
+            errors.push(`${partLabel}: '${shape}' must have a color.`);
         }
     }
 

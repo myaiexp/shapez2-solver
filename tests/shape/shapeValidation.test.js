@@ -57,7 +57,6 @@ checkValid('Pin with no color (P-)', 'P-');
 checkValid('Crystal shape with color (cu)', 'cu');
 checkValid('refined X/Y shapes (XuYu)', 'XuYu');
 checkValid('hexagon/flower/gear (HuFuGu)', 'HuFuGu');
-checkValid('structural with no color (C-)', 'C-');
 checkValid('all valid colors across parts (CuRrSgWb)', 'CuRrSgWb');
 checkValid('black + white + cyan + magenta (CkCwCcCm)', 'CkCwCcCm');
 
@@ -88,6 +87,12 @@ checkInvalid('Nothing with color r in second part (Cu-r)', 'Cu-r', "'Nothing' sh
 // --- Rule: Pin shape cannot have a color ---
 checkInvalid('Pin with color u (Pu)', 'Pu', "'Pin' shape cannot have a color");
 checkInvalid('Pin with color in second part (CuPr)', 'CuPr', "'Pin' shape cannot have a color");
+
+// --- Rule: every other shape must have a color (renderer cannot draw '-') ---
+checkInvalid('structural with no color (C-)', 'C-', 'must have a color');
+checkInvalid('crystal with no color (c-)', 'c-', 'must have a color');
+checkInvalid('refined X with no color (X-)', 'X-', 'must have a color');
+checkInvalid('star with no color in second part (CuS-)', 'CuS-', 'must have a color');
 
 // --- Rule: cross-layer part-count consistency ---
 checkInvalid('mismatched layer part counts (CuRu:SuWuHu)', 'CuRu:SuWuHu', 'same number of parts');

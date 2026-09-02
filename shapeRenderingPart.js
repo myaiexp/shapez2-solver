@@ -1,6 +1,6 @@
 // Shape-part drawers for renderShape — fill/stroke thunks for one quadrant.
 // Stroke is deferred so borders overlay after every part in the layer fills.
-import { colorValues } from './shapeRenderingColors.js';
+import { colorValues, baseColors } from './shapeRenderingColors.js';
 
 export const QUAD_MODE = "quad";
 export const HEX_MODE = "hex";
@@ -43,7 +43,10 @@ function drawPolygon(ctx, points) {
 export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometryMode, colorMode, borderScale) {
 
     const drawShadow = layerIndex != 0;
-    const color = colorValues[colorMode][partColor];
+    // Uncolored fallback: colorValues has no '-' (Nothing/Pin are no-paint /
+    // pinColor), so a colorless structural/crystal used to set fillStyle to
+    // undefined (leftover paint) or throw in darkenColor (crystal).
+    const color = colorValues[colorMode]?.[partColor] ?? baseColors.u;
     const curBorderSize = borderSize / borderScale;
 
     function standardDraw(drawPath) {

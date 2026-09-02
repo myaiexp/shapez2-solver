@@ -9,8 +9,8 @@ set -uo pipefail
 
 run() {
   local out
-  if ! out=$(node "$1" 2>&1); then
-    echo "✗ pre-commit FAILED: $1"
+  if ! out=$(node "$@" 2>&1); then
+    echo "✗ pre-commit FAILED: $*"
     echo "$out"
     exit 1
   fi
@@ -18,6 +18,14 @@ run() {
 
 echo "pre-commit: running test suite…"
 # Tests are grouped into tests/{shape,solver,blueprint,shared}/ — discover recursively.
-for t in $(find tests -name '*.test.js' | sort); do run "$t"; done
+# Floor is a canary for an empty/missing tests/ tree (keep in lockstep with .github/workflows/pages.yml).
+mapfile -t TESTS < <(find tests -name '*.test.js' | sort)
+if [ "${#TESTS[@]}" -lt 30 ]; then
+  echo "✗ pre-commit FAILED: expected >=30 test files, found ${#TESTS[@]}"
+  exit 1
+fi
+for t in "${TESTS[@]}"; do run "$t"; done
 run tests/shared/smoke.js
+run tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json
+run tests/shared/solve.mjs --explore 2
 echo "✓ pre-commit: all tests passed"

@@ -597,7 +597,6 @@ byId('reset-state-btn').addEventListener('click', () => {
     location.reload();
 });
 
-// Graph Controls
 byId('snapshot-btn').addEventListener('click', async () => {
     const blueprintActive = byId('blueprint-view').classList.contains('active');
     if (blueprintActive && blueprintRenderer) {
@@ -633,16 +632,17 @@ byId('floor-up-btn').addEventListener('click', () => {
 });
 byId('copy-blueprint-btn').addEventListener('click', async () => {
     if (!currentBlueprintLayout || currentBlueprintLayout.machines.length === 0) return;
+    const btn = byId('copy-blueprint-btn');
+    const orig = btn.textContent;
     try {
         const str = await exportBlueprintString(currentBlueprintLayout);
         await navigator.clipboard.writeText(str);
-        const btn = byId('copy-blueprint-btn');
-        const orig = btn.textContent;
         btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = orig; }, 1500);
     } catch (err) {
         console.error('Blueprint export failed:', err);
+        btn.textContent = 'Export failed';
     }
+    setTimeout(() => { btn.textContent = orig; }, 1500);
 });
 
 byId('floor-down-btn').addEventListener('click', () => {
