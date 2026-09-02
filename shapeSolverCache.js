@@ -17,10 +17,12 @@ export function getCachedShape(code) {
 // ---------------------------------------------------------------------------
 // Optimization 7: Operation Result Cache
 // ---------------------------------------------------------------------------
+// Keys include maxShapeLayers: Pin Pusher / Stacker drop overflow layers, so
+// the same op+code under two caps must not share an entry.
 export const operationResultCache = new Map();
 
 export function getCachedUnaryResult(opName, fn, inputShape, config) {
-    const key = `${opName}|${inputShape.toShapeCode()}`;
+    const key = `${opName}|${inputShape.toShapeCode()}|${config.maxShapeLayers}`;
     let result = operationResultCache.get(key);
     if (!result) {
         result = fn(inputShape, config);
@@ -30,7 +32,7 @@ export function getCachedUnaryResult(opName, fn, inputShape, config) {
 }
 
 export function getCachedColoredUnaryResult(opName, fn, inputShape, color, config) {
-    const key = `${opName}|${inputShape.toShapeCode()}|${color}`;
+    const key = `${opName}|${inputShape.toShapeCode()}|${color}|${config.maxShapeLayers}`;
     let result = operationResultCache.get(key);
     if (!result) {
         result = fn(inputShape, color, config);
@@ -40,7 +42,7 @@ export function getCachedColoredUnaryResult(opName, fn, inputShape, color, confi
 }
 
 export function getCachedBinaryResult(opName, fn, inputShape1, inputShape2, config) {
-    const key = `${opName}|${inputShape1.toShapeCode()}|${inputShape2.toShapeCode()}`;
+    const key = `${opName}|${inputShape1.toShapeCode()}|${inputShape2.toShapeCode()}|${config.maxShapeLayers}`;
     let result = operationResultCache.get(key);
     if (!result) {
         result = fn(inputShape1, inputShape2, config);

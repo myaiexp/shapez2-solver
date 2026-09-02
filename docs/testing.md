@@ -2,7 +2,7 @@
 
 Tests are plain `node tests/**/*.js` scripts (no framework), grouped by subsystem into `tests/{shape,solver,blueprint,shared}/` — mirroring the source's prefix-grouping.
 
-`shared/` holds the harness (`fixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `exploreDepth`, `pathInventory`).
+`shared/` holds the harness (`fixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `exploreDepth`, `pathInventory`).
 
 The full suite is zero-dependency and runs in well under a second. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/shared/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites.
 
@@ -33,3 +33,17 @@ Locally, `.githooks/pre-commit` runs it before each commit; activate once per cl
 `node tests/shared/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter) and one `--explore 2` so a signature change in the modules it wraps fails the gate.
 
 Flag set, methods, and defaults live in the usage header at the top of `tests/shared/solve.mjs` — read that rather than copying a subset here.
+
+## Snapshot baselines
+
+`tests/shared/smoke.js` diffs op/layout/solver/explorer outputs against `tests/shared/snapshots.json`. A missing `snapshots.json`, or a fixture key with no baseline, is a failure — it does not record current behavior and pass.
+
+Record or refresh baselines explicitly:
+
+```
+SMOKE_UPDATE=1 node tests/shared/smoke.js
+```
+
+That writes missing keys (`[baseline written]`) and overwrites mismatches (`[baseline updated]`). Review the `snapshots.json` diff before committing; a new fixture's first baseline is whatever the implementation produces today.
+
+Layout snapshots include `overlappingBeltTiles` (distinct `(x,y,floor)` positions with more than one belt — currently non-zero because routing is L-shaped with no obstacle avoidance) and `beltsOverMachineFootprint` (belt tiles on a machine footprint — currently 0, and should stay 0).

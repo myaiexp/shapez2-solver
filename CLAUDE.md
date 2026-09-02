@@ -42,7 +42,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 ## Known Issues / Tech Debt
 
 - Blueprint layout is single-floor only (floor switching UI exists but all machines placed on floor 0)
-- Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
+- Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance — layout snapshots record `overlappingBeltTiles` (currently non-zero) and `beltsOverMachineFootprint` (0)
 - Building data footprints not fully verified against in-game values — [shapez-2-reference.md](docs/shapez-2-reference.md)
 - No linter configured (tests do exist — see [testing](docs/testing.md))
 - A\* coverage heuristic is intentionally inadmissible (weighted A\*); paths aren't guaranteed shortest — [solver internals](docs/solver-internals.md)
@@ -54,7 +54,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 ## Conventions
 
 - **No first-line description comments** on source files (public repo; filenames are enough). File-size exceptions and the 300-line rule: [architecture conventions](docs/architecture-conventions.md)
-- **Tests** are plain `node tests/**/*.js` scripts. Layout, the path-validation gate, CI/pre-commit, and the headless harness: [testing](docs/testing.md)
+- **Tests** are plain `node tests/**/*.js` scripts. Layout, the path-validation gate, CI/pre-commit, the headless harness, and snapshot updates (`SMOKE_UPDATE=1 node tests/shared/smoke.js`): [testing](docs/testing.md)
 
 ## Documentation
 

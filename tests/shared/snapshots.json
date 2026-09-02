@@ -13,6 +13,8 @@
   "Layout: simple-cut-stack": {
     "machineCount": 2,
     "beltCount": 12,
+    "overlappingBeltTiles": 1,
+    "beltsOverMachineFootprint": 0,
     "gridWidth": 2,
     "gridHeight": 9,
     "floorCount": 2
@@ -65,6 +67,8 @@
   "Layout: cut-paint-stack": {
     "machineCount": 3,
     "beltCount": 19,
+    "overlappingBeltTiles": 1,
+    "beltsOverMachineFootprint": 0,
     "gridWidth": 2,
     "gridHeight": 13,
     "floorCount": 2
@@ -72,6 +76,8 @@
   "Layout: belt-split-passthrough": {
     "machineCount": 2,
     "beltCount": 15,
+    "overlappingBeltTiles": 1,
+    "beltsOverMachineFootprint": 0,
     "gridWidth": 2,
     "gridHeight": 9,
     "floorCount": 2
@@ -79,6 +85,8 @@
   "Layout: multi-source-deep": {
     "machineCount": 4,
     "beltCount": 35,
+    "overlappingBeltTiles": 3,
+    "beltsOverMachineFootprint": 0,
     "gridWidth": 5,
     "gridHeight": 13,
     "floorCount": 2
@@ -102,6 +110,8 @@
   "Layout: machine-fed-belt-split": {
     "machineCount": 3,
     "beltCount": 16,
+    "overlappingBeltTiles": 1,
+    "beltsOverMachineFootprint": 0,
     "gridWidth": 4,
     "gridHeight": 9,
     "floorCount": 2

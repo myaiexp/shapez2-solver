@@ -76,14 +76,17 @@ check('single-layer paint not skipped under monolayerPainting',
     skip('Painter', 'CuCuCuCu', { monolayerPainting: true }), false);
 
 // --- expandUnaryOp: the skip actually suppresses descriptors ----------------
+// useCache: false so this file does not populate the module-global
+// operationResultCache (a later case with a different maxLayers would
+// otherwise read a stale entry).
 
 // A pruned op yields zero descriptors (empty-half cutter).
 check('expandUnaryOp: pruned cutter → no descriptors',
-    expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuCu----', shape('CuCu----'), config, { needsColor: false }),
+    expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuCu----', shape('CuCu----'), config, { needsColor: false, useCache: false }),
     []);
 
 // A valid cutter yields one descriptor with both cut halves as outputs.
-const cutDesc = expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuRuSuWu', shape('CuRuSuWu'), config, { needsColor: false });
+const cutDesc = expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuRuSuWu', shape('CuRuSuWu'), config, { needsColor: false, useCache: false });
 check('expandUnaryOp: valid cutter → one descriptor', cutDesc.length, 1);
 check('expandUnaryOp: cutter descriptor type/inputs',
     { type: cutDesc[0]?.type, inputIds: cutDesc[0]?.inputIds, color: cutDesc[0]?.color },
@@ -95,14 +98,14 @@ check('expandUnaryOp: cutter outputs are the two halves',
 // halves on opposite layers must cut into TWO useful pieces. A layer-0-only
 // prune would skip this op and emit [] (target unreachable); the correct
 // all-layers prune emits one descriptor carrying both non-empty halves.
-const mlCutDesc = expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuCu----:----SuSu', shape('CuCu----:----SuSu'), config, { needsColor: false });
+const mlCutDesc = expandUnaryOp('Cutter', operations['Cutter'], 0, 'CuCu----:----SuSu', shape('CuCu----:----SuSu'), config, { needsColor: false, useCache: false });
 check('expandUnaryOp: multi-layer complementary cut → one descriptor', mlCutDesc.length, 1);
 check('expandUnaryOp: multi-layer complementary cut emits both halves',
     [...(mlCutDesc[0]?.outputCodes ?? [])].sort(), ['----SuSu', 'CuCu----']);
 
 // Painter enumerates target-implied colors and applies each.
 const paintDesc = expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu', shape('CuCuCuCu'), config,
-    { needsColor: true, colorContext: { target: shape('CrCrCrCr') } });
+    { needsColor: true, useCache: false, colorContext: { target: shape('CrCrCrCr') } });
 check('expandUnaryOp: painter → one recolored descriptor', paintDesc,
     [{ type: 'Painter', inputIds: [0], outputCodes: ['CrCrCrCr'], color: 'r' }]);
 
@@ -111,6 +114,7 @@ check('expandUnaryOp: painter → one recolored descriptor', paintDesc,
 // Reference CrCrCrCr supplies red for circle parts on the uncolored input.
 const noTargetPaint = expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu', shape('CuCuCuCu'), config, {
     needsColor: true,
+    useCache: false,
     colorContext: {
         target: null,
         referenceCodes: ['CrCrCrCr'],
@@ -124,7 +128,7 @@ check('expandUnaryOp: painter without target uses referenceCodes array',
 // Monolayer-paint pruning threads through expandUnaryOp too.
 check('expandUnaryOp: multi-layer paint pruned under monolayerPainting',
     expandUnaryOp('Painter', operations['Painter'], 0, 'CuCuCuCu:RuRuRuRu', shape('CuCuCuCu:RuRuRuRu'), config,
-        { needsColor: true, pruning: { monolayerPainting: true }, colorContext: { target: shape('CrCrCrCr:RrRrRrRr') } }),
+        { needsColor: true, useCache: false, pruning: { monolayerPainting: true }, colorContext: { target: shape('CrCrCrCr:RrRrRrRr') } }),
     []);
 
 console.log(`\n${passed}/${total} passed`);
