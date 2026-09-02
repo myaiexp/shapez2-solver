@@ -137,5 +137,10 @@
   "Solver: prevent-waste-target-as-start": {
     "numOps": 1,
     "depth": 1
+  },
+  "Explorer: painter-with-target": {
+    "shapeCount": 3,
+    "opCount": 2,
+    "edgeCount": 4
   }
 }

@@ -5,11 +5,20 @@
 // inverseUnpin, plus inverseUncut's identity-half contract (geometric left/right
 // matching cut()) and one non-early-return case per function so empty results are
 // proven to come from the guard, not from always returning empty.
+//
+// Also the four previously untested inverses (finding #8618): inverseUnpaint and
+// the three rotation inverses. Rotations are each other's inverses of the forward
+// ops; unpaint returns a 0-or-1 array (not one code per original color).
 import { Shape } from '../../shapeClass.js';
+import { rotate90CW, rotate90CCW, rotate180 } from '../../shapeRotation.js';
 import {
     inverseUnstack,
     inverseUncut,
-    inverseUnpin
+    inverseUnpin,
+    inverseUnpaint,
+    inverseRotateCW,
+    inverseRotateCCW,
+    inverseRotate180,
 } from '../../shapeSolverInverse.js';
 
 let passed = 0, total = 0, failed = false;
@@ -52,6 +61,37 @@ check('inverseUnpin single-layer returns []', inverseUnpin(shape('CuCuCuCu'), nu
 check('inverseUnpin single-layer pins returns []', inverseUnpin(shape('P-P-P-P-'), null), []);
 // Contrast: a 2-layer shape with an all-pin bottom passes the guard and drops it.
 check('inverseUnpin 2-layer pin base (non-early)', inverseUnpin(shape('P-P-P-P-:CuCuCuCu'), null), ['CuCuCuCu']);
+
+// --- inverseUnpaint: 0-or-1 fully-unpainted predecessor of the top layer -----
+// Unpainted top → [] (nothing to undo). Painted top → the uncolored code.
+// Lower layers are copied through; only the top layer's paintable colors drop to u.
+check('inverseUnpaint unpainted top returns []', inverseUnpaint(shape('CuCuCuCu'), null), []);
+check('inverseUnpaint unpainted top of a stack returns []',
+    inverseUnpaint(shape('CrCrCrCr:CuCuCuCu'), null), []);
+check('inverseUnpaint painted monolayer → uncolored code',
+    inverseUnpaint(shape('CrCrCrCr'), null), ['CuCuCuCu']);
+check('inverseUnpaint painted top leaves lower layers alone',
+    inverseUnpaint(shape('CuCuCuCu:RrRgRbRy'), null), ['CuCuCuCu:RuRuRuRu']);
+check('inverseUnpaint mixed top unpaints only painted parts',
+    inverseUnpaint(shape('CrCuRgCu'), null), ['CuCuRuCu']);
+
+// --- rotation inverses: each is the forward op in the opposite direction -----
+{
+    const s = shape('CuRuSuWu');
+    check('inverseRotateCW(rotate90CW(s)) recovers s',
+        inverseRotateCW(rotate90CW(s)[0], null), ['CuRuSuWu']);
+    check('inverseRotateCCW(rotate90CCW(s)) recovers s',
+        inverseRotateCCW(rotate90CCW(s)[0], null), ['CuRuSuWu']);
+    check('inverseRotate180(rotate180(s)) recovers s',
+        inverseRotate180(rotate180(s)[0], null), ['CuRuSuWu']);
+    // Direct predecessor of the unrotated shape (the inverse applied to s itself).
+    check('inverseRotateCW(s) is rotate90CCW(s)',
+        inverseRotateCW(s, null), [rotate90CCW(s)[0].toShapeCode()]);
+    check('inverseRotateCCW(s) is rotate90CW(s)',
+        inverseRotateCCW(s, null), [rotate90CW(s)[0].toShapeCode()]);
+    check('inverseRotate180(s) is rotate180(s)',
+        inverseRotate180(s, null), [rotate180(s)[0].toShapeCode()]);
+}
 
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);

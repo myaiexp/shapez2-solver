@@ -7,7 +7,10 @@ import { isLeftHalfEmpty, isRightHalfEmpty } from './shapeHalfGeometry.js';
 
 /**
  * Unpaint: set all paintable parts on the top layer to uncolored.
- * Returns an array of shape codes (one per possible original color).
+ * Returns a 0-or-1 array — empty when the top layer has no painted parts,
+ * otherwise the single fully-unpainted predecessor (lower layers untouched).
+ * Painter is many-to-one (any color → uncolored), so there is no per-color
+ * original to recover; one unpainted code is the whole predecessor set.
  */
 export function inverseUnpaint(shape, config) {
     const results = [];

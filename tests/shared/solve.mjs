@@ -9,6 +9,7 @@
 //   node tests/shared/solve.mjs CuRuCuRu
 //   node tests/shared/solve.mjs RuCuCuRu --start CuCuCuCu,RuRuRuRu --ops Swapper,Cutter
 //   node tests/shared/solve.mjs --explore 2 --start CuCuCuCu,RuRuRuRu,SuSuSuSu
+//   node tests/shared/solve.mjs CrCrCrCr --explore 1 --ops Painter --start CuCuCuCu,CrCrCrCr,CgCgCgCg
 //
 // Options:
 //   --start a,b,c        starting shape codes (default matches the app's default
@@ -23,6 +24,8 @@
 //   --max-states N       abort once N distinct states are discovered (default 100000;
 //                        bounds memory so hard targets fail gracefully instead of OOM)
 //   --explore N          run the space explorer to depth N instead of solving
+//                        (positional <target>, if given, narrows Painter / Crystal
+//                        Generator colors the same way the worker's 7th arg does)
 //   --json               emit machine-readable JSON
 //
 // Exit code is non-zero if any step/edge fails operation validation, if the id
@@ -75,7 +78,7 @@ const deadline = Date.now() + opts.timeout;
 const shouldCancel = () => Date.now() > deadline;
 
 if (opts.explore != null) {
-    const g = await shapeExplorer(starting, ops, opts.explore, opts.maxLayers, shouldCancel, () => {});
+    const g = await shapeExplorer(starting, ops, opts.explore, opts.maxLayers, shouldCancel, () => {}, opts.target || null);
     if (!g) { console.error('explore: cancelled/timed out'); process.exit(2); }
     const edgeReports = validateExplorerEdges(g, opConfig);
     const bad = edgeReports.filter((r) => !r.valid).length;

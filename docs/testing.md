@@ -2,7 +2,9 @@
 
 Tests are plain `node tests/**/*.js` scripts (no framework), grouped by subsystem into `tests/{shape,solver,blueprint,shared}/` — mirroring the source's prefix-grouping.
 
-`shared/` holds the harness (`fixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `exploreDepth`, `pathInventory`).
+`shared/` holds the harness (`fixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `exploreDepth`, `pathInventory`). Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path.
+
+The Worker wrapper (`shapeSolver.js`) is covered by `tests/solver/workerDispatch.test.js`, which stubs `globalThis.self` and drives `self.onmessage` — Constructive dispatch, `nodeBudget` vs the core caps, explore-depth clamp, cancel suppression, and `{type:'error'}` on a malformed target.
 
 The full suite is zero-dependency and runs in well under a second. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/shared/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites.
 

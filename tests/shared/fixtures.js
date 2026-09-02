@@ -215,6 +215,18 @@ export const EXPLORER_FIXTURES = [
         depthLimit: 1,
         maxLayers: 4,
     },
+    // Painter WITH a target (finding #8619): the explorer's 7th arg narrows
+    // Painter colors to those implied by the target, so Cg is not a paint color.
+    // Smoke threads `target` through; the with/without count contrast lives in
+    // shapeExplorerTarget.test.js.
+    {
+        name: 'painter-with-target',
+        starting: ['CuCuCuCu', 'CrCrCrCr', 'CgCgCgCg'],
+        ops: ['Painter'],
+        depthLimit: 1,
+        maxLayers: 4,
+        target: 'CrCrCrCr',
+    },
 ];
 
 // Hand-written solution paths that buildLayout / smoke consume. Every path must

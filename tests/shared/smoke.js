@@ -195,7 +195,8 @@ for (const fixture of EXPLORER_FIXTURES) {
         fixture.depthLimit,
         fixture.maxLayers,
         () => false,
-        () => {}
+        () => {},
+        fixture.target ?? null,
     );
     // Structural snapshots alone miss wrong expand/prune that preserves counts.
     // Re-validate every edge as a real op (same gate as solve.mjs --explore).
