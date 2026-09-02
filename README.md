@@ -2,21 +2,26 @@
 
 A web-based tool for the game [Shapez 2](https://shapez2.com/) that tries to find the most efficient solutions for creating a target shape from given starting shapes using a set of allowed operations.
 
+**Live**: [mase.fi/shapez](https://mase.fi/shapez)
+
 ## Features
 
 - Handles all the main Shapez 2 operations (cutting, rotating, stacking, painting, trash, belt splitting, etc.)
-- Supports search algorithms BFS and A* heuristic search.
+- Search methods: BFS, A*, IDA*, Bidirectional, and Constructive (decompose-and-search for hard multi-quadrant targets).
 - Shapes work with any amount of parts. (Hex shapes are supported!)
 - Shows you a visual flowchart of the solution steps with customizable edge styles (curved, straight, orthogonal, stepped), which can be copied as an image.
+- Blueprint tab: a 2D factory grid with machines, L-shaped belt routing, pan/zoom/hover, and floor controls.
+- Copy Blueprint: one-click export of a `SHAPEZ2-2-…$` string pasteable into the game.
+- Shape Explorer: a 3D force-graph of the transformation space reachable from the starting shapes.
+- Restores solver inputs, last solution, and view state across refresh (`Reset Saved State` clears it).
 - Renders shapes visually with customizable color modes (RGB, RYB, CMYK).
 - Has several settings to control the solver to the user's liking.
-- User-friendly interface.
 
 ## Credits & Sources
 
 - Shape operation logic ported to JS from [Loupau38's Shapez 2 Library](https://pypi.org/project/shapez2/).
 - Shape rendering code adapted from [Loupau38's Shape Viewer](https://github.com/Loupau38/loupau38.github.io/blob/main/assets/scripts/shapeViewer.js).
-- Uses [Cytoscape.js](https://js.cytoscape.org/) for graph visualization.
+- Uses [Cytoscape.js](https://js.cytoscape.org/) for the flowchart and [three.js](https://threejs.org/) + [3d-force-graph](https://github.com/vasturiano/3d-force-graph) for the Shape Explorer.
 
 ## Examples
 
@@ -34,5 +39,5 @@ Standalone Pins (`P-P-P-P-`) without using Crystal Generator
 
 # License and Usage
 
-This project is MIT licensed, allowing free use, modification, and distribution under the condition that credit is given (link to this repository).
-Feel free to fork, contribute, or build upon it for your own Shapez 2 projects (and let me know if you do so)!
+This project is licensed under the [BSD Zero Clause License](LICENSE) (0BSD). Use, copy, modify, and distribute freely, with or without credit.
+Feel free to fork, contribute, or build upon it for your own Shapez 2 projects.

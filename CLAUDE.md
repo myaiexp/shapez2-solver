@@ -43,7 +43,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 
 - Blueprint layout is single-floor only (floor switching UI exists but all machines placed on floor 0)
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance
-- Building data footprints not fully verified against in-game values
+- Building data footprints not fully verified against in-game values — [shapez-2-reference.md](docs/shapez-2-reference.md)
 - No linter configured (tests do exist — see [testing](docs/testing.md))
 - A\* coverage heuristic is intentionally inadmissible (weighted A\*); paths aren't guaranteed shortest — [solver internals](docs/solver-internals.md)
 - Three distinct search budgets (`maxStates`, `maxStatesPerLevel`, `nodeBudget`) — the browser leaves the global ceiling uncapped; do not call the shared input "Max States". Details: [solver internals](docs/solver-internals.md)
