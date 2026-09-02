@@ -142,5 +142,14 @@
     "shapeCount": 3,
     "opCount": 2,
     "edgeCount": 4
+  },
+  "Layout: chained-belt-split": {
+    "machineCount": 2,
+    "beltCount": 11,
+    "overlappingBeltTiles": 1,
+    "beltsOverMachineFootprint": 0,
+    "gridWidth": 4,
+    "gridHeight": 5,
+    "floorCount": 2
   }
 }
