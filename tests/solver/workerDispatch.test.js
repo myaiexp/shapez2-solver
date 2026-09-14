@@ -8,7 +8,7 @@
 // `self` before the dynamic import (the file only assigns self.onmessage at
 // load) and drive the handler as the Worker would.
 import { shapeExplorer } from '../../shapeExplorerCore.js';
-import { MAX_EXPLORE_DEPTH } from '../../exploreDepth.js';
+import { MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from '../../exploreDepth.js';
 
 const sent = [];
 globalThis.self = {
@@ -45,6 +45,10 @@ function graphKey(g) {
 }
 
 const STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
+// Every operation the UI enables by default, in index.html DOM order (the
+// order main.js sends them, which is the order the explorer expands them).
+const UI_OPS = ['Rotator CW', 'Rotator CCW', 'Rotator 180', 'Half Destroyer', 'Cutter', 'Swapper',
+    'Stacker', 'Painter', 'Belt Split', 'Pin Pusher', 'Crystal Generator', 'Trash'];
 
 // --- Constructive dispatch: strategyTrace is planner-only --------------------
 {
@@ -108,6 +112,30 @@ const STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
     const shallow = await shapeExplorer(starts, ops, 1, 4, () => false, () => {});
     check('explore-clamp: 999 did not collapse to depth 1 (in-range depth still expands further)',
         (workerGraph?.ops?.length ?? 0) > (shallow?.ops?.length ?? 0));
+}
+
+// --- Explore depth 3 at the UI defaults stops at the worker's node cap ------
+// Finding #9623: this request never finished and ran the tab out of memory.
+// The worker applies its own cap (a caller-supplied maxNodes is ignored),
+// posts the partial graph, and posts per-depth progress before the result.
+{
+    sent.length = 0;
+    await dispatch('explore', {
+        startingShapeCodes: STARTS,
+        enabledOperations: UI_OPS,
+        depthLimit: 3,
+        maxLayers: 4,
+        maxNodes: Infinity,
+    });
+    const g = resultsOf('result')[0]?.result;
+    check('explore-cap: posts a partial graph', g != null && Array.isArray(g.shapes));
+    check("explore-cap: result carries aborted 'maxNodes'", g?.aborted === 'maxNodes');
+    check('explore-cap: caller maxNodes ignored, worker cap applied',
+        g?.maxNodes === DEFAULT_EXPLORE_MAX_NODES
+        && g.shapes.length + g.ops.length <= DEFAULT_EXPLORE_MAX_NODES);
+    const firstProgress = sent.findIndex(m => m.type === 'status' && m.message.startsWith('Exploring depth'));
+    check('explore-cap: per-depth progress posted before the result',
+        firstProgress >= 0 && firstProgress < sent.findIndex(m => m.type === 'result'));
 }
 
 // --- cancel posts status; an in-flight solve then posts no result ------------

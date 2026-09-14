@@ -10,7 +10,7 @@ import { loadState, saveState, clearState, captureState, applyState } from './pe
 import { getCurrentColorMode } from './colorMode.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { $, $all, byId } from './domUtils.js';
-import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH } from './exploreDepth.js';
+import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
 
 // Blueprint State
 let blueprintRenderer = null;
@@ -464,9 +464,9 @@ byId('explore-btn').addEventListener('click', () => {
 
     const starting = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((x) => x.textContent);
     const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
-    // Empty/invalid -> a small default, never an effectively unbounded depth:
-    // the explorer BFS has no state cap, so depth is the only thing keeping the
-    // graph (and the tab) from growing without bound.
+    // Empty/invalid -> a small default, never an effectively unbounded depth.
+    // The worker also caps the graph at DEFAULT_EXPLORE_MAX_NODES, so a deep
+    // request returns a partial graph instead of growing until the tab OOMs.
     const depthLimit = clampExploreDepth(byId('depth-limit-input').value);
     const maxLayers = parseInt(byId('max-layers').value) || 4;
     const targetShapeCode = byId('target-shape').value.trim() || null;
@@ -485,9 +485,12 @@ byId('explore-btn').addEventListener('click', () => {
         startStatus: 'Exploring...',
         data: { startingShapeCodes: starting, enabledOperations: ops, depthLimit, maxLayers, targetShapeCode },
         onResult(result) {
-            if (result) {
-                renderSpaceGraph(result);
-            }
+            if (!result) return;
+            renderSpaceGraph(result);
+            const counts = `${result.shapes.length} shapes, ${result.ops.length} ops`;
+            byId('status').textContent = result.aborted === 'maxNodes'
+                ? `Explored ${counts} — stopped at the ${result.maxNodes}-node cap partway through depth ${result.depth} of ${depthLimit}. Lower the depth or disable operations for a complete graph.`
+                : `Exploration complete — ${counts}.`;
         }
     });
 });
@@ -506,7 +509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         depthInput.max = String(MAX_EXPLORE_DEPTH);
         depthInput.placeholder = `Depth (${DEFAULT_EXPLORE_DEPTH})`;
         depthInput.title = `Operation steps to explore (1-${MAX_EXPLORE_DEPTH}). `
-            + `The explored graph grows multiplicatively with depth.`;
+            + `The explored graph grows multiplicatively with depth and stops at ${DEFAULT_EXPLORE_MAX_NODES} nodes.`;
         if (!depthInput.value) depthInput.value = String(DEFAULT_EXPLORE_DEPTH);
     }
 

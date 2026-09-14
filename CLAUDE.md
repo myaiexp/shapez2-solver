@@ -31,7 +31,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 - **Shape codes** use Shapez 2 notation (e.g., `CuRuSuWu`, `P-P-P-P-`, multi-layer with `:` separator)
 - **Search methods**: BFS, A\*, IDA\*, Bidirectional, and **Constructive** (decompose-and-search for hard multi-quadrant targets; see [solver internals](docs/solver-internals.md))
 - **Flowchart** via Cytoscape.js with multiple edge styles (curved, straight, orthogonal, stepped)
-- **Space explorer** — BFS of the transformation space, rendered as a `ForceGraph3D` (three.js) that replaces the flowchart view; UI depth is clamped (see [solver internals](docs/solver-internals.md))
+- **Space explorer** — BFS of the transformation space, rendered as a `ForceGraph3D` (three.js) that replaces the flowchart view; depth is clamped and the graph capped by node count (see [solver internals](docs/solver-internals.md))
 - **Color modes**: RGB, RYB, CMYK — affects both shape rendering and available paint colors
 - **Blueprint view** converts solver output to a 2D factory grid layout with machines and belt routing, rendered on canvas with pan/zoom/hover
 - **Blueprint string export** — `Copy Blueprint` produces a `SHAPEZ2-2-…$` string pasteable into the game (`blueprintExport.js`; format in [blueprint reference](docs/shapez-2-blueprint-reference.md))
@@ -47,7 +47,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 - No linter configured (tests do exist — see [testing](docs/testing.md))
 - A\* coverage heuristic is intentionally inadmissible (weighted A\*); paths aren't guaranteed shortest — [solver internals](docs/solver-internals.md)
 - Three distinct search budgets (`maxStates`, `maxStatesPerLevel`, `nodeBudget`) — the browser leaves the global ceiling uncapped; do not call the shared input "Max States". Details: [solver internals](docs/solver-internals.md)
-- Space explorer has no state cap; UI depth is clamped to 1–8 — [solver internals](docs/solver-internals.md)
+- Space explorer graphs stop at a 6000-node cap (`aborted: 'maxNodes'`; the last level is partial), so default-ops explores past depth 2 are truncated; UI depth is clamped to 1–8 — [solver internals](docs/solver-internals.md)
 - Multi-distinct-quadrant targets (`CuRuSuWu` and kin) are not found by forward search at any reasonable cap; **Constructive** decomposes and assembles them. Scope, abort codes, inventory rules: [solver internals](docs/solver-internals.md). Design: [2026-06-11](docs/plans/2026-06-11-recursive-decompose-search-design.md)
 - Forked originally from another solver repo; added A\* search and visual improvements
 

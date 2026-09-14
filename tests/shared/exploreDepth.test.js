@@ -1,11 +1,12 @@
 // Standalone tests for exploreDepth.js — run with: node tests/shared/exploreDepth.test.js
 //
-// clampExploreDepth is the only bound on the space explorer's growth: the
-// explorer BFS has no state cap, so every value that reaches shapeExplorer from
-// the UI or a worker message has to come out of here inside [1, MAX]. The empty
-// case is the one that matters most in practice — an untouched Depth field used
-// to fall through to 999 (audit finding #5502).
-import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH } from '../../exploreDepth.js';
+// clampExploreDepth bounds the space explorer's depth: every value that reaches
+// shapeExplorer from the UI or a worker message has to come out of here inside
+// [1, MAX]. The empty case is the one that matters most in practice — an
+// untouched Depth field used to fall through to 999 (audit finding #5502). The
+// node cap that bounds the graph at any depth is exercised end to end in
+// tests/solver/shapeExplorerNodeCap.test.js.
+import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from '../../exploreDepth.js';
 
 let passed = 0;
 let total = 0;
@@ -26,6 +27,8 @@ function check(name, actual, expected) {
 // low enough that the worst case is slow rather than fatal.
 check('default is small', DEFAULT_EXPLORE_DEPTH <= 4 && DEFAULT_EXPLORE_DEPTH >= 1, true);
 check('default is within the ceiling', DEFAULT_EXPLORE_DEPTH <= MAX_EXPLORE_DEPTH, true);
+// Infinity or NaN here would silently remove the only bound at depth > default.
+check('node cap is a finite positive integer', Number.isInteger(DEFAULT_EXPLORE_MAX_NODES) && DEFAULT_EXPLORE_MAX_NODES >= 1, true);
 
 // Missing input -> default. `''` is what an untouched (or cleared) number input
 // reports, and it must NOT coerce to 0-then-1: an empty field means "unset".

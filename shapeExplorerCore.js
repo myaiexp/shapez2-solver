@@ -8,6 +8,12 @@ import {
 import { getCrystalColors } from './shapeColorAnalysis.js';
 import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
 
+// How often the BFS pauses to post progress and let queued messages (the
+// worker's cancel) run. Checked every PULSE_EVERY expansions so the clock read
+// stays off the hot path.
+const PULSE_MS = 100;
+const PULSE_EVERY = 256;
+
 // Short-array equality for Stacker outputCodes (typically length 1).
 function sameCodes(a, b) {
     if (a.length !== b.length) return false;
@@ -21,6 +27,11 @@ function sameCodes(a, b) {
 // shapes, repeatedly applies every enabled operation up to `depthLimit`, building
 // a graph of shape nodes / operation nodes / edges. Shares operation expansion
 // semantics with the solver via shapeSolverExpansion.js.
+//
+// `maxNodes` caps the graph (shape nodes + op nodes), mirroring the solver's
+// maxStates: once the next op would push the graph past it, expansion stops and
+// the partial graph comes back with `aborted: 'maxNodes'`. Starting shapes are
+// always kept, even past the cap. Returns null only when cancelled.
 export async function shapeExplorer(
     startingShapeCodes,
     enabledOperations,
@@ -29,7 +40,13 @@ export async function shapeExplorer(
     shouldCancel = () => false,
     onProgress = () => {},
     targetShapeCode = null,
+    maxNodes = Infinity,
 ) {
+    // NaN / 0 would cap before the first op and read as a legitimate abort.
+    if (!(maxNodes >= 1)) {
+        throw new RangeError(`shapeExplorer: maxNodes must be >= 1 (got ${maxNodes})`);
+    }
+
     shapeCache.clear();
     operationResultCache.clear();
 
@@ -44,6 +61,23 @@ export async function shapeExplorer(
     const opsList = [];
     const edges = [];
 
+    let depth = 0;
+    let hitNodeCap = false;
+    let ticks = 0;
+    let lastPulse = Date.now();
+
+    const stopped = () => hitNodeCap || shouldCancel();
+    const counts = () => `Shapes: ${shapesList.length}, Ops: ${opsList.length}`;
+
+    // Post progress and yield to the event loop at most every PULSE_MS. Without
+    // the yield a worker cannot process 'cancel' until the whole BFS ends.
+    async function pulse() {
+        if (Date.now() - lastPulse < PULSE_MS) return;
+        lastPulse = Date.now();
+        onProgress(`Exploring depth ${depth}/${depthLimit}... ${counts()}`);
+        await new Promise(r => setTimeout(r, 0));
+    }
+
     function addShapeIfNew(code) {
         if (!shapeCodeToId.has(code)) {
             const id = nextShapeId++;
@@ -56,6 +90,18 @@ export async function shapeExplorer(
 
     function getShapeById(id) {
         return getCachedShape(shapesList[id].code);
+    }
+
+    // Checked before an op is recorded (never after) so the graph stays within
+    // maxNodes and every edge points at a node that is in the graph.
+    function fitsUnderCap(outputCodes) {
+        let added = 1; // the op node itself
+        for (const oc of new Set(outputCodes)) {
+            if (!shapeCodeToId.has(oc)) added++;
+        }
+        if (shapesList.length + opsList.length + added <= maxNodes) return true;
+        hitNodeCap = true;
+        return false;
     }
 
     // Getter (not a method): enumerateUnaryColors for-of expects an array of
@@ -82,8 +128,9 @@ export async function shapeExplorer(
     // Record one operation node and its edges: the op node, an edge from each input
     // shape, and an edge to each output shape (registering newly-discovered outputs
     // into discoveredIds and the per-depth frontier). Shared by the unary and binary
-    // exploration paths, which previously each carried a verbatim copy of this tail.
+    // exploration paths. A no-op once the node cap is hit.
     function recordOperation(opName, params, inputIds, outputCodes, newlyDiscovered) {
+        if (!fitsUnderCap(outputCodes)) return;
         const opId = `op-${nextOpId++}`;
         opsList.push({ id: opId, type: opName, params });
         for (const inId of inputIds) {
@@ -99,9 +146,10 @@ export async function shapeExplorer(
         }
     }
 
-    function exploreUnaryOp(op, opName, frontierIds, newlyDiscovered) {
+    async function exploreUnaryOp(op, opName, frontierIds, newlyDiscovered) {
         for (const id of frontierIds) {
-            if (shouldCancel()) return;
+            if (stopped()) return;
+            if (++ticks % PULSE_EVERY === 0) await pulse();
 
             const inputCode = shapesList[id].code;
             const inputShape = getShapeById(id);
@@ -120,22 +168,24 @@ export async function shapeExplorer(
                 useCache: true,
             })) {
                 recordDescriptor(desc, newlyDiscovered);
+                if (hitNodeCap) return;
             }
         }
     }
 
     // Binary BFS pairing: full inventory × previous-depth frontier (not start×start).
-    function exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered) {
+    async function exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered) {
         const isStacker = opName === 'Stacker';
 
         for (const id1 of allShapeIds) {
-            if (shouldCancel()) return;
+            if (stopped()) return;
 
             const inputCode1 = shapesList[id1].code;
             const shape1 = getShapeById(id1);
 
             for (const id2 of frontierIds) {
-                if (shouldCancel()) return;
+                if (stopped()) return;
+                if (++ticks % PULSE_EVERY === 0) await pulse();
 
                 if (id1 === id2 && !isStacker) continue;
                 if (id1 > id2 && !isStacker) continue;
@@ -174,39 +224,44 @@ export async function shapeExplorer(
 
     let frontier = new Set(discoveredIds);
 
-    for (let depth = 1; depth <= depthLimit; depth++) {
-        if (shouldCancel()) {
-            return null;
-        }
+    for (let level = 1; level <= depthLimit; level++) {
+        if (stopped()) break;
 
         const newlyDiscovered = new Set();
         const allShapeIds = Array.from(discoveredIds);
         const frontierIds = Array.from(frontier);
 
         if (frontierIds.length === 0) break;
+        depth = level;
+        onProgress(`Exploring depth ${depth}/${depthLimit}... ${counts()}`);
 
         for (const opName of enabledOperations) {
-            if (shouldCancel()) {
-                return null;
-            }
+            if (stopped()) break;
 
             const op = operations[opName];
             if (!op) continue;
 
             if (op.inputCount === 1) {
-                exploreUnaryOp(op, opName, frontierIds, newlyDiscovered);
+                await exploreUnaryOp(op, opName, frontierIds, newlyDiscovered);
             } else if (op.inputCount === 2) {
-                exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered);
+                await exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered);
             }
         }
         frontier = newlyDiscovered;
     }
 
-    if (!shouldCancel()) {
-        const shapesNodes = shapesList.map(s => ({ id: `shape-${s.id}`, code: s.code }));
-        onProgress(`Exploration complete. Shapes: ${shapesNodes.length}, Ops: ${opsList.length}`);
-        return { shapes: shapesNodes, ops: opsList, edges };
-    }
+    if (shouldCancel()) return null;
 
-    return null;
+    onProgress(hitNodeCap
+        ? `Exploration stopped at the ${maxNodes}-node cap in depth ${depth}/${depthLimit}. ${counts()}`
+        : `Exploration complete. ${counts()}`);
+    return {
+        shapes: shapesList.map(s => ({ id: `shape-${s.id}`, code: s.code })),
+        ops: opsList,
+        edges,
+        // Deepest level expanded; with aborted: 'maxNodes' that level is partial.
+        depth,
+        maxNodes,
+        aborted: hitNodeCap ? 'maxNodes' : null,
+    };
 }

@@ -1,17 +1,25 @@
-// Bounds for the space explorer's BFS depth.
+// Bounds for the space explorer's BFS: the depth clamp and the node cap.
 //
-// Unlike the solver, the explorer has no state cap (`maxStates`): every extra
-// level re-applies every enabled operation across the whole frontier, so shapes,
-// op nodes and edges grow multiplicatively and a large depth OOMs the tab long
-// before it finishes. The depth input is therefore the ONLY bound on that
-// growth, which makes an empty field or a typo'd 99 a real footgun — hence a
-// small default and a hard ceiling.
+// Every extra level re-applies every enabled operation across the whole
+// frontier, so shapes, op nodes and edges grow multiplicatively with depth. At
+// the UI defaults (4 starts, all ops) depth 2 is 2052 shapes + 2846 ops, while
+// depth 3 runs through gigabytes of heap without finishing. Two bounds keep
+// that out of the browser:
+//   - depth: an empty field or a typo'd 99 is clamped to [1, MAX], default 2
+//   - nodes: the worker passes DEFAULT_EXPLORE_MAX_NODES, so any depth stops at
+//     a graph renderSpaceGraph can still hydrate (one canvas, data URL and
+//     THREE texture per shape node, all on the main thread)
 //
 // These bounds guard the UI/worker boundary only. The CLI harness
-// (`tests/shared/solve.mjs --explore N`) calls shapeExplorer directly and stays
-// unclamped, so deliberate deep runs outside the browser still work.
-export const DEFAULT_EXPLORE_DEPTH = 3;
+// (`tests/shared/solve.mjs --explore N`) calls shapeExplorer directly and sets
+// its own `--max-nodes`, so deliberate deep runs outside the browser still work.
+export const DEFAULT_EXPLORE_DEPTH = 2;
 export const MAX_EXPLORE_DEPTH = 8;
+
+// Shape nodes + op nodes. Holds the complete default-depth graph at the UI
+// defaults (4898 nodes) with headroom, so a first Explore click is never cut
+// short; tests/solver/shapeExplorerNodeCap.test.js pins that.
+export const DEFAULT_EXPLORE_MAX_NODES = 6000;
 
 // Coerce whatever the UI (or a worker message) supplies into a usable depth:
 // empty/absent/non-numeric -> the safe default, out-of-range -> clamped.
