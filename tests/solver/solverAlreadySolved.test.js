@@ -96,8 +96,8 @@ for (const method of METHODS) {
 }
 
 // --- Case F: preventWaste + target-as-start + leftover non-target start ------
-// Not zero-op: leftovers must be Trashed. Two starts keeps IDA* bounded; four
-// default starts under preventWaste can explode IDA* before maxStates bites.
+// Not zero-op: leftovers must be Trashed. Two starts keeps IDA* fast; with four
+// default starts under preventWaste IDA* runs into the maxStates cap unsolved.
 // Covers every core method + Constructive (findings #6416 / #6417).
 {
     const starts = ['CuCuCuCu', 'RuRuRuRu'];
@@ -138,6 +138,21 @@ for (const method of METHODS) {
         check('Constructive preventWaste target-as-start: trashes leftover',
             cres.solutionPath.some((s) => s.operation === 'Trash'));
     }
+}
+
+// --- Unknown searchMethod throws instead of falling through to BFS ------------
+// 'Constructive' is the planner's name, dispatched by the worker to
+// solveConstructive; core must reject it rather than run some other search.
+for (const method of ['nope', 'Constructive']) {
+    let message = null;
+    try {
+        await solve('CuCuCuCu', ['RuRuRuRu'], { method });
+    } catch (err) {
+        message = err.message;
+    }
+    check(`unknown searchMethod "${method}" throws`, message != null);
+    check(`unknown searchMethod "${method}" names the problem`,
+        message != null && message.includes('unknown searchMethod'));
 }
 
 console.log(`[${passed}/${total} passed]`);

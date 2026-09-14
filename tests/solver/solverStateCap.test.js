@@ -57,6 +57,26 @@ for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
         res && typeof res.statesExplored === 'number' && res.statesExplored >= CAP);
 }
 
+// --- IDA* on a small, transposition-heavy op set still reaches the cap ---
+// Cutter/Stacker/Rotator CW keeps the distinct-key space small while re-reaching
+// the same states along many paths. Without the per-pass transposition table
+// each threshold pass was an exponential DFS that never hit maxStates (minting
+// millions of ids, 500+ MB). The deadline turns a regression into a failure
+// (cancel → null) instead of a hung test run.
+{
+    const deadline = performance.now() + 20000;
+    const t0 = performance.now();
+    const res = await shapeSolver('CuRuSuWu', [...STARTS, 'WuWuWuWu'], ['Cutter', 'Stacker', 'Rotator CW'], {
+        maxLayers: 4, searchMethod: 'IDA*', onProgress: noop, maxStates: CAP,
+        shouldCancel: () => performance.now() > deadline,
+    });
+    check('IDA* transposition-heavy: aborted at the cap before the deadline',
+        res != null && res.aborted === 'maxStates');
+    check('IDA* transposition-heavy: distinct-state metric stayed near the cap',
+        res != null && res.statesExplored <= CAP + CAP_SLOP);
+    console.log(`  (IDA* transposition-heavy abort took ${Math.round(performance.now() - t0)} ms)`);
+}
+
 // --- The cap does not break normal solving: a reachable target still solves
 //     and its reconstructed path is valid (every step a real op) ---
 {

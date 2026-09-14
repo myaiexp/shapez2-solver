@@ -8,8 +8,7 @@
 // the standard way to test browser-storage code headlessly since Node has no
 // localStorage.
 //
-// Scope: loadState + saveState are the storage-only functions. captureState and
-// applyState read/write the live DOM (querySelector, getElementById,
+// captureState and applyState read/write the live DOM (querySelector, getElementById,
 // dispatchEvent, classList) and are out of scope for a localStorage suite —
 // they'd need a full document stub, not a storage stub.
 //

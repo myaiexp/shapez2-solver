@@ -27,7 +27,6 @@ export const LAYOUT_FIXTURES = [
         ]
     },
     // #2214: BlueprintLayout was only covered by the trivial two-step fixture above.
-    // The three below exercise the layout paths it never reached.
 
     // A 3-row graph that both branches and merges, plus a Painter step carrying
     // params (color): the Cutter feeds two downstream machines (its L half goes to

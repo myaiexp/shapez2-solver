@@ -440,6 +440,18 @@ export async function shapeSolver(
     // memory bound and used to make the cap silently mean something else here.
     // distinctStates tracks unique keys for the whole run; nodesExpanded is only
     // for progress ("work done this pass / total").
+    //
+    // The distinct-key cap only bounds memory if work is bounded by distinct keys
+    // too. Plain IDA* (on-path cycle detection only) re-expands every transposition,
+    // so on a small reachable space each pass is an exponential DFS that never
+    // reaches the cap. Two things keep it bounded:
+    //   • bestG, a per-pass transposition table (state key -> lowest g pushed this
+    //     pass): a successor reached again at g >= its best is skipped, because its
+    //     subtree was already searched with at least as much threshold budget. This
+    //     does not change which goal is found first — a skipped subtree was already
+    //     searched without finding one.
+    //   • popped frames delete their output ids from shapeCodesById, so the id
+    //     registry holds only the current stack's shapes, not every push ever made.
     async function runIdaStar() {
         let threshold = getHeuristic(initialAvailableIds);
         let nodesExpanded = 0;     // cumulative expansions across threshold passes
@@ -450,17 +462,15 @@ export async function shapeSolver(
             passCount++;
             let nodesThisPass = 0;
 
-            // Depth-limited search using explicit stack. pathKeys is a single mutable
-            // Set holding the state keys currently on the stack (root → top): a key is
-            // added when its frame is pushed and deleted when the frame is popped
-            // (backtracking), so cycle detection stays O(depth) total instead of copying
-            // the whole Set on every push. pathStack mirrors the same push/pop pattern
-            // for step records; the public solution path is built from pathStack only at
-            // the goal. Cycle detection prevents a duplicate key from being on the stack
-            // at once, so each delete-on-pop is unambiguous.
+            // Depth-limited search using explicit stack. pathStack holds the step
+            // record of every non-root frame on the stack (root → top), pushed and
+            // popped with its frame; the public solution path is built from it only at
+            // the goal. bestG also does the cycle detection: while a frame is on the
+            // stack every new push is one of its descendants, at a strictly higher g
+            // than the frame's own bestG entry, so an on-path key is never re-pushed.
             const initialKey = getStateKey(initialAvailableIds);
             distinctStates.add(initialKey);
-            const pathKeys = new Set([initialKey]);
+            const bestG = new Map([[initialKey, 0]]);
             const pathStack = [];
             const stack = [{
                 availableIds: new Set(initialAvailableIds),
@@ -468,6 +478,13 @@ export async function shapeSolver(
                 successorIterator: null,
                 stateKey: initialKey
             }];
+            // Pop the top frame; a non-root frame also drops its step and reclaims the
+            // ids it minted (no frame still on the stack can reference them).
+            const popFrame = () => {
+                const popped = stack.pop();
+                if (popped.g === 0) return;
+                for (const id of pathStack.pop().outputIds) shapeCodesById.delete(id);
+            };
 
             let nextThreshold = Infinity;
             let found = false;
@@ -491,9 +508,7 @@ export async function shapeSolver(
                     const f = frame.g + getHeuristic(frame.availableIds);
                     if (f > threshold) {
                         nextThreshold = Math.min(nextThreshold, f);
-                        pathKeys.delete(frame.stateKey);
-                        stack.pop();
-                        if (frame.g > 0) pathStack.pop();
+                        popFrame();
                         continue;
                     }
 
@@ -509,26 +524,27 @@ export async function shapeSolver(
                 // Try next successor
                 const next = frame.successorIterator.next();
                 if (next.done) {
-                    pathKeys.delete(frame.stateKey);
-                    stack.pop();
-                    if (frame.g > 0) pathStack.pop();
+                    popFrame();
                     continue;
                 }
 
                 const desc = next.value;
                 const succKey = successorStateKey(frame.availableIds, desc);
 
-                // Cycle detection: skip if this state key is already on the path
-                if (pathKeys.has(succKey)) continue;
+                // Transposition + cycle check: skip unless this pass has not yet
+                // reached the key at this g or lower.
+                const succG = frame.g + 1;
+                const seenG = bestG.get(succKey);
+                if (seenG !== undefined && seenG <= succG) continue;
+                bestG.set(succKey, succG);
 
                 const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
-                pathKeys.add(succKey);
                 pathStack.push(step);
                 distinctStates.add(succKey);
 
                 stack.push({
                     availableIds: succIds,
-                    g: frame.g + 1,
+                    g: succG,
                     successorIterator: null,
                     stateKey: succKey
                 });
