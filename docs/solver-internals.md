@@ -30,14 +30,14 @@ The space explorer has no state cap — its BFS re-applies every enabled op acro
 
 Multi-distinct-quadrant targets are **not** found by forward search at any reasonable cap. Reachable, genuinely simple targets like `CuRuSuWu` (one quadrant cut from each of the four default starts, then stacked, ~15 ops) miss A\*/BFS/IDA\*/Bidirectional because of **frontier width / state multiplicity near the goal** — thousands of near-equivalent partial assemblies over the multiset-of-shapes state space. The coverage heuristic improved the gradient but did not breach this structural limit.
 
-The **Constructive** method (`shapeSolverConstructive.js` + `shapeSolverDecompose.js`) tries the bounded core A\* first at every node (so clever shortcuts like `CuCuRuRu`→1 Swapper are preserved), and only on a cap does it split the target (by-quadrant / by-half / by-layer), recurse on the pieces, and pick the cheapest assembled plan by reuse-credited op count (decomposition depth as tie-break).
+The **Constructive** method (`shapeSolverConstructive.js` planner + `shapeSolverDecompose.js` splits/cost + `shapeSolverFlatten.js` Plan-tree → path and result) tries the bounded core A\* first at every node (so clever shortcuts like `CuCuRuRu`→1 Swapper are preserved), and only on a cap does it split the target (by-quadrant / by-half / by-layer), recurse on the pieces, and pick the cheapest assembled plan by reuse-credited op count (decomposition depth as tie-break).
 
 - **Pieces are searched orientation-sensitive** so each lands in its exact target quadrant and assembly `stack`s gravity-merge with no rotation.
 - Memoised sub-targets are built once (ids offset into disjoint global ranges) and their product **copied per consumer** — an explicit `Belt Split` chain, or a second feed when the piece is itself a starting shape. Handing one id to two consumers is unbuildable (the blueprint has a single output port per id) and is what `invalidPathIds` in the shared test harness rejects.
 - **Scope is Tier-1**: uncolored flat structural shapes (C/R/S/W in any arrangement, single- or multi-layer); color/crystal/pin tiers are deferred.
 - Decomposition candidates whose left-fold `stack` product is not the parent (gappy complementary multi-layer pairs that gravity-collapse, e.g. `CuCu----:----SuSu`) are rejected — floating upper parts need pins/crystals (out of Tier-1).
 
-Abort reasons:
+Abort reasons (all mapped in `constructiveResult`, `shapeSolverFlatten.js`; a cancelled solve reports `aborted: null`). The planner's `stackProduct` check stops mis-assembled plans before flatten, so no real solve reaches `path-invalid` — `tests/solver/shapeSolverFlatten.test.js` drives it with hand-built Plan trees:
 
 - `{ aborted: 'no-decomposition' }` — no solving split remains
 - `{ aborted: 'preventWaste' }` — a plan exists but leftovers cannot be trashed (Trash disabled under preventWaste)

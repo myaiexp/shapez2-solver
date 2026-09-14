@@ -1,7 +1,7 @@
-import { colorValues, createShapeCanvas } from './shapeRendering.js';
+import { createShapeCanvas } from './shapeRendering.js';
 import { getCurrentColorMode } from './colorMode.js';
 import { cyInstance, setCyInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
-import { operations } from './shapeSolverOperations.js';
+import { buildGraphElements } from './operationGraphElements.js';
 
 let lastSolutionPath = null;
 
@@ -124,22 +124,6 @@ const EDGE_CURVE = {
     }
 };
 
-function addShapeNode(elements, nodeMap, { id, shape }) {
-    const nodeId = `shape-${id}`;
-    if (nodeMap[nodeId]) return nodeId;
-    const shapeCanvas = createShapeCanvas(shape, 120);
-    elements.push({
-        data: {
-            id: nodeId,
-            label: shape,
-            shapeCanvas: shapeCanvas.toDataURL()
-        },
-        classes: 'shape'
-    });
-    nodeMap[nodeId] = true;
-    return nodeId;
-}
-
 // Drop the cached path so reRenderGraph (edge-style changes) cannot revive a
 // graph the UI has already cleared — failed solves and Explore both need this.
 export function clearLastSolutionPath() {
@@ -163,60 +147,9 @@ export function renderGraph(solutionPath) {
 
     lastSolutionPath = solutionPath;
 
-    const elements = [];
-    const nodeMap = {};
-
-    solutionPath.forEach((step, stepIndex) => {
-        const { operation, inputs, outputs, params } = step;
-
-        for (const input of inputs) addShapeNode(elements, nodeMap, input);
-        for (const output of outputs) addShapeNode(elements, nodeMap, output);
-
-        // Belt Split is an edge-only pass: shape→shape branch edges, no op node.
-        if (operation === 'Belt Split') {
-            for (const input of inputs) {
-                for (const output of outputs) {
-                    elements.push({
-                        data: { source: `shape-${input.id}`, target: `shape-${output.id}` },
-                        classes: 'branch'
-                    });
-                }
-            }
-            return;
-        }
-
-        const opId = `op-${stepIndex}`;
-        let opLabel = operation;
-        let nodeClasses = 'op';
-        let backgroundColor = '#000';
-
-        if (operations[operation]?.needsColor) {
-            const color = params?.color;
-            opLabel += ` (${color})`;
-            const colorMode = getCurrentColorMode();
-            if (color && colorValues[colorMode][color]) {
-                backgroundColor = colorValues[colorMode][color];
-                nodeClasses += ' colored-op';
-            }
-        }
-
-        const imageName = operation.toLowerCase().replace(/\s+/g, '-');
-        elements.push({
-            data: {
-                id: opId,
-                label: opLabel,
-                image: `images/operations/${imageName}.png`,
-                backgroundColor: backgroundColor
-            },
-            classes: nodeClasses
-        });
-
-        for (const input of inputs) {
-            elements.push({ data: { source: `shape-${input.id}`, target: opId } });
-        }
-        for (const output of outputs) {
-            elements.push({ data: { source: opId, target: `shape-${output.id}` } });
-        }
+    const elements = buildGraphElements(solutionPath, {
+        shapeImage: (code) => createShapeCanvas(code, 120).toDataURL(),
+        colorMode: getCurrentColorMode()
     });
 
     const directionSelect = document.getElementById('direction-select');

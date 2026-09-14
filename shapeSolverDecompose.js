@@ -102,6 +102,16 @@ export function depthOf(plan) {
     return 1 + Math.max(...plan.children.map(depthOf));
 }
 
+// The opCountOf/cost options for an enabled-op set. Reuse is only free when the
+// shared product may be fanned out with a Belt Split; if the user disabled that
+// operation flatten must not emit it and re-builds the sub-plan per consumer
+// instead, so reuse stops earning credit (reuseCost: null) — otherwise the
+// planner would pick reuse-heavy plans that are no longer cheap. The planner and
+// the strategy trace both derive their options here so they cannot disagree.
+export function reuseCostOpts(enabledOperations) {
+    return { reuseCost: enabledOperations.includes('Belt Split') ? 1 : null };
+}
+
 // Reuse-credited op count, with shallower decomposition depth as the tie-break.
 // `opts` is forwarded to opCountOf (see reuseCost there).
 export function cost(plan, opts) {
