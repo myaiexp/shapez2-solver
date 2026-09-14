@@ -1,5 +1,7 @@
 # Persistent Solver State Implementation Plan
 
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md). Persistence is now covered by `tests/shared/persistence.test.js` (storage) and `tests/shared/persistenceApply.test.js` (`captureState`/`applyState` against a fake document).
+
 **Goal:** Persist solver inputs, the most recent solution, and view state to localStorage so a page refresh restores the user's exact prior state.
 
 **Architecture:** One new module (`persistence.js`) with four pure-ish functions: `loadState`, `saveState`, `captureState`, `applyState`. `main.js` calls `applyState` once on init, and `saveState(captureState())` after every state-changing event (input changes, list mutations, operation toggles, tab switches, solve completion, view controls). The blueprint layout is recomputed from the saved `solutionPath` rather than serialized directly.

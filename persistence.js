@@ -92,6 +92,22 @@ export function isValidSolutionPath(path) {
     return Array.isArray(path) && path.every(isValidStep);
 }
 
+// The string entries of a persisted list, or null when the value isn't an array.
+function stringList(value) {
+    return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : null;
+}
+
+// Switch a tab group only when the named button and panel both exist. Clearing
+// first and then failing the lookup (a stale or corrupt tab name) would leave the
+// group with no active tab — a blank sidebar or output pane.
+function activateTab(buttonClass, contentClass, btn, content) {
+    if (!btn || !content) return;
+    $all(`.${buttonClass}`).forEach((b) => b.classList.remove('active'));
+    $all(`.${contentClass}`).forEach((c) => c.classList.remove('active'));
+    btn.classList.add('active');
+    content.classList.add('active');
+}
+
 export function captureState(runtime) {
     const inputs = {};
     for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {
@@ -127,41 +143,35 @@ export function applyState(state, deps) {
         else el.value = state.inputs[field];
     }
 
-    const startingContainer = byId('starting-shapes');
-    startingContainer.replaceChildren();
-    for (const code of state.inputs.startingShapes ?? []) {
-        startingContainer.appendChild(deps.createShapeItem(code));
+    // Like the form fields above, an absent list means "no saved value" and leaves
+    // the page defaults alone; an explicit [] clears. A non-array (a corrupt string
+    // would otherwise be iterated char-by-char into bogus shapes) counts as absent.
+    const startingShapes = stringList(state.inputs.startingShapes);
+    if (startingShapes) {
+        const startingContainer = byId('starting-shapes');
+        startingContainer.replaceChildren();
+        for (const code of startingShapes) {
+            startingContainer.appendChild(deps.createShapeItem(code));
+        }
     }
 
-    const enabledSet = new Set(state.inputs.enabledOperations ?? []);
-    $all('#enabled-operations .operation-item').forEach((el) => {
-        el.classList.toggle('enabled', enabledSet.has(el.dataset.operation));
-    });
+    const enabledOperations = stringList(state.inputs.enabledOperations);
+    if (enabledOperations) {
+        const enabledSet = new Set(enabledOperations);
+        $all('#enabled-operations .operation-item').forEach((el) => {
+            el.classList.toggle('enabled', enabledSet.has(el.dataset.operation));
+        });
+    }
 
     byId('search-method-select').dispatchEvent(new Event('change'));
 
     const sidebarTab = state.view.activeSidebarTab;
     if (sidebarTab) {
-        $all('.tab-button').forEach((b) => b.classList.remove('active'));
-        $all('.tab-content').forEach((c) => c.classList.remove('active'));
-        const btn = byId(`${sidebarTab}-tab-btn`);
-        const content = byId(`${sidebarTab}-content`);
-        if (btn && content) {
-            btn.classList.add('active');
-            content.classList.add('active');
-        }
+        activateTab('tab-button', 'tab-content', byId(`${sidebarTab}-tab-btn`), byId(`${sidebarTab}-content`));
     }
-
     const outputView = state.view.activeOutputView;
     if (outputView) {
-        $all('.view-tab-button').forEach((b) => b.classList.remove('active'));
-        $all('.view-tab-content').forEach((c) => c.classList.remove('active'));
-        const btn = byId(`${outputView}-view-tab-btn`);
-        const content = byId(`${outputView}-view`);
-        if (btn && content) {
-            btn.classList.add('active');
-            content.classList.add('active');
-        }
+        activateTab('view-tab-button', 'view-tab-content', byId(`${outputView}-view-tab-btn`), byId(`${outputView}-view`));
     }
 
     const directionSel = byId('direction-select');

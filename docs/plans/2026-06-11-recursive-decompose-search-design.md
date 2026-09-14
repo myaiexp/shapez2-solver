@@ -5,6 +5,8 @@
 > budget (idea #1677). Forward best-first search hits a structural frontier-width wall;
 > this adds a constructive planner that sidesteps it.
 
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, and the suites named below are `tests/solver/constructive.test.js` and `tests/solver/shapeSolverDecompose.test.js`. Current commands are in [testing.md](../testing.md).
+
 ## Background & goal
 
 The coverage heuristic (commit `fe8ddc7`) massively improved A*'s gradient — it now

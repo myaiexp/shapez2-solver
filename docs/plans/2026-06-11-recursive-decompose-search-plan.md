@@ -1,5 +1,7 @@
 # Constructive Decompose-and-Search Planner — Implementation Plan
 
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, and the suites named below are `tests/solver/constructive.test.js`, `tests/solver/shapeSolverDecompose.test.js` and `tests/shape/shapeCacheIntegrity.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
+
 **Goal:** Add a "Constructive" solver method that solves flat multi-distinct-quadrant targets (e.g. `CuRuSuWu`) by recursively decomposing the target into search-sized pieces, solving each piece with the existing search, and assembling them with `stack`.
 
 **Architecture:** A recursive planner (`solveConstructive`) tries the existing bounded search first at every node (preserving clever shortcuts), and only when that caps does it split the target (by-quadrant / by-half / by-layer), recurse on the pieces, and pick the cheapest assembled plan by reuse-credited op count. Pure split logic lives in `shapeSolverDecompose.js`; the orchestrator in `shapeSolverConstructive.js` calls core `shapeSolver` as a subroutine — dispatched at the worker/harness level so core never imports the planner (no cycle).

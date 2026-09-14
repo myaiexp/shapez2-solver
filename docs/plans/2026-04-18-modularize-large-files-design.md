@@ -1,5 +1,7 @@
 # Modularize Large Files — Design
 
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, fixtures/snapshots are in `tests/shared/`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
+
 **Date**: 2026-04-18
 **Status**: Approved, ready for plan
 **Scope**: Split the 4 source files that exceed 300 lines (the project's modularity rule) into smaller sibling files. Add a smoke test harness to catch regressions during the refactor. Update CLAUDE.md with conventions that emerged from this work.

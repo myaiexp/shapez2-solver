@@ -1,5 +1,7 @@
 # Persistent Solver State
 
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`; current commands are in [testing.md](../testing.md). The Testing section's "`applyState` is not tested" no longer holds: `tests/shared/persistenceApply.test.js` runs `captureState`/`applyState` against a fake document and fake renderer deps, and `tests/shared/persistence.test.js` covers storage.
+
 ## Problem
 
 The solver UI loses everything on page refresh. Configuration (target, starting shapes, enabled operations, all options) and the most recent solution (flowchart graph + blueprint layout) are reconstructed from defaults on every load.

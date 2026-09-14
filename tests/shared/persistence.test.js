@@ -9,8 +9,8 @@
 // localStorage.
 //
 // captureState and applyState read/write the live DOM (querySelector, getElementById,
-// dispatchEvent, classList) and are out of scope for a localStorage suite —
-// they'd need a full document stub, not a storage stub.
+// dispatchEvent, classList), so they need a document stub rather than a storage
+// stub — they're covered in persistenceApply.test.js.
 //
 // The import itself is also a smoke check: persistence.js defines $/$all/byId as
 // document-using closures but never calls them at module load, so importing it
