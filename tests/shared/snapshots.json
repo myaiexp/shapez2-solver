@@ -151,5 +151,26 @@
     "gridWidth": 4,
     "gridHeight": 5,
     "floorCount": 2
+  },
+  "Solver: cut-stack-ida": {
+    "numOps": 3,
+    "depth": 3
+  },
+  "Solver: pin-pusher-bfs": {
+    "numOps": 1,
+    "depth": 1
+  },
+  "Solver: crystal-gen-bfs": {
+    "numOps": 1,
+    "depth": 1
+  },
+  "Solver: pin-crystal-astar": {
+    "numOps": 2,
+    "depth": 2
+  },
+  "Explorer: crystal-gen-with-target": {
+    "shapeCount": 2,
+    "opCount": 1,
+    "edgeCount": 2
   }
 }

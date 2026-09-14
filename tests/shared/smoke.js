@@ -12,6 +12,7 @@ import { invalidPathSteps, invalidPathIds, pathReachesTarget, pathInventoryAccep
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 import { applySnapshot } from './smokeSnapshot.js';
 import { overlappingBeltTiles, beltsOverMachineFootprint } from './layoutCollisions.js';
+import { isValidSolutionPath } from '../../persistence.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SNAPSHOTS_PATH = join(__dirname, 'snapshots.json');
@@ -106,6 +107,16 @@ for (const fixture of LAYOUT_FIXTURES) {
     }
 
     const layout = buildLayout(fixture.solutionPath);
+    // Invariant gate (before the snapshot, so SMOKE_UPDATE=1 can't bless a
+    // regression): belts must never be routed across a machine footprint.
+    // overlappingBeltTiles stays snapshot-only — it is non-zero by design today.
+    const beltsOnMachines = beltsOverMachineFootprint(layout.belts, layout.machines);
+    if (beltsOnMachines !== 0) {
+        total++;
+        console.log(`✗ ${key} — ${beltsOnMachines} belt tile(s) over a machine footprint`);
+        failed = true;
+        continue;
+    }
     compareSnapshot(key, {
         machineCount: layout.machines.length,
         beltCount: layout.belts.length,
@@ -181,6 +192,17 @@ for (const fixture of SOLVER_FIXTURES) {
         continue;
     }
 
+    // Restore gate: persistence.js rejects a saved solution whose steps fail
+    // isValidSolutionPath, so a solver path it refuses would vanish on reload.
+    // Feeding it real solver output (incl. colored Painter/Crystal steps) is the
+    // check its hand-built unit fixtures can't make.
+    if (path && !isValidSolutionPath(path)) {
+        total++;
+        console.log(`✗ ${key} — persistence.isValidSolutionPath rejects the solver path`);
+        failed = true;
+        continue;
+    }
+
     compareSnapshot(key, {
         numOps: path ? path.length : null,
         depth: result?.depth ?? null,
@@ -209,58 +231,20 @@ for (const fixture of EXPLORER_FIXTURES) {
         failed = true;
         continue;
     }
+    // Content gate: count snapshots can't tell which color a colored op chose.
+    const codes = new Set((graph?.shapes ?? []).map(s => s.code));
+    const missingShapes = (fixture.expectShapes ?? []).filter(c => !codes.has(c));
+    if (missingShapes.length) {
+        total++;
+        console.log(`✗ ${key} — expected shape(s) missing: ${missingShapes.join(', ')}`);
+        failed = true;
+        continue;
+    }
     compareSnapshot(key, {
         shapeCount: graph?.shapes?.length ?? null,
         opCount: graph?.ops?.length ?? null,
         edgeCount: graph?.edges?.length ?? null,
     });
-}
-
-// Persistence: schema round-trips through JSON without loss.
-{
-    const key = 'Persistence: schema round-trip';
-    total++;
-    const state = {
-        version: 1,
-        inputs: {
-            target: 'CuRuSuWu:CuCuCuCu',
-            depthLimit: '10',
-            startingShapes: ['CuCuCuCu', 'RuRuRuRu'],
-            enabledOperations: ['cut', 'stack', 'paint'],
-            searchMethod: 'A*',
-            maxStatesPerLevel: '7500',
-            heuristicDivisor: '0.1',
-            preventWaste: true,
-            orientationSensitive: false,
-            monolayerPainting: false,
-            filterUnusedShapes: true,
-            throughputMultiplier: '2',
-            maxLayers: '4',
-            colorMode: 'rgb',
-        },
-        solution: {
-            solutionPath: [{ op: 'cut', inputs: ['CuCuCuCu'], outputs: [{ shape: 'Cu------' }], params: {} }],
-            depth: 1,
-            statesExplored: 42,
-            solveTimeSec: '0.05',
-        },
-        view: {
-            activeSidebarTab: 'options',
-            activeOutputView: 'blueprint',
-            graphDirection: 'TB',
-            edgeStyle: 'curved',
-            blueprintFloor: 0,
-        },
-    };
-    const roundTripped = JSON.parse(JSON.stringify(state));
-    const match = JSON.stringify(roundTripped) === JSON.stringify(state);
-    if (match) {
-        console.log(`\u2713 ${key}`);
-        passed++;
-    } else {
-        console.log(`\u2717 ${key} \u2014 round-trip mismatch`);
-        failed = true;
-    }
 }
 
 console.log(`[${passed}/${total} passed]`);

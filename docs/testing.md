@@ -2,7 +2,7 @@
 
 Tests are plain `node tests/**/*.js` scripts (no framework), grouped by subsystem into `tests/{shape,solver,blueprint,shared}/` — mirroring the source's prefix-grouping.
 
-`shared/` holds the harness (`fixtures.js`, `layoutFixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `exploreDepth`, `pathInventory`). `layoutFixtures.js` is the hand-written `buildLayout` paths; `fixtures.js` re-exports them. Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path.
+`shared/` holds the harness (`fixtures.js`, `layoutFixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `exploreDepth`, `pathInventory`). `layoutFixtures.js` is the hand-written `buildLayout` paths; `fixtures.js` re-exports them. Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path. An optional `expectShapes` list is asserted present in the explored graph — use it when the count snapshot can't tell which color an op chose.
 
 The Worker wrapper (`shapeSolver.js`) is covered by `tests/solver/workerDispatch.test.js`, which stubs `globalThis.self` and drives `self.onmessage` — Constructive dispatch, `nodeBudget` vs the core caps, explore-depth clamp, cancel suppression, and `{type:'error'}` on a malformed target.
 
@@ -48,4 +48,6 @@ SMOKE_UPDATE=1 node tests/shared/smoke.js
 
 That writes missing keys (`[baseline written]`) and overwrites mismatches (`[baseline updated]`). Review the `snapshots.json` diff before committing; a new fixture's first baseline is whatever the implementation produces today.
 
-Layout snapshots include `overlappingBeltTiles` (distinct `(x,y,floor)` positions with more than one belt — currently non-zero because routing is L-shaped with no obstacle avoidance) and `beltsOverMachineFootprint` (belt tiles on a machine footprint — currently 0, and should stay 0).
+Layout snapshots include `overlappingBeltTiles` (distinct `(x,y,floor)` positions with more than one belt — currently non-zero because routing is L-shaped with no obstacle avoidance) and `beltsOverMachineFootprint` (belt tiles on a machine footprint). `beltsOverMachineFootprint` is also a hard gate: smoke fails any layout fixture where it is non-zero, before the snapshot compare, so `SMOKE_UPDATE=1` cannot record a regression as the new baseline.
+
+Smoke also runs every solver-produced path through `persistence.js`'s `isValidSolutionPath` (the restore gate), so a path the solver emits but a page reload would discard fails the suite. Storage load/save/clear lives in `persistence.test.js`.

@@ -85,6 +85,49 @@ export const SOLVER_FIXTURES = [
         ...baseSolverParams,
         orientationSensitive: true,
     },
+    // IDA* multi-step reconstruction (finding #10190): runIdaStar builds the
+    // public path from pathStack (push on expand, pop on backtrack), so a 1-op
+    // solve can't catch a push/pop mismatch. This needs 3 steps (Cut, Cut, Stack)
+    // and prunes siblings on the way, so a missing pop on the f > threshold
+    // backtrack fails the id-flow gate. The exhausted-iterator pop is NOT
+    // covered: no solvable fixture tried exhausts a g>0 frame in the goal pass.
+    {
+        name: 'cut-stack-ida',
+        target: 'CuCu----:RuRu----',
+        starting: ['CuCuCuCu', 'RuRuRuRu'],
+        ops: ['Cutter', 'Stacker'],
+        method: 'IDA*',
+        ...baseSolverParams,
+    },
+    // Pin Pusher / Crystal Generator end-to-end (finding #10191). Crystal
+    // Generator only fills pins and empty quadrants — it never replaces an
+    // existing part — so its targets need gaps or pins in the input. The chain
+    // fixture is the in-game recipe: push a pin layer, then crystallize it; the
+    // color comes from target narrowing and must land in params.color.
+    {
+        name: 'pin-pusher-bfs',
+        target: 'P-P-P-P-:CuCuCuCu',
+        starting: ['CuCuCuCu'],
+        ops: ['Pin Pusher'],
+        method: 'BFS',
+        ...baseSolverParams,
+    },
+    {
+        name: 'crystal-gen-bfs',
+        target: 'CucrCucr',
+        starting: ['Cu--Cu--'],
+        ops: ['Crystal Generator'],
+        method: 'BFS',
+        ...baseSolverParams,
+    },
+    {
+        name: 'pin-crystal-astar',
+        target: 'crcrcrcr:CuCuCuCu',
+        starting: ['CuCuCuCu'],
+        ops: ['Pin Pusher', 'Crystal Generator'],
+        method: 'A*',
+        ...baseSolverParams,
+    },
     // 1.0: basic production of a refined (X) shape target
     {
         name: 'refined-x-cut',
@@ -226,6 +269,19 @@ export const EXPLORER_FIXTURES = [
         depthLimit: 1,
         maxLayers: 4,
         target: 'CrCrCrCr',
+    },
+    // Crystal Generator WITH a target (finding #10191): color narrowing reads
+    // the target's crystal colors, so the gaps fill green, not the 'u' fallback
+    // an untargeted inventory with no crystals would use. Counts are identical
+    // either way, so `expectShapes` (asserted by smoke) pins the actual code.
+    {
+        name: 'crystal-gen-with-target',
+        starting: ['Cu--Cu--'],
+        ops: ['Crystal Generator'],
+        depthLimit: 1,
+        maxLayers: 4,
+        target: 'CucgCucg',
+        expectShapes: ['CucgCucg'],
     },
 ];
 
