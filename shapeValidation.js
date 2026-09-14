@@ -1,4 +1,3 @@
-// Imports
 import {
     NOTHING_CHAR,
     SHAPE_LAYER_SEPARATOR,

@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Belt routing helper
-// ---------------------------------------------------------------------------
-
 /**
  * Route belt tiles from (fromX, fromY, fromFloor) to (toX, toY, toFloor).
  * Uses an L-shaped path: horizontal first (at source row), then vertical

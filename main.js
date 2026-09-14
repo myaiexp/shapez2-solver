@@ -11,10 +11,18 @@ import { getCurrentColorMode } from './colorMode.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { $, $all, byId } from './domUtils.js';
 import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
+import { copyImage } from './clipboardFeedback.js';
 
 // Blueprint State
 let blueprintRenderer = null;
 let currentBlueprintLayout = null;
+
+// BlueprintRenderer.setLayout resets to floor 0 (and a fresh renderer starts
+// there), so every layout or floor change re-reads the label from the renderer
+// instead of tracking the floor separately.
+function syncFloorIndicator() {
+    byId('floor-indicator').textContent = `Floor ${blueprintRenderer?.currentFloor ?? 0}`;
+}
 
 // Persistence
 let lastSolution = null;
@@ -183,6 +191,7 @@ $all('.view-tab-button').forEach((btn) => {
             blueprintRenderer.destroy();
             blueprintRenderer = null;
         }
+        syncFloorIndicator();
         persist();
     });
 });
@@ -265,18 +274,21 @@ function cancelActiveJob() {
 
 // Clear flowchart + blueprint presentation for a failed/aborted solve so status,
 // graph, blueprint, and lastSolution stay consistent (and reRenderGraph is a no-op).
+// State is dropped before the view teardown so a throwing renderer cannot leave
+// lastSolution or the blueprint layout pointing at a solve that is no longer drawn.
 function clearSolutionPresentation() {
-    renderGraph(null);
+    lastSolution = null;
     currentBlueprintLayout = null;
+    renderGraph(null);
     if (blueprintRenderer) {
         blueprintRenderer.setLayout(null);
     }
-    lastSolution = null;
+    syncFloorIndicator();
 }
 
 // Starts a job — never cancels one. Callers guard with isJobRunning() and route
 // cancel clicks to cancelActiveJob() before gathering any inputs.
-function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComplete = false, startStatus }) {
+function runSolverWorker({ btn, idleLabel, action, data, onResult, onResultError, persistOnComplete = false, startStatus }) {
     const status = byId('status');
 
     // finishJob() resets any in-flight job's button (which must be the OTHER
@@ -308,13 +320,25 @@ function runSolverWorker({ btn, idleLabel, action, data, onResult, persistOnComp
         if (type === 'result') {
             try {
                 onResult(result);
+            } catch (err) {
+                console.error('Failed to present the worker result:', err);
+                if (isCurrent()) {
+                    status.textContent = `Error: ${err.message}`;
+                    // onResult may have drawn part of the new result before
+                    // throwing (e.g. the flowchart but not the blueprint); the
+                    // action resets what it owns so every view and the persisted
+                    // solution agree again.
+                    onResultError?.();
+                }
+            } finally {
                 // Re-check after onResult: a nested cancel during the callback
                 // (unlikely but cheap) must not persist a superseded solution.
-                if (persistOnComplete && isCurrent()) persist();
-            } catch (err) {
-                if (isCurrent()) status.textContent = `Error: ${err.message}`;
-            } finally {
-                if (isCurrent()) finishJob();
+                // The error path persists too, so a reload shows the cleared
+                // state rather than resurrecting the solve it replaced.
+                if (isCurrent()) {
+                    finishJob();
+                    if (persistOnComplete) persist();
+                }
             }
         }
     };
@@ -396,6 +420,7 @@ byId('solve-btn').addEventListener('click', () => {
         idleLabel: 'Solve',
         action: 'solve',
         persistOnComplete: true,
+        onResultError: clearSolutionPresentation,
         data: {
             targetShapeCode: target,
             startingShapeCodes: starting,
@@ -422,6 +447,7 @@ byId('solve-btn').addEventListener('click', () => {
                 if (blueprintRenderer) {
                     blueprintRenderer.setLayout(currentBlueprintLayout);
                 }
+                syncFloorIndicator();
                 const t = ((performance.now() - startTime) / 1000).toFixed(2);
                 let statusText = `Solved in ${t}s at Depth ${result.depth} → ${result.statesExplored} States`;
                 if (result.strategyTrace) {
@@ -572,8 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 blueprintRenderer.setLayout(currentBlueprintLayout);
                 if (restoredFloor > 0 && restoredFloor < currentBlueprintLayout.floorCount) {
                     blueprintRenderer.setFloor(restoredFloor);
-                    byId('floor-indicator').textContent = `Floor ${restoredFloor}`;
                 }
+                syncFloorIndicator();
             }
             suspendPersist = false;
         } catch (err) {
@@ -600,17 +626,11 @@ byId('reset-state-btn').addEventListener('click', () => {
     location.reload();
 });
 
-byId('snapshot-btn').addEventListener('click', async () => {
+byId('snapshot-btn').addEventListener('click', () => {
     const blueprintActive = byId('blueprint-view').classList.contains('active');
     if (blueprintActive && blueprintRenderer) {
-        try {
-            const blob = await blueprintRenderer.exportPng();
-            await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': blob })
-            ]);
-        } catch (err) {
-            console.error('Failed to copy blueprint:', err);
-        }
+        const renderer = blueprintRenderer;
+        copyImage(() => renderer.exportPng(), 'blueprint image');
     } else {
         copyGraphToClipboard();
     }
@@ -629,7 +649,7 @@ byId('floor-up-btn').addEventListener('click', () => {
     const next = blueprintRenderer.currentFloor + 1;
     if (next < currentBlueprintLayout.floorCount) {
         blueprintRenderer.setFloor(next);
-        byId('floor-indicator').textContent = `Floor ${next}`;
+        syncFloorIndicator();
         persist();
     }
 });
@@ -653,7 +673,7 @@ byId('floor-down-btn').addEventListener('click', () => {
     const next = blueprintRenderer.currentFloor - 1;
     if (next >= 0) {
         blueprintRenderer.setFloor(next);
-        byId('floor-indicator').textContent = `Floor ${next}`;
+        syncFloorIndicator();
         persist();
     }
 });

@@ -53,7 +53,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 
 ## Conventions
 
-- **No first-line description comments** on source files (public repo; filenames are enough). File-size exceptions and the 300-line rule: [architecture conventions](docs/architecture-conventions.md)
+- **No bare file-purpose comments** on source files (public repo; filenames are enough) — a header comment is kept only when it carries attribution, a usage contract, or a non-obvious why. File-size exceptions and the 300-line rule: [architecture conventions](docs/architecture-conventions.md)
 - **Tests** are plain `node tests/**/*.js` scripts. Layout, the path-validation gate, CI/pre-commit, the headless harness, and snapshot updates (`SMOKE_UPDATE=1 node tests/shared/smoke.js`): [testing](docs/testing.md)
 
 ## Documentation

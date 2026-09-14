@@ -1,4 +1,3 @@
-// Constants
 export const NOTHING_CHAR = "-";
 export const SHAPE_LAYER_SEPARATOR = ":";
 export const PIN_CHAR = "P";

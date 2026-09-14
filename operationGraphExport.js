@@ -1,51 +1,25 @@
 import { cyInstance, graph3dInstance } from './operationGraphInstances.js';
+import { copyImage, reportCopyFailure } from './clipboardFeedback.js';
 
-export async function copyGraphToClipboard() {
+export function copyGraphToClipboard() {
     // --- 2D GRAPH (Cytoscape) ---
     if (cyInstance) {
-        const graphImage = cyInstance.png({
-            output: 'blob',
-            scale: 1,
-            full: true
-        });
-
-        try {
-            const clipboardItem = new ClipboardItem({ 'image/png': graphImage });
-            await navigator.clipboard.write([clipboardItem]);
-            alert('Graph image copied to clipboard!');
-        } catch (error) {
-            console.error('Failed to copy image to clipboard:', error);
-            alert('Failed to copy image to clipboard.');
-        }
-
-        return;
+        const cy = cyInstance;
+        return copyImage(() => cy.png({ output: 'blob', scale: 1, full: true }), 'graph image');
     }
 
     // --- 3D GRAPH (ForceGraph3D) ---
     if (graph3dInstance) {
-        const renderer = graph3dInstance.renderer();
-        const canvas = renderer.domElement;
-
-        renderer.render(graph3dInstance.scene(), graph3dInstance.camera());
-
-        canvas.toBlob(async blob => {
-            if (!blob) {
-                alert('Failed to export 3D graph.');
-                return;
-            }
-
-            try {
-                const item = new ClipboardItem({ 'image/png': blob });
-                await navigator.clipboard.write([item]);
-                alert('Graph image copied to clipboard!');
-            } catch (err) {
-                console.error('Failed to copy 3D image:', err);
-                alert('Failed to copy image to clipboard.');
-            }
-        }, 'image/png');
-
-        return;
+        const g3d = graph3dInstance;
+        return copyImage(() => {
+            const renderer = g3d.renderer();
+            // The WebGL buffer is cleared after each composite, so draw a frame in
+            // the same task as toBlob or the capture comes back blank.
+            renderer.render(g3d.scene(), g3d.camera());
+            return new Promise((resolve) => renderer.domElement.toBlob(resolve, 'image/png'));
+        }, 'graph image');
     }
 
-    alert('No graph to copy.');
+    reportCopyFailure('graph image', 'there is no graph yet');
+    return Promise.resolve(false);
 }

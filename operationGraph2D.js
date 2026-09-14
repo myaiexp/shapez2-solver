@@ -2,6 +2,7 @@ import { createShapeCanvas } from './shapeRendering.js';
 import { getCurrentColorMode } from './colorMode.js';
 import { cyInstance, setCyInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 import { buildGraphElements } from './operationGraphElements.js';
+import { copyText } from './clipboardFeedback.js';
 
 let lastSolutionPath = null;
 
@@ -182,13 +183,9 @@ export function renderGraph(solutionPath) {
 
     setCyInstance(cy);
 
-    cy.on('tap', 'node.shape', async (evt) => {
+    cy.on('tap', 'node.shape', (evt) => {
         const code = evt.target.data('label');
-        try {
-            await navigator.clipboard.writeText(code);
-        } catch (err) {
-            console.error('Failed to copy:', err);
-        }
+        copyText(code, code);
     });
 }
 

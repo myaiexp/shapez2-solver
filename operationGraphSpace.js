@@ -1,6 +1,7 @@
 import { createShapeCanvas } from './shapeRendering.js';
 import { setGraph3dInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 import { clearLastSolutionPath } from './operationGraph2D.js';
+import { copyText } from './clipboardFeedback.js';
 
 function makeNodeSprite(image, scale) {
     const tex = new THREE.TextureLoader().load(image, t => { t.colorSpace = THREE.SRGBColorSpace; t.premultiplyAlpha = false; });
@@ -94,7 +95,7 @@ export function renderSpaceGraph(graph) {
 
     g3d.onNodeClick(node => {
         if (node.kind === 'shape') {
-            navigator.clipboard.writeText(node.label).catch(() => {});
+            copyText(node.label, node.label);
         }
     });
 
