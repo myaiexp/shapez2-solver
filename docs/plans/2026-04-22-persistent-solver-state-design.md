@@ -1,6 +1,8 @@
 # Persistent Solver State
 
-> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`; current commands are in [testing.md](../testing.md). The Testing section's "`applyState` is not tested" no longer holds: `tests/shared/persistenceApply.test.js` runs `captureState`/`applyState` against a fake document and fake renderer deps, and `tests/shared/persistence.test.js` covers storage.
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`; current commands are in [testing.md](../testing.md).
+>
+> Updated 2026-09-14 to match the shipped `persistence.js`: Reset Saved State / `clearState()`, `captureState(runtime)`, `isValidSolutionPath`, `applyState`'s corrupt-list and tab guards, and their tests — `tests/shared/persistence.test.js` (storage) and `tests/shared/persistenceApply.test.js` (`captureState`/`applyState` against a fake document). The original "no Clear button" non-goal is superseded.
 
 ## Problem
 
@@ -17,25 +19,27 @@ State persists across browser restarts (localStorage, not sessionStorage).
 ## Non-Goals
 
 - **Space-explorer output is not persisted.** Different render path (`renderSpaceGraph`) and explore runs are inherently more ephemeral. Filed as a deferred idea.
-- **No explicit "Clear" button.** YAGNI. Users can clear via devtools if needed; we can add a UI button later if real friction emerges.
+- ~~**No explicit "Clear" button.**~~ Superseded (commit 26669b5): Options → **Reset Saved State** (`#reset-state-btn`) confirms, calls `clearState()`, and reloads into defaults.
 - **No multi-slot save / named solutions.** One slot, always overwriting. If the user wants alternates, that's a future feature.
 - **No cross-device sync.** localStorage is per-browser, per-origin.
 - **No schema migration.** A `version` field invalidates old state on schema change rather than migrating it.
 
 ## Architecture
 
-One new module — `persistence.js` — with four functions:
+One module — `persistence.js` — exporting:
 
-- `loadState()` — reads + parses localStorage; returns a state object or `null` on missing/invalid data.
+- `loadState()` — reads + parses localStorage; returns a state object or `null` on missing/invalid data (unparseable JSON, wrong `version`, missing `inputs`/`view`).
 - `saveState(state)` — serializes + writes to localStorage; swallows quota errors.
-- `captureState()` — reads the current DOM/state into a state object (used by all save triggers).
-- `applyState(state, deps)` — writes a state object back into the DOM and re-renders the solution. `deps` carries the renderer hooks (`renderGraph`, `buildLayout`, `duplicateForThroughput`, `BlueprintRenderer`, blueprint layout setter).
+- `clearState()` — removes the storage key; returns `true` iff the removal succeeded (storage errors are swallowed and return `false`). Used by Reset Saved State and the restore-failure path.
+- `captureState(runtime)` — reads the current DOM into a state object. `runtime` supplies what the DOM cannot: `currentSolution` (main.js's `lastSolution`) and `currentBlueprintFloor`.
+- `applyState(state, deps)` — writes a state object back into the DOM and re-renders the solution, returning `{ restoredSolution, restoredFloor }` so main.js can adopt the solution and set up the blueprint renderer. `deps` carries `renderGraph`, `applyGraphLayout`, `buildLayout`, `duplicateForThroughput`, `BlueprintRenderer`, `createShapeItem`, and a `setBlueprintLayout` setter.
+- `isValidSolutionPath(path)` — structural check (non-empty operation name, input/output endpoints with a string shape and an id, `params.color` on colored ops) that `applyState` runs before a saved `solutionPath` reaches the renderers.
+- `STORAGE_KEY`, `SCHEMA_VERSION` — the key and version constants.
 
 `main.js` wires it up:
-- On `DOMContentLoaded`, after `initializeDefaultShapes()`: try to load + apply state; on any error, clear storage and continue with defaults.
-- Mutation handlers (input changes, list edits, operation toggles, tab switches, solve completion, view controls) call `saveState(captureState())` after their existing logic.
-
-No other module changes.
+- On `DOMContentLoaded`, after `initializeDefaultShapes()`: load + apply state with saving suspended; on any error, `clearState()` and reload into defaults.
+- Mutation handlers (input changes, list edits, operation toggles, tab switches, solve completion, view controls) call `persist()` — `saveState(captureState({ currentSolution, currentBlueprintFloor }))` — after their existing logic.
+- `#reset-state-btn` confirms, calls `clearState()`, and reloads.
 
 ## Data Schema
 
@@ -109,38 +113,42 @@ try:
   applyState(state, deps)
 catch err:
   console.warn('Failed to restore state, clearing.', err)
-  localStorage.removeItem('shapez2-solver-state-v1')
+  if clearState(): location.reload()   // skipped if storage itself throws, or the reload would loop
 ```
 
 `applyState` steps, in order:
 
 1. Set every form input value from `state.inputs.*`.
-2. Replace `#starting-shapes` contents: clear the default 4 shapes, append `createShapeItem(code)` for each saved code.
-3. For each `.operation-item`, toggle `.enabled` based on whether its `data-operation` is in `state.inputs.enabledOperations`.
+2. Replace `#starting-shapes` contents with `createShapeItem(code)` for each saved code — only when `startingShapes` is an array (non-string entries dropped; an explicit `[]` clears). An absent or non-array list leaves the page defaults, like an absent form field.
+3. For each `.operation-item`, toggle `.enabled` by membership in `enabledOperations`, under the same array-only rule.
 4. Dispatch `change` on `#search-method-select` so the heuristic-divisor / max-states groups show/hide correctly.
-5. Restore active sidebar tab: replicate the existing handler — sidebar buttons map id `foo-tab-btn` → content id `foo-content` (`btn.id.replace('-tab-btn', '-content')`).
-6. Restore active output view: replicate the existing handler — view buttons map id `foo-tab-btn` → element id `foo` (`btn.id.replace('-tab-btn', '')`). If the restored view is `blueprint`, instantiate `blueprintRenderer` matching the existing tab-switch logic.
-7. If `state.solution` exists:
+5. Restore active sidebar tab: button `<tab>-tab-btn`, panel `<tab>-content`.
+6. Restore active output view: button `<view>-view-tab-btn`, panel `<view>-view`. Either group switches only when both its button and panel exist, so a stale or corrupt tab name leaves the current tab active instead of blanking the pane.
+7. If `state.solution` exists **and** `isValidSolutionPath(state.solution.solutionPath)`:
    - `renderGraph(state.solution.solutionPath)` — rebuilds Cytoscape graph.
    - `applyGraphLayout(state.view.graphDirection)` to honor saved direction.
-   - Compute `currentBlueprintLayout = buildLayout(solutionPath)`; apply throughput multiplier from `state.inputs.throughputMultiplier`.
-   - If blueprint view active, call `blueprintRenderer.setLayout(currentBlueprintLayout)`, then `setFloor(state.view.blueprintFloor)` and update `#floor-indicator`.
+   - `setBlueprintLayout(buildLayout(solutionPath))`, with the throughput multiplier from `state.inputs.throughputMultiplier` applied.
    - Restore status text: `Solved in {solveTimeSec}s at Depth {depth} → {statesExplored} States` (same format as live).
 
-If `state.solution == null` and the user previously saw "No solution found.", restore that status text too. If neither, status stays `Idle`.
+Back in main.js, using `applyState`'s return value: adopt `state.solution` as `lastSolution` only if `restoredSolution`, and if the blueprint view is active, create the `BlueprintRenderer`, `setLayout`, then `setFloor(restoredFloor)` and update `#floor-indicator`.
+
+With no valid saved solution, status stays `Idle` (a saved "No solution found." is not restored).
 
 ## Error Handling
 
 - **Parse failure** (corrupted JSON): caught at `loadState`, returns `null`, defaults apply.
 - **Schema mismatch** (`version != 1` or missing required fields): treated as parse failure, returns `null`.
-- **Apply failure** (renderer throws on `solutionPath` from a different code version): top-level `try/catch` around `applyState`; on error, clear storage and reload defaults via a fresh init pass. We do NOT attempt partial restore (e.g. "inputs worked but solution didn't") — too many edge cases for a v1.
+- **Structurally corrupt solution** (versioned blob, malformed `solutionPath`): `isValidSolutionPath` rejects it and `applyState` skips the solution while still restoring inputs and view.
+- **Apply failure** (renderer throws on `solutionPath` from a different code version): top-level `try/catch` around `applyState`; on error, `clearState()` and reload into defaults. We do NOT attempt partial restore (e.g. "inputs worked but solution didn't") — too many edge cases for a v1.
 - **Quota exceeded on save**: `saveState` catches and logs to console. State just stops persisting until next page load — non-fatal.
 
 ## Testing
 
-- **Smoke test** (`tests/smoke.js`): focus on `captureState` ↔ `loadState` JSON round-trip — build a state object, stringify, parse, assert deep equality. `applyState` is not tested in the smoke harness because it depends on real DOM and live renderer modules (`renderGraph`, `BlueprintRenderer`); stubbing those reliably is more work than the test is worth. `applyState` is covered by manual verification below.
+- **Unit tests** (`tests/shared/persistence.test.js`): `loadState` / `saveState` / `clearState` against an in-memory localStorage stub — round trip, nothing stored, corrupt JSON, throwing storage backends, and `clearState`'s return value — plus `isValidSolutionPath` accept/reject cases. `tests/shared/smoke.js` also runs every solver-produced path through `isValidSolutionPath`, so a path a reload would discard fails the suite.
+- **DOM tests** (`tests/shared/persistenceApply.test.js`): `captureState`/`applyState` against a fake `document` mirroring `index.html` and fake renderer deps — round trip, field restore, the solution gate, throughput duplication, corrupt lists and tab names. Real rendering is covered only by the manual verification below.
 - **Manual verification** before commit:
   1. Set custom target + non-default options + edited starting shapes; refresh; confirm everything restored.
   2. Run a solve; refresh; confirm flowchart and blueprint render identically without re-solving.
   3. Switch to blueprint view, change floor; refresh; confirm same view + floor.
   4. Manually corrupt localStorage value (`localStorage.setItem('shapez2-solver-state-v1', 'garbage')`); refresh; confirm defaults load without errors in console (a warning is fine).
+  5. Click Options → Reset Saved State, confirm; the page reloads with defaults and the storage key is gone.

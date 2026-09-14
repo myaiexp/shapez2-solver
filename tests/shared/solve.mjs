@@ -26,6 +26,10 @@
 //   --explore N          run the space explorer to depth N instead of solving
 //                        (positional <target>, if given, narrows Painter / Crystal
 //                        Generator colors the same way the worker's 7th arg does)
+//   --max-nodes N        explore only: stop once the graph holds N shape + op
+//                        nodes (default 100000). --timeout alone does not bound
+//                        memory: uncapped depth 3 at the defaults passes 1.5 GB
+//                        of heap well inside 20 s
 //   --json               emit machine-readable JSON
 //
 // Exit code is non-zero if any step/edge fails operation validation, if the id
@@ -41,7 +45,7 @@ import { ShapeOperationConfig } from '../../shapeClass.js';
 import { validateStep, validateExplorerEdges, invalidPathIds, pathReachesTarget, pathInventoryAcceptable } from './pathValidation.js';
 
 function parseArgs(argv) {
-    const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000 };
+    const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000, maxNodes: 100000 };
     const positional = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -56,6 +60,7 @@ function parseArgs(argv) {
         else if (a === '--max-states') opts.maxStates = parseInt(argv[++i]);
         else if (a === '--node-budget') opts.nodeBudget = parseInt(argv[++i]);
         else if (a === '--explore') opts.explore = parseInt(argv[++i]);
+        else if (a === '--max-nodes') opts.maxNodes = parseInt(argv[++i]);
         else positional.push(a);
     }
     opts.target = positional[0];
@@ -78,14 +83,16 @@ const deadline = Date.now() + opts.timeout;
 const shouldCancel = () => Date.now() > deadline;
 
 if (opts.explore != null) {
-    const g = await shapeExplorer(starting, ops, opts.explore, opts.maxLayers, shouldCancel, () => {}, opts.target || null);
+    if (!(opts.maxNodes >= 1)) { console.error('--max-nodes must be a positive integer'); process.exit(2); }
+    const g = await shapeExplorer(starting, ops, opts.explore, opts.maxLayers, shouldCancel, () => {}, opts.target || null, opts.maxNodes);
     if (!g) { console.error('explore: cancelled/timed out'); process.exit(2); }
     const edgeReports = validateExplorerEdges(g, opConfig);
     const bad = edgeReports.filter((r) => !r.valid).length;
     if (opts.json) {
-        console.log(JSON.stringify({ shapes: g.shapes.length, ops: g.ops.length, invalid: bad, edges: edgeReports }, null, 2));
+        console.log(JSON.stringify({ shapes: g.shapes.length, ops: g.ops.length, depth: g.depth, aborted: g.aborted, invalid: bad, edges: edgeReports }, null, 2));
     } else {
-        console.log(`explore depth=${opts.explore} shapes=${g.shapes.length} ops=${g.ops.length}`);
+        const cap = g.aborted === 'maxNodes' ? ` — stopped at ${opts.maxNodes}-node cap in depth ${g.depth}` : '';
+        console.log(`explore depth=${opts.explore} shapes=${g.shapes.length} ops=${g.ops.length}${cap}`);
         for (const r of edgeReports) if (!r.valid) console.log(`  INVALID ${r.op}: ${r.inputs.join(' + ')} -> ${r.outputs.join(', ')} (${r.reason})`);
         console.log(bad ? `*** ${bad} INVALID edges ***` : 'all edges valid');
     }

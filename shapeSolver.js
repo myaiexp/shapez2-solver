@@ -1,7 +1,7 @@
 import { shapeSolver } from './shapeSolverCore.js';
 import { shapeExplorer } from './shapeExplorerCore.js';
 import { solveConstructive } from './shapeSolverConstructive.js';
-import { clampExploreDepth } from './exploreDepth.js';
+import { clampExploreDepth, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
 
 let cancelled = false;
 const shouldCancel = () => cancelled;
@@ -79,14 +79,18 @@ self.onmessage = async function (e) {
             const graph = await shapeExplorer(
                 startingShapeCodes,
                 enabledOperations,
-                // Clamped here as well as in the UI: the explorer has no state
-                // cap, so an unbounded depth arriving from any caller grows the
-                // graph until the tab OOMs.
+                // Clamped here as well as in the UI: the graph grows
+                // multiplicatively with depth, so no caller may ask for an
+                // unbounded one.
                 clampExploreDepth(depthLimit),
                 maxLayers || 4,
                 shouldCancel,
                 onProgress,
-                targetShapeCode || null
+                targetShapeCode || null,
+                // Not read from `data`: the cap bounds what renderSpaceGraph
+                // hydrates on the main thread, so it belongs to the app, not
+                // the request. A capped run posts { aborted: 'maxNodes' }.
+                DEFAULT_EXPLORE_MAX_NODES
             );
             if (!cancelled) self.postMessage({ type: 'result', result: graph });
         } catch (err) {
