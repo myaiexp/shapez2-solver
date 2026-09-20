@@ -51,8 +51,8 @@ jobs:
       - uses: actions/checkout@v4
 
       # Assemble only the static app into _site, then stamp the cache-buster.
-      # __COMMIT__ -> short SHA mirrors deploy.sh so ?v=<sha> assets bust on
-      # every change. Excludes mirror deploy.sh plus dev-only dirs.
+      # __COMMIT__ -> short SHA so ?v=<sha> assets bust on every change.
+      # The excludes are a denylist of dev-only files and dirs.
       - name: Assemble site
         env:
           SHA: ${{ github.sha }}
@@ -66,12 +66,18 @@ jobs:
             --exclude='.gitignore' \
             --exclude='README.md' \
             --exclude='CLAUDE.md' \
+            --exclude='AGENTS.md' \
             --exclude='deploy.sh' \
             --exclude='package.json' \
             --exclude='docs/' \
             --exclude='tests/' \
             --exclude='_site/' \
             ./ _site/
+          # upload-pages-artifact tars with --dereference, which exits non-zero
+          # on a dangling symlink ("File removed before we read it"). rsync -a
+          # copies symlinks verbatim, so any link whose target is excluded above
+          # lands here broken. Drop them rather than fail the deploy.
+          find _site -xtype l -print -delete
           sed -i "s/__COMMIT__/${SHA::7}/g" _site/index.html
 
       - uses: actions/configure-pages@v5
