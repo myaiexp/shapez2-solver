@@ -1,0 +1,6 @@
+{
+  "out": "fonts",
+  "families": [
+    {"family": "Barlow", "source": "ofl/barlow", "weights": [400, 500, 700]}
+  ]
+}
