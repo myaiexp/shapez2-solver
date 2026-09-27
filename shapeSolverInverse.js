@@ -3,7 +3,10 @@ import {
     UNPAINTABLE_SHAPES, layersToCode,
 } from './shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
-import { isLeftHalfEmpty, isRightHalfEmpty } from './shapeHalfGeometry.js';
+import {
+    isLeftHalfEmpty, isRightHalfEmpty, leftHalfSize, rightHalfSize,
+} from './shapeHalfGeometry.js';
+import { cut } from './shapeOperations.js';
 
 /**
  * Unpaint: set all paintable parts on the top layer to uncolored.
@@ -82,29 +85,61 @@ export function inverseUnstack(shape, config) {
 
 /**
  * Uncut (Cutter inverse for Bidirectional): the shape is treated as one geometric
- * half of a cut result.
+ * half of a cut result, and the predecessors are whole shapes that cut back to it.
  *
  * Geometry from shapeHalfGeometry (same as cut()): leading = RIGHT half, trailing
  * = LEFT half; cut returns [left, right].
  *
- * Contract is the *identity empty-opposite* predecessor only: if exactly one
- * geometric side is empty, re-emit this half (other side already empty). Cutting
- * that whole yields the half plus empty, so Bidirectional can step through Cutter
- * without inventing content. Does NOT generate non-empty mates or mirrors — a pure
- * half is the only useful predecessor we currently contribute. Both-empty and
- * both-occupied shapes return [].
+ * The true predecessor set is every possible content of the empty half, so this
+ * emits a bounded, plausible subset: the 180° mirror of the occupied half (when
+ * both halves have the same size) and the empty half filled uniformly with each
+ * distinct part the half contains. Those are the wholes a factory usually starts
+ * from (CuCu---- ← CuCuCuCu). The half itself is never emitted — it is already the
+ * node being expanded, so the backward map would discard it.
+ *
+ * Every candidate is kept only if cut() really returns the half, so gravity and
+ * crystal shatter cannot sneak in a false predecessor. Shapes that are not a pure
+ * half on every layer (both sides occupied, or fully empty) return [].
  */
 export function inverseUncut(shape, config) {
-    if (shape.numLayers !== 1) return [];
+    const isRightHalf = shape.layers.every(isLeftHalfEmpty);
+    const isLeftHalf = shape.layers.every(isRightHalfEmpty);
+    if (isRightHalf === isLeftHalf) return [];
 
-    const layer = shape.layers[0];
-    const leftEmpty = isLeftHalfEmpty(layer);
-    const rightEmpty = isRightHalfEmpty(layer);
-    // Pure geometric half: exactly one side empty.
-    if (leftEmpty === rightEmpty) return [];
+    const n = shape.numParts;
+    const rightSize = rightHalfSize(n);
+    const leftSize = leftHalfSize(n);
+    const halfCode = shape.toShapeCode();
+    // Index ranges of the occupied and empty halves (right = [0, rightSize)).
+    const [occStart, occSize] = isRightHalf ? [0, rightSize] : [rightSize, leftSize];
+    const [emptyStart, emptySize] = isRightHalf ? [rightSize, leftSize] : [0, rightSize];
 
-    const code = shape.toShapeCode();
-    return code ? [code] : [];
+    const fills = [];
+    if (occSize === emptySize) {
+        fills.push((layer, i) => layer[occStart + i]);
+    }
+    const distinctParts = new Map();
+    for (const layer of shape.layers) {
+        for (let i = 0; i < occSize; i++) {
+            const part = layer[occStart + i];
+            if (part.shape !== NOTHING_CHAR) distinctParts.set(part.shape + part.color, part);
+        }
+    }
+    for (const part of distinctParts.values()) fills.push(() => part);
+
+    const results = [];
+    for (const fill of fills) {
+        const layers = shape.layers.map(layer => {
+            const out = layer.slice();
+            for (let i = 0; i < emptySize; i++) out[emptyStart + i] = fill(layer, i);
+            return out;
+        });
+        const code = layersToCode(layers);
+        if (code === halfCode || results.includes(code)) continue;
+        const [left, right] = cut(new Shape(layers), config);
+        if ((isRightHalf ? right : left).toShapeCode() === halfCode) results.push(code);
+    }
+    return results;
 }
 
 /**

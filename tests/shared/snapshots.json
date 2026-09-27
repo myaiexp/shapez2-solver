@@ -96,8 +96,8 @@
     "depth": 1
   },
   "Solver: bidi-cut-stack": {
-    "numOps": 3,
-    "depth": 3
+    "numOps": 2,
+    "depth": 2
   },
   "Solver: prevent-waste-monolayer-paint": {
     "numOps": 2,

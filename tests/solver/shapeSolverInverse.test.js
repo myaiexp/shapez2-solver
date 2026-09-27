@@ -1,9 +1,9 @@
 // Unit tests for inverse (predecessor) ops in shapeSolverInverse.js.
 // Run with: node tests/solver/shapeSolverInverse.test.js
 //
-// Covers early-exit guards (wrong layer count) for inverseUnstack / inverseUncut /
-// inverseUnpin, plus inverseUncut's identity-half contract (geometric left/right
-// matching cut()) and one non-early-return case per function so empty results are
+// Covers early-exit guards (wrong layer count) for inverseUnstack / inverseUnpin,
+// inverseUncut's whole-shape predecessors (geometric left/right matching cut()),
+// and one non-early-return case per function so empty results are
 // proven to come from the guard, not from always returning empty.
 //
 // Also the four previously untested inverses (finding #8618): inverseUnpaint and
@@ -11,6 +11,7 @@
 // ops; unpaint returns a 0-or-1 array (not one code per original color).
 import { Shape } from '../../shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from '../../shapeRotation.js';
+import { cut } from '../../shapeOperations.js';
 import {
     inverseUnstack,
     inverseUncut,
@@ -40,17 +41,36 @@ check('inverseUnstack single-layer gappy returns []', inverseUnstack(shape('Cu--
 // Contrast: a 2-layer shape passes the guard and yields the (bottom, top) pair.
 check('inverseUnstack 2-layer splits (non-early)', inverseUnstack(shape('CuCuCuCu:RuRuRuRu'), null), ['CuCuCuCu', 'RuRuRuRu']);
 
-// --- inverseUncut: multi-layer early return; pure half = identity whole ------
-// Guard: multi-layer → []. Geometry matches cut(): leading = right, trailing = left.
-// Contract is identity empty-opposite only (no invented mates/mirrors).
-check('inverseUncut 2-layer returns []', inverseUncut(shape('CuCu----:RuRu----'), null), []);
-check('inverseUncut 3-layer returns []', inverseUncut(shape('Cu------:--Ru----:----Su--'), null), []);
-// Pure geometric right half (trailing/left empty) → identity predecessor.
-check('inverseUncut pure right half is identity', inverseUncut(shape('CuCu----'), null), ['CuCu----']);
-// Pure geometric left half (leading/right empty) → identity predecessor.
-check('inverseUncut pure left half is identity', inverseUncut(shape('----SuWu'), null), ['----SuWu']);
+// --- inverseUncut: whole predecessors of a pure half -------------------------
+// Geometry matches cut(): leading = right, trailing = left. Candidates are the
+// 180° mirror, then one uniform fill per distinct part; duplicates and the half
+// itself are dropped, and every emitted whole must cut back to the half.
+check('inverseUncut uniform right half → one mirrored whole',
+    inverseUncut(shape('CuCu----'), null), ['CuCuCuCu']);
+check('inverseUncut mixed right half → mirror, then per-part fills',
+    inverseUncut(shape('CuRu----'), null), ['CuRuCuRu', 'CuRuCuCu', 'CuRuRuRu']);
+check('inverseUncut left half fills the right side',
+    inverseUncut(shape('----SuWu'), null), ['SuWuSuWu', 'SuSuSuWu', 'WuWuSuWu']);
+check('inverseUncut gappy half fills only the empty side',
+    inverseUncut(shape('Cu------'), null), ['Cu--Cu--', 'Cu--CuCu']);
+check('inverseUncut multi-layer half fills every layer',
+    inverseUncut(shape('CuCu----:RuRu----'), null),
+    ['CuCuCuCu:RuRuRuRu', 'CuCuCuCu:RuRuCuCu', 'CuCuRuRu:RuRuRuRu']);
+// Crystals fused across a cut seam shatter, so those wholes do not cut back to
+// the half and are rejected: an all-crystal half has no predecessor, while a
+// half whose crystals stay off the seams keeps its candidates.
+check('inverseUncut all-crystal half: shattering wholes rejected',
+    inverseUncut(shape('crcr----'), null), []);
+{
+    const preds = inverseUncut(shape('crCu----'), null);
+    check('inverseUncut crystal off the seams keeps its wholes', preds, ['crCucrCu', 'crCuCuCu']);
+    check('inverseUncut crystal wholes cut back to the half',
+        preds.every(p => cut(shape(p))[1].toShapeCode() === 'crCu----'), true);
+}
 // Both sides occupied: not a Cutter half-output we reverse.
 check('inverseUncut both-halves returns []', inverseUncut(shape('CuRuSuWu'), null), []);
+// Different halves on different layers: no single cut produced it.
+check('inverseUncut mixed-side layers returns []', inverseUncut(shape('CuCu----:----RuRu'), null), []);
 // Fully empty: both sides empty, not a useful predecessor.
 check('inverseUncut empty returns []', inverseUncut(shape('--------'), null), []);
 

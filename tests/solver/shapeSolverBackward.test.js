@@ -55,6 +55,18 @@ function asObj(map) {
         map.size === 2 && map.get(painted) === 0 && map.get('CuCuCuCu') === 1);
 }
 
+// --- Cutter: a half target gains whole-shape predecessors at depth 1 ---------
+// The half itself is already the depth-0 entry, so an identity predecessor would
+// add nothing; the map must contain wholes that cut back to the half.
+{
+    const map = buildBackwardReachability('CuCu----', cfg, ['Cutter'], 1, noCancel);
+    check('cutter depth1: mirrored whole CuCuCuCu is a predecessor', map.get('CuCuCuCu') === 1);
+    check('cutter depth1: adds at least one entry beyond the target', map.size > 1);
+    const chained = buildBackwardReachability('CrCr----', cfg, ['Cutter', 'Painter'], 2, noCancel);
+    check('cutter+painter depth2: unpainted whole reaches a painted half',
+        chained.get('CrCrCrCr') === 1 && chained.get('CuCuCuCu') === 2);
+}
+
 // --- Unmapped op set (Trash is not invertible): singleton via early return ---
 {
     const map = buildBackwardReachability(TARGET, cfg, ['Trash'], 4, noCancel);
