@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -44,6 +42,12 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow block, so contents: read is
+    # restated for checkout; Pages publish scopes stay off the test job.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
