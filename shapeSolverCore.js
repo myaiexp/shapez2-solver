@@ -61,10 +61,6 @@ export async function shapeSolver(
     const target = getCachedShape(targetShapeCode);
     const targetCrystalColors = getCrystalColors(target);
     const config = new ShapeOperationConfig(maxLayers);
-    const startTime = performance.now();
-    let lastUpdate = startTime;
-    let depth = 0;
-    let aborted = false;  // set true when the maxStates cap is hit
 
     // Precompute acceptable shape codes (exact match vs every rotation).
     // Pass the cached target so we don't re-parse; isGoal is a thin has/every
@@ -386,6 +382,8 @@ export async function shapeSolver(
         // result field and matches BFS/IDA*/maxStates: distinct state keys in
         // costSoFar (not expansions — one state can be re-opened cheaper).
         let nodesExpanded = 0;
+        let aborted = false;  // set when the maxStates cap is hit
+        let lastUpdate = performance.now();
 
         while (open.size() > 0 && !shouldCancel()) {
             if (costSoFar.size > maxStates) { aborted = true; break; }
@@ -457,6 +455,7 @@ export async function shapeSolver(
         let nodesExpanded = 0;     // cumulative expansions across threshold passes
         const distinctStates = new Set();
         let passCount = 0;         // number of threshold-bounded passes run so far
+        let lastUpdate = performance.now();
 
         while (!shouldCancel()) {
             passCount++;
@@ -488,6 +487,7 @@ export async function shapeSolver(
 
             let nextThreshold = Infinity;
             let found = false;
+            let aborted = false;
             let solutionPath = null;
 
             while (stack.length > 0 && !shouldCancel()) {
@@ -633,7 +633,6 @@ export async function shapeSolver(
     // -----------------------------------------------------------------------
     async function runBfs() {
         const initialKey = getStateKey(initialAvailableIds);
-        const queue = [{ availableIds: initialAvailableIds, stateKey: initialKey, depth: 0, score: calculateStateScore(initialAvailableIds) }];
         const visited = new Set();
         visited.add(initialKey);
         // cameFrom maps each discovered state key to its parent key + the step that
@@ -651,53 +650,51 @@ export async function shapeSolver(
             states.sort((a, b) => b.score - a.score);
             return states.slice(0, beamWidth);
         }
-        while (queue.length > 0 && !shouldCancel()) {
-            if (visited.size > maxStates) { aborted = true; break; }
-            const currentDepthStates = [];
-            while (queue.length > 0 && queue[0].depth === depth) {
-                currentDepthStates.push(queue.shift());
-            }
-            const nextDepthStates = [];
-            for (const current of currentDepthStates) {
+        // Expands every state of one depth level. Returns { result } when a state
+        // is the goal, { aborted: true } when the maxStates cap is hit mid-level,
+        // otherwise { nextStates } — the unpruned next level (partial on cancel;
+        // the caller's loop condition then stops the search).
+        function expandBfsLevel(frontier, depth) {
+            const nextStates = [];
+            for (const { availableIds, stateKey: currentKey } of frontier) {
                 if (shouldCancel()) break;
-                const availableIds = current.availableIds;
-                const currentKey = current.stateKey;
                 if (isGoal(availableIds)) {
-                    return {
+                    return { result: {
                         solutionPath: reconstructPath(cameFrom, currentKey, initialKey),
                         depth,
                         statesExplored: visited.size
-                    };
+                    } };
                 }
                 for (const desc of generateSuccessors(availableIds)) {
                     if (shouldCancel()) break;
                     // Cap mid-level too: checking only at depth boundaries lets one
                     // frontier flood well past maxStates before aborting.
-                    if (visited.size > maxStates) { aborted = true; break; }
+                    if (visited.size > maxStates) return { aborted: true };
                     const stateKey = successorStateKey(availableIds, desc);
                     if (!visited.has(stateKey)) {
                         visited.add(stateKey);
                         const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
                         cameFrom.set(stateKey, { parentKey: currentKey, step });
-                        const newScore = calculateStateScore(succIds);
-                        nextDepthStates.push({ availableIds: succIds, stateKey, depth: depth + 1, score: newScore });
+                        nextStates.push({ availableIds: succIds, stateKey, score: calculateStateScore(succIds) });
                     }
                 }
-                if (aborted) break;
             }
-            if (aborted) break;
-            const prunedNextStates = pruneStatesAtDepth(nextDepthStates, maxStatesPerLevel);
-            for (const state of prunedNextStates) {
-                queue.push(state);
-            }
-            if (queue.length > 0) {
-                depth = queue[0].depth;
-            }
+            return { nextStates };
+        }
+        let frontier = [{ availableIds: initialAvailableIds, stateKey: initialKey, score: calculateStateScore(initialAvailableIds) }];
+        let aborted = false;  // set when the maxStates cap is hit
+        let lastUpdate = performance.now();
+        for (let depth = 0; frontier.length > 0 && !shouldCancel(); depth++) {
+            if (visited.size > maxStates) { aborted = true; break; }
+            const level = expandBfsLevel(frontier, depth);
+            if (level.result) return level.result;
+            if (level.aborted) { aborted = true; break; }
+            frontier = pruneStatesAtDepth(level.nextStates, maxStatesPerLevel);
             const now = performance.now();
             if (now - lastUpdate > 200) {
-                const prunedCount = nextDepthStates.length - prunedNextStates.length;
+                const prunedCount = level.nextStates.length - frontier.length;
                 const pruneInfo = prunedCount > 0 ? ` | Pruned ${prunedCount} States` : '';
-                onProgress(`BFS | Depth ${depth} → ${queue.length} States | ${visited.size} Total States${pruneInfo}`);
+                onProgress(`BFS | Depth ${depth + 1} → ${frontier.length} States | ${visited.size} Total States${pruneInfo}`);
                 lastUpdate = now;
             }
         }
