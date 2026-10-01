@@ -1,26 +1,25 @@
 // Special thanks to https://github.com/Loupau38/loupau38.github.io/blob/main/assets/scripts/shapeViewer.js
 import { getCurrentColorMode } from './colorMode.js';
-import { buildPartDrawers, QUAD_MODE, HEX_MODE } from './shapeRenderingPart.js';
+import { buildPartDrawers, QUAD_MODE, HEX_MODE, DEFAULT_IMAGE_SIZE } from './shapeRenderingPart.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { Shape, SHAPE_LAYER_SEPARATOR } from './shapeClass.js';
 
 export { baseColors, colorValues } from './shapeRenderingColors.js';
 
-const BGCircleColor = "rgba(0,0,0,0)";
+const BG_CIRCLE_COLOR = "rgba(0,0,0,0)";
 
 // according to 'dnSpy > ShapeMeshGenerator > GenerateShapeMesh()', this value should be 0.85
 // according to ingame screenshots, it should be 0.77
 // according to me, the closest to ingame is 0.8
 // but, to me, the best for this context is 0.75
-const layerSizeReduction = 0.75;
+const LAYER_SIZE_REDUCTION = 0.75;
 
 // sizes in pixels taken from a screenshot of the ingame shape viewer
-const defaultImageSize = 602;
-const defaultBGCircleDiameter = 520;
-const defaultShapeDiameter = 407;
+const DEFAULT_BG_CIRCLE_DIAMETER = 520;
+const DEFAULT_SHAPE_DIAMETER = 407;
 
-const BGCircleDiameter = defaultBGCircleDiameter / defaultImageSize;
-const shapeDiameter = defaultShapeDiameter / defaultImageSize;
+const BG_CIRCLE_DIAMETER = DEFAULT_BG_CIRCLE_DIAMETER / DEFAULT_IMAGE_SIZE;
+const SHAPE_DIAMETER = DEFAULT_SHAPE_DIAMETER / DEFAULT_IMAGE_SIZE;
 
 function scaleContext(ctx, scale) {
     const translation = (1 - scale) / 2;
@@ -47,18 +46,18 @@ export function renderShape(context, size, shapeCode, geometryMode, colorMode) {
     context.clearRect(0, 0, 1, 1);
 
     context.beginPath();
-    context.arc(0.5, 0.5, BGCircleDiameter / 2, 0, 2 * Math.PI);
+    context.arc(0.5, 0.5, BG_CIRCLE_DIAMETER / 2, 0, 2 * Math.PI);
     context.closePath();
-    context.fillStyle = BGCircleColor;
+    context.fillStyle = BG_CIRCLE_COLOR;
     context.fill();
 
-    scaleContext(context, shapeDiameter);
+    scaleContext(context, SHAPE_DIAMETER);
 
     for (let layerIndex = 0; layerIndex < numLayers; layerIndex++) {
         const layer = parsed.layers[layerIndex];
 
         context.save();
-        const curLayerScale = layerSizeReduction ** layerIndex;
+        const curLayerScale = LAYER_SIZE_REDUCTION ** layerIndex;
         scaleContext(context, curLayerScale);
         context.scale(0.5, 0.5);
         context.translate(1, 0);
@@ -76,7 +75,7 @@ export function renderShape(context, size, shapeCode, geometryMode, colorMode) {
                 layerIndex,
                 geometryMode,
                 colorMode,
-                shapeDiameter * curLayerScale * 0.5
+                SHAPE_DIAMETER * curLayerScale * 0.5
             );
             fill();
             partBorders.push(stroke);

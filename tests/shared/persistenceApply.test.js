@@ -2,16 +2,20 @@
 //   node tests/shared/persistenceApply.test.js
 //
 // These two read and write the live page (form fields, starting shapes, enabled
-// ops, tabs, the graph/blueprint renderers), and main.js's DOMContentLoaded restore
+// ops, tabs, graph selects), and main.js's DOMContentLoaded restore
 // is their only production caller — a throw there wipes storage and reloads. Here
 // they run against a fake `document` that mirrors index.html's ids/classes and
-// fake renderer deps that record their calls. The fake document throws on any
+// a fake createShapeItem that records its calls. applyState only validates the
+// saved solution and returns it — main.js's presentSolution draws it — so these
+// tests pin that nothing is presented here. The fake document throws on any
 // selector it doesn't know, so a selector change in persistence.js fails loudly
 // instead of matching nothing; and every id persistence.js asks for is checked
 // against the real index.html, so id drift can't silently skip a field.
-// Storage load/save/clear and isValidSolutionPath live in persistence.test.js.
+// Storage load/save/clear and isValidSolutionPath live in persistence.test.js;
+// the multiplier, layout and status line in solutionPresentation.test.js.
 import { readFileSync } from 'node:fs';
 import { captureState, applyState, SCHEMA_VERSION } from '../../persistence.js';
+import { solvedStatusText } from '../../solutionPresentation.js';
 import { SHAPE_LABEL_CLASS } from '../../domConstants.js';
 
 let passed = 0;
@@ -117,19 +121,12 @@ function makeDom() {
     };
 }
 
-// Fake main.js deps. Each records its calls; BlueprintRenderer is main.js's job
-// (applyState only forwards it), so constructing it here is a failure.
+// Fake main.js deps: applyState's only dep builds a starting-shape row.
 function makeDeps() {
-    const calls = { renderGraph: [], applyGraphLayout: [], buildLayout: [], duplicateForThroughput: [], setBlueprintLayout: [], createShapeItem: [] };
+    const calls = { createShapeItem: [] };
     return {
         calls,
-        renderGraph: (path) => calls.renderGraph.push(path),
-        applyGraphLayout: (dir) => calls.applyGraphLayout.push(dir),
-        buildLayout: (path) => (calls.buildLayout.push(path), { tag: 'layout', steps: path.length }),
-        duplicateForThroughput: (layout, n) => (calls.duplicateForThroughput.push(n), { tag: 'dup', of: layout, n }),
-        setBlueprintLayout: (layout) => calls.setBlueprintLayout.push(layout),
         createShapeItem: (code) => (calls.createShapeItem.push(code), shapeItem(code)),
-        BlueprintRenderer: class { constructor() { throw new Error('applyState must not construct BlueprintRenderer'); } },
     };
 }
 
@@ -155,7 +152,7 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
     a.ops[3].classList.remove('enabled');
     a.activeIds().forEach((id) => a.el(id).classList.remove('active'));
     ['options-tab-btn', 'options-content', 'blueprint-view-tab-btn', 'blueprint-view'].forEach((id) => a.el(id).classList.add('active'));
-    const runtime = { currentSolution: solution(okPath),currentBlueprintFloor: 2 };
+    const runtime = { currentSolution: solution(okPath), currentBlueprintFloor: 2 };
     const captured = captureState(runtime);
 
     checkEqual('capture: inputs read from the live form', captured.inputs, {
@@ -173,15 +170,11 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
     const stored = JSON.parse(JSON.stringify(captured));
     const result = applyState(stored, deps);
     checkEqual('round trip: recapture after apply equals the original', captureState(runtime), captured);
-    checkEqual('apply: returns restoredSolution + restoredFloor', result, { restoredSolution: true, restoredFloor: 2 });
+    checkEqual('apply: returns the validated solution + restoredFloor', result, { solution: solution(okPath), restoredFloor: 2 });
     checkEqual('apply: starting shapes rebuilt via createShapeItem, in order', deps.calls.createShapeItem, ['RuRuRuRu', 'SuSuSuSu']);
     checkEqual('apply: search-method change fires once, after the value is restored',
         b.el('search-method-select').events, [{ type: 'change', value: 'IDA*' }]);
-    checkEqual('apply: renderGraph gets the path; layout applied in saved direction',
-        [deps.calls.renderGraph, deps.calls.applyGraphLayout], [[okPath], ['LR']]);
-    checkEqual('apply: multiplier 3 duplicates the built layout for throughput',
-        deps.calls.setBlueprintLayout, [{ tag: 'dup', of: { tag: 'layout', steps: 1 }, n: 3 }]);
-    check('apply: status line reports the restored solve', b.el('status').textContent === 'Solved in 0.25s at Depth 3 → 42 States');
+    check('apply: status line untouched (presentSolution owns it)', b.el('status').textContent === 'Ready');
 
     const pageIds = new Set([...readFileSync(new URL('../../index.html', import.meta.url), 'utf8').matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
     const missing = [...a.requested, ...b.requested].filter((id) => !pageIds.has(id));
@@ -208,8 +201,7 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
     check('apply: fields absent from inputs keep page defaults', dom.el('depth-limit-input').value === '5' && dom.el('monolayer-painting').checked === false);
     checkEqual('apply: absent startingShapes leaves the default shapes', [dom.shapeCodes(), deps.calls.createShapeItem], [['CuCuCuCu'], []]);
     checkEqual('apply: absent enabledOperations leaves every op enabled', dom.enabledOps(), OPS);
-    checkEqual('apply: no solution → no renderer calls, restoredSolution false',
-        [deps.calls.renderGraph.length, deps.calls.buildLayout.length, dom.el('status').textContent], [0, 0, 'Ready']);
+    checkEqual('apply: no saved solution → solution null', applyState(baseState(), makeDeps()).solution, null);
 }
 {
     const dom = makeDom();
@@ -238,35 +230,50 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
         ['shapes-tab-btn', 'shapes-content', 'flowchart-view-tab-btn', 'flowchart-view']);
 }
 
-// --- Solution restore gate and throughput multiplier -----------------------
+// --- Solution restore gate --------------------------------------------------
 for (const [label, path] of [
     ['missing solutionPath', undefined],
     ['non-array solutionPath', 'nope'],
     ['Painter step without params.color', [{ operation: 'Painter', inputs: [{ id: 'a', shape: 'Cu------' }], outputs: [{ id: 'b', shape: 'Cr------' }] }]],
 ]) {
-    const dom = makeDom();
-    const deps = makeDeps();
-    const result = applyState(baseState({ throughputMultiplier: '4' }, { graphDirection: 'LR' }, solution(path)), deps);
-    const rendererCalls = ['renderGraph', 'applyGraphLayout', 'buildLayout', 'duplicateForThroughput', 'setBlueprintLayout']
-        .reduce((n, k) => n + deps.calls[k].length, 0);
-    check(`apply: ${label} is rejected before any renderer call`, rendererCalls === 0 && dom.el('status').textContent === 'Ready');
-    check(`apply: ${label} reports restoredSolution false`, result.restoredSolution === false);
-}
-for (const [value, expected] of [['1', null], ['', null], ['abc', null], ['0', null], ['-2', null], [undefined, null], ['2', 2], ['2.9', 2]]) {
     makeDom();
-    const deps = makeDeps();
-    const inputs = value === undefined ? {} : { throughputMultiplier: value };
-    applyState(baseState(inputs, {}, solution(okPath)), deps);
-    const want = expected ? { tag: 'dup', of: { tag: 'layout', steps: 1 }, n: expected } : { tag: 'layout', steps: 1 };
-    checkEqual(`apply: throughputMultiplier ${JSON.stringify(value)} → ${expected ? `duplicate ×${expected}` : 'no duplication'}`,
-        deps.calls.setBlueprintLayout, [want]);
+    const result = applyState(baseState({}, {}, solution(path)), makeDeps());
+    check(`apply: ${label} is rejected (solution null)`, result.solution === null);
 }
 {
     makeDom();
-    const deps = makeDeps();
-    const result = applyState(baseState({}, {}, solution([])), deps);
-    checkEqual('apply: empty path renders; no saved direction → no applyGraphLayout; floor defaults to 0',
-        [deps.calls.renderGraph, deps.calls.applyGraphLayout, result], [[[]], [], { restoredSolution: true, restoredFloor: 0 }]);
+    const result = applyState(baseState({}, {}, solution([])), makeDeps());
+    checkEqual('apply: empty path is a valid solution; floor defaults to 0', result, { solution: solution([]), restoredFloor: 0 });
+}
+
+// --- Constructive strategyTrace survives a reload ---------------------------
+// A restored Constructive solve must show the same status line as the live one,
+// so the trace is persisted and handed back; a corrupt trace is dropped (only
+// the summary reads it) without discarding the solution.
+const trace = {
+    target: 'CuRu----', method: 'quadrant-split', opCount: 1,
+    children: [
+        { target: 'Cu------', method: 'direct-search', children: [] },
+        { target: '--Ru----', method: 'direct-search', children: [] },
+    ],
+};
+{
+    makeDom();
+    const live = { ...solution(okPath), strategyTrace: trace };
+    const stored = JSON.parse(JSON.stringify(baseState({}, {}, live)));
+    const { solution: restored } = applyState(stored, makeDeps());
+    checkEqual('apply: valid strategyTrace is carried through', restored, live);
+    check('apply: restored status line matches the live one, Constructive summary included',
+        solvedStatusText(restored) === solvedStatusText(live) && solvedStatusText(restored).includes('Constructive:'));
+}
+for (const [label, bad] of [
+    ['non-object trace', 'nope'],
+    ['root missing opCount', { ...trace, opCount: undefined }],
+    ['child missing children', { ...trace, children: [{ target: 'Cu------', method: 'direct-search' }] }],
+]) {
+    makeDom();
+    const { solution: restored } = applyState(baseState({}, {}, { ...solution(okPath), strategyTrace: bad }), makeDeps());
+    checkEqual(`apply: ${label} is dropped, solution kept`, restored, solution(okPath));
 }
 
 delete globalThis.document;

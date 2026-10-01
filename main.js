@@ -3,7 +3,7 @@ import { Shape } from './shapeClass.js';
 import { extractLayers, filterStartingShapes } from './startingShapes.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
-import { buildLayout, duplicateForThroughput } from './blueprintLayout.js';
+import { parseThroughputMultiplier, buildSolutionLayout, solvedStatusText } from './solutionPresentation.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, clearState, captureState, applyState } from './persistence.js';
@@ -204,26 +204,6 @@ $all('.operation-item').forEach((item) => {
     });
 });
 
-// Compact one-line summary of which Constructive strategies fired, derived from
-// the strategyTrace alone: method breakdown (splits → direct-searches), total op
-// count, and how many sub-shapes were shared (reused) across the plan.
-function summarizeStrategyTrace(trace) {
-    const methodCounts = {};
-    const targetCounts = {};
-    (function walk(node) {
-        methodCounts[node.method] = (methodCounts[node.method] || 0) + 1;
-        targetCounts[node.target] = (targetCounts[node.target] || 0) + 1;
-        node.children.forEach(walk);
-    })(trace);
-    const reused = Object.values(targetCounts).filter((c) => c > 1).length;
-    const splits = Object.entries(methodCounts)
-        .filter(([m]) => m !== 'direct-search')
-        .map(([m, c]) => `${m} ×${c}`);
-    const searches = methodCounts['direct-search'] || 0;
-    const breakdown = splits.length ? `${splits.join(', ')} → ${searches} direct-searches` : 'direct-search';
-    return `Constructive: ${breakdown} | ${trace.opCount} ops | reused ${reused}`;
-}
-
 let solverWorker = null;
 // The single button that currently owns the shared worker ({ btn, idleLabel }),
 // or null when idle. Solve and Explore share one worker, so this — not the
@@ -284,6 +264,21 @@ function clearSolutionPresentation() {
         blueprintRenderer.setLayout(null);
     }
     syncFloorIndicator();
+}
+
+// Draw a solved result into every view — flowchart, blueprint layout (sized by
+// the form's throughput multiplier), status line — and adopt it as lastSolution.
+// The single presentation path for both a live solve and a restored one.
+function presentSolution(solution) {
+    renderGraph(solution.solutionPath);
+    const multiplier = parseThroughputMultiplier(byId('throughput-multiplier')?.value);
+    currentBlueprintLayout = buildSolutionLayout(solution.solutionPath, multiplier);
+    if (blueprintRenderer) {
+        blueprintRenderer.setLayout(currentBlueprintLayout);
+    }
+    syncFloorIndicator();
+    byId('status').textContent = solvedStatusText(solution);
+    lastSolution = solution;
 }
 
 // Starts a job — never cancels one. Callers guard with isJobRunning() and route
@@ -437,29 +432,13 @@ byId('solve-btn').addEventListener('click', () => {
         },
         onResult(result) {
             if (result?.solutionPath) {
-                renderGraph(result.solutionPath);
-                let layout = buildLayout(result.solutionPath);
-                const multiplier = parseInt(byId('throughput-multiplier')?.value || '1', 10);
-                if (multiplier > 1) {
-                    layout = duplicateForThroughput(layout, multiplier);
-                }
-                currentBlueprintLayout = layout;
-                if (blueprintRenderer) {
-                    blueprintRenderer.setLayout(currentBlueprintLayout);
-                }
-                syncFloorIndicator();
-                const t = ((performance.now() - startTime) / 1000).toFixed(2);
-                let statusText = `Solved in ${t}s at Depth ${result.depth} → ${result.statesExplored} States`;
-                if (result.strategyTrace) {
-                    statusText += ` | ${summarizeStrategyTrace(result.strategyTrace)}`;
-                }
-                status.textContent = statusText;
-                lastSolution = {
+                presentSolution({
                     solutionPath: result.solutionPath,
                     depth: result.depth,
                     statesExplored: result.statesExplored,
-                    solveTimeSec: t,
-                };
+                    solveTimeSec: ((performance.now() - startTime) / 1000).toFixed(2),
+                    ...(result.strategyTrace && { strategyTrace: result.strategyTrace }),
+                });
             } else {
                 clearSolutionPresentation();
                 if (result?.aborted === 'maxStates') {
@@ -576,21 +555,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state) {
         suspendPersist = true;
         try {
-            const { restoredSolution, restoredFloor } = applyState(state, {
-                renderGraph,
-                applyGraphLayout,
-                buildLayout,
-                duplicateForThroughput,
-                BlueprintRenderer,
-                createShapeItem,
-                setBlueprintLayout: (layout) => { currentBlueprintLayout = layout; },
-            });
-            // Only adopt the persisted solution if applyState actually validated
-            // and rendered it — otherwise lastSolution would point at a solution
-            // the graph/blueprint never drew, leaving the two inconsistent.
-            if (restoredSolution && state.solution) {
-                lastSolution = state.solution;
-            }
+            // applyState restores the form first, so presentSolution reads the
+            // restored throughput multiplier. A solution that failed validation
+            // comes back null and is never drawn or adopted.
+            const { solution, restoredFloor } = applyState(state, { createShapeItem });
+            if (solution) presentSolution(solution);
             if (state.view.activeOutputView === 'blueprint' && currentBlueprintLayout) {
                 if (!blueprintRenderer) {
                     blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));

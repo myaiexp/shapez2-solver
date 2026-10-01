@@ -92,6 +92,30 @@ export function isValidSolutionPath(path) {
     return Array.isArray(path) && path.every(isValidStep);
 }
 
+// A Constructive strategyTrace node: method/target strings and child nodes. The
+// root also carries opCount. Only the status-line summary reads it, so a corrupt
+// trace is dropped rather than failing the whole restore.
+function isValidTraceNode(node) {
+    return !!node && typeof node === 'object'
+        && typeof node.method === 'string' && typeof node.target === 'string'
+        && Array.isArray(node.children) && node.children.every(isValidTraceNode);
+}
+
+function isValidStrategyTrace(trace) {
+    return isValidTraceNode(trace) && typeof trace.opCount === 'number';
+}
+
+// The persisted solution in the shape a live solve presents, or null when its
+// path fails isValidSolutionPath.
+function restorableSolution(solution) {
+    if (!solution || !isValidSolutionPath(solution.solutionPath)) return null;
+    const { solutionPath, depth, statesExplored, solveTimeSec, strategyTrace } = solution;
+    return {
+        solutionPath, depth, statesExplored, solveTimeSec,
+        ...(isValidStrategyTrace(strategyTrace) && { strategyTrace }),
+    };
+}
+
 // The string entries of a persisted list, or null when the value isn't an array.
 function stringList(value) {
     return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : null;
@@ -135,6 +159,10 @@ export function captureState(runtime) {
     };
 }
 
+// Form, shapes, ops, tabs and graph selects are written straight into the page;
+// the solution is only validated and handed back — main.js's presentSolution
+// draws it, the same path a live solve takes. deps.createShapeItem builds a
+// starting-shape row.
 export function applyState(state, deps) {
     for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {
         const el = byId(id);
@@ -179,23 +207,8 @@ export function applyState(state, deps) {
     const edgeStyleSel = byId('edge-style-select');
     if (state.view.edgeStyle && edgeStyleSel) edgeStyleSel.value = state.view.edgeStyle;
 
-    let restoredSolution = false;
-    if (state.solution && isValidSolutionPath(state.solution.solutionPath)) {
-        deps.renderGraph(state.solution.solutionPath);
-        if (state.view.graphDirection) deps.applyGraphLayout(state.view.graphDirection);
-
-        let layout = deps.buildLayout(state.solution.solutionPath);
-        const multiplier = parseInt(state.inputs.throughputMultiplier, 10) || 1;
-        if (multiplier > 1) layout = deps.duplicateForThroughput(layout, multiplier);
-        deps.setBlueprintLayout(layout);
-
-        byId('status').textContent =
-            `Solved in ${state.solution.solveTimeSec}s at Depth ${state.solution.depth} → ${state.solution.statesExplored} States`;
-        restoredSolution = true;
-    }
-
     return {
-        restoredSolution,
+        solution: restorableSolution(state.solution),
         restoredFloor: state.view.blueprintFloor ?? 0,
     };
 }

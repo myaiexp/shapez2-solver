@@ -5,18 +5,18 @@ import { colorValues, baseColors } from './shapeRenderingColors.js';
 export const QUAD_MODE = "quad";
 export const HEX_MODE = "hex";
 
-const shapeBorderColor = "rgb(35,25,35)";
-const shadowColor = "rgba(50,50,50,0.5)";
-const pinColor = "rgb(71,69,75)";
+const SHAPE_BORDER_COLOR = "rgb(35,25,35)";
+const SHADOW_COLOR = "rgba(50,50,50,0.5)";
+const PIN_COLOR = "rgb(71,69,75)";
 
 // Sizes taken from a screenshot of the ingame shape viewer (units: fraction of default image size)
-const defaultImageSize = 602;
-const defaultBorderSize = 15;
-export const borderSize = defaultBorderSize / defaultImageSize;
+export const DEFAULT_IMAGE_SIZE = 602;
+const DEFAULT_BORDER_SIZE = 15;
+const BORDER_SIZE = DEFAULT_BORDER_SIZE / DEFAULT_IMAGE_SIZE;
 
-const sqrt2 = Math.sqrt(2);
-const sqrt3 = Math.sqrt(3);
-const sqrt6 = Math.sqrt(6);
+const SQRT2 = Math.sqrt(2);
+const SQRT3 = Math.sqrt(3);
+const SQRT6 = Math.sqrt(6);
 
 function darkenColor(color) {
     color = color.slice(4, -1);
@@ -42,12 +42,12 @@ function drawPolygon(ctx, points) {
 
 export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometryMode, colorMode, borderScale) {
 
-    const drawShadow = layerIndex != 0;
+    const hasShadow = layerIndex != 0;
     // Uncolored fallback: colorValues has no '-' (Nothing/Pin are no-paint /
-    // pinColor), so a colorless structural/crystal used to set fillStyle to
+    // PIN_COLOR), so a colorless structural/crystal used to set fillStyle to
     // undefined (leftover paint) or throw in darkenColor (crystal).
     const color = colorValues[colorMode]?.[partColor] ?? baseColors.u;
-    const curBorderSize = borderSize / borderScale;
+    const curBorderSize = BORDER_SIZE / borderScale;
 
     function standardDraw(drawPath) {
         return {
@@ -58,7 +58,7 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
             },
             stroke() {
                 drawPath();
-                ctx.strokeStyle = shapeBorderColor;
+                ctx.strokeStyle = SHAPE_BORDER_COLOR;
                 ctx.lineWidth = curBorderSize;
                 ctx.lineJoin = "round";
                 ctx.stroke();
@@ -119,7 +119,7 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
         function drawPath() {
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(sqrt3 / 2, 0.5);
+            ctx.lineTo(SQRT3 / 2, 0.5);
             ctx.lineTo(0, 1);
             ctx.closePath();
         }
@@ -127,9 +127,9 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
     }
 
     if (partShape == "F") {
-        const semicircleRadius = (3 - sqrt3) / 4;
+        const semicircleRadius = (3 - SQRT3) / 4;
         const triangleSideLength = 2 * semicircleRadius;
-        const semicircleCenterX = (triangleSideLength * (sqrt3 / 2)) / 2;
+        const semicircleCenterX = (triangleSideLength * (SQRT3 / 2)) / 2;
         const semicircleCenterY = (
             1
             - triangleSideLength
@@ -151,8 +151,8 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
         function drawPath() {
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(sqrt3 / 6, 0.5);
-            ctx.lineTo(sqrt3 / 2, 0.5);
+            ctx.lineTo(SQRT3 / 6, 0.5);
+            ctx.lineTo(SQRT3 / 2, 0.5);
             ctx.lineTo(0, 1);
             ctx.closePath();
         }
@@ -166,23 +166,23 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
             pinCenterX = 1 / 3;
             pinCenterY = 2 / 3;
         } else if (geometryMode == HEX_MODE) {
-            pinCenterX = sqrt2 / 6;
-            pinCenterY = 1 - (sqrt6 / 6);
+            pinCenterX = SQRT2 / 6;
+            pinCenterY = 1 - (SQRT6 / 6);
         }
         const pinRadius = 1 / 6;
         return {
             fill() {
-                if (drawShadow) {
+                if (hasShadow) {
                     ctx.beginPath();
                     ctx.arc(pinCenterX, pinCenterY, pinRadius + (curBorderSize / 2), 0, 2 * Math.PI);
                     ctx.closePath();
-                    ctx.fillStyle = shadowColor;
+                    ctx.fillStyle = SHADOW_COLOR;
                     ctx.fill();
                 }
                 ctx.beginPath();
                 ctx.arc(pinCenterX, pinCenterY, pinRadius, 0, 2 * Math.PI);
                 ctx.closePath();
-                ctx.fillStyle = pinColor;
+                ctx.fillStyle = PIN_COLOR;
                 ctx.fill();
             },
             stroke() {}
@@ -199,12 +199,12 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
             const stopAngle2 = radians(360 - (45 - darkenedAreasOffset));
             return {
                 fill() {
-                    if (drawShadow) {
+                    if (hasShadow) {
                         ctx.beginPath();
                         ctx.moveTo(0, 1);
                         ctx.arc(0, 1, 1 + (curBorderSize / 2), -Math.PI / 2, 0);
                         ctx.closePath();
-                        ctx.fillStyle = shadowColor;
+                        ctx.fillStyle = SHADOW_COLOR;
                         ctx.fill();
                     }
                     ctx.beginPath();
@@ -228,12 +228,12 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
         } else if (geometryMode == HEX_MODE) {
             const points = [
                 [0, 0],
-                [sqrt3 / 2, 0.5],
+                [SQRT3 / 2, 0.5],
                 [0, 1]
             ];
             const shadowPoints = [
                 [points[0][0], points[0][1] - (curBorderSize / 2)],
-                [points[1][0] + ((sqrt3 / 2) * (curBorderSize / 2)), points[1][1] - (curBorderSize / 4)],
+                [points[1][0] + ((SQRT3 / 2) * (curBorderSize / 2)), points[1][1] - (curBorderSize / 4)],
                 [points[2][0], points[2][1]]
             ];
             const sideMiddlePoint = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
@@ -245,9 +245,9 @@ export function buildPartDrawers(ctx, partShape, partColor, layerIndex, geometry
             }
             return {
                 fill() {
-                    if (drawShadow) {
+                    if (hasShadow) {
                         drawPolygon(ctx, shadowPoints);
-                        ctx.fillStyle = shadowColor;
+                        ctx.fillStyle = SHADOW_COLOR;
                         ctx.fill();
                     }
                     drawPolygon(ctx, points);
