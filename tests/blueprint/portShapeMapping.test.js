@@ -4,7 +4,7 @@
 // geometry — none of those verify that a Cutter's left-half shape actually
 // leaves its left port column and its right-half shape leaves its right port
 // column. A left/right port inversion anywhere in placeMachines →
-// buildPortLookup → routeAllBelts would pass every other test; this one fails
+// buildProducerLookup → routeAllBelts would pass every other test; this one fails
 // on it.
 //
 // Run with: node tests/blueprint/portShapeMapping.test.js
@@ -61,7 +61,7 @@ check('Cutter ports occupy distinct columns', leftCol !== rightCol);
 
 // The belt(s) physically leaving each port column must carry that port's shape,
 // and nothing at that column may carry the other half's shape. This is the
-// integration check placeMachines → buildPortLookup → routeAllBelts must keep
+// integration check placeMachines → buildProducerLookup → routeAllBelts must keep
 // consistent; an inversion in any of them flips which code these assert.
 const beltsAt = (x, y) => layout.belts.filter(b => b.x === x && b.y === y);
 const leftBelts = beltsAt(leftCol, portY);

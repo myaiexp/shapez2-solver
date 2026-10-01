@@ -5,7 +5,7 @@
 // helpers, so the multiplier parse, the blueprint layout and the status line
 // can't drift between the two. presentSolution itself touches the DOM and
 // renderers and isn't importable headlessly (main.js wires listeners at load).
-import { parseThroughputMultiplier, buildSolutionLayout, summarizeStrategyTrace, solvedStatusText } from '../../solutionPresentation.js';
+import { parseThroughputMultiplier, buildSolutionLayout, summarizeStrategyTrace, solvedStatusText, solveFailureMessage } from '../../solutionPresentation.js';
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
 import { LAYOUT_FIXTURES } from './layoutFixtures.js';
 
@@ -59,6 +59,24 @@ checkEqual('solvedStatusText: no trace → time, depth, states', solvedStatusTex
 checkEqual('solvedStatusText: trace → Constructive summary appended',
     solvedStatusText({ ...solved, strategyTrace: trace }),
     `Solved in 0.25s at Depth 3 → 42 States | ${summarizeStrategyTrace(trace)}`);
+
+// --- Failure status line: each abort code the solver posts (core: maxStates;
+// Constructive: no-decomposition, path-invalid, preventWaste) has its own text,
+// anything else — including a null result — the generic one ----------------
+{
+    const GENERIC = 'No solution found.';
+    const abortResult = (aborted) => ({ solutionPath: null, statesExplored: 1234, aborted });
+    const messages = ['maxStates', 'no-decomposition', 'path-invalid', 'preventWaste'].map(c => solveFailureMessage(abortResult(c)));
+    const [maxStates, noDecomp, pathInvalid, waste] = messages;
+    checkEqual('solveFailureMessage maxStates: state limit + count', maxStates.includes('state limit') && maxStates.includes('1234 states'), true);
+    checkEqual('solveFailureMessage no-decomposition: node budget + count', noDecomp.includes('node budget') && noDecomp.includes('1234 states'), true);
+    checkEqual('solveFailureMessage path-invalid: path does not hold the target', pathInvalid.includes('does not hold the target'), true);
+    checkEqual('solveFailureMessage preventWaste: points at Prevent Waste', waste.includes('Prevent Waste'), true);
+    checkEqual('solveFailureMessage: each code distinct and non-generic', new Set(messages).size === 4 && !messages.includes(GENERIC), true);
+    for (const [label, result] of [['aborted: null', abortResult(null)], ['null result', null], ['unknown code', abortResult('mystery')], ['inherited name toString', abortResult('toString')]]) {
+        checkEqual(`solveFailureMessage ${label} → generic`, solveFailureMessage(result), GENERIC);
+    }
+}
 
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);

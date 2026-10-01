@@ -3,7 +3,7 @@ import { Shape } from './shapeClass.js';
 import { extractLayers, filterStartingShapes } from './startingShapes.js';
 import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
-import { parseThroughputMultiplier, buildSolutionLayout, solvedStatusText } from './solutionPresentation.js';
+import { parseThroughputMultiplier, buildSolutionLayout, solvedStatusText, solveFailureMessage } from './solutionPresentation.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, clearState, captureState, applyState } from './persistence.js';
@@ -441,17 +441,7 @@ byId('solve-btn').addEventListener('click', () => {
                 });
             } else {
                 clearSolutionPresentation();
-                if (result?.aborted === 'maxStates') {
-                    status.textContent = `No solution found — search hit the state limit (${result.statesExplored} states). Try BFS, a larger heuristic divisor, or a simpler target.`;
-                } else if (result?.aborted === 'preventWaste') {
-                    status.textContent = 'No solution found — a plan exists but leftover waste cannot be removed (enable Trash, or disable Prevent Waste).';
-                } else if (result?.aborted === 'path-invalid') {
-                    status.textContent = 'No solution found — constructive assembly produced a path that does not hold the target.';
-                } else if (result?.aborted === 'no-decomposition') {
-                    status.textContent = `No solution found — no constructive split solved this target within the node budget (${result.statesExplored} states).`;
-                } else {
-                    status.textContent = 'No solution found.';
-                }
+                status.textContent = solveFailureMessage(result);
             }
         }
     });

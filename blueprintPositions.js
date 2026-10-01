@@ -13,6 +13,87 @@ export const MACHINE_GAP = 1;
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve each step in a row to its building definition. Rows hold only
+ * non-Belt-Split steps, and every solver operation has a BUILDING_DATA entry
+ * (pinned by buildingDataCoverage.test.js), so the skip is defensive.
+ */
+function rowEntries(stepsInRow, solutionPath) {
+    const entries = [];
+    for (const stepIdx of stepsInRow) {
+        const step = solutionPath[stepIdx];
+        const def = BUILDING_DATA[step.operation];
+        if (def) entries.push({ stepIdx, step, def });
+    }
+    return entries;
+}
+
+/** Tile width of a row: machine widths plus a MACHINE_GAP between neighbours. */
+function rowWidth(entries) {
+    if (entries.length === 0) return 0;
+    let width = (entries.length - 1) * MACHINE_GAP;
+    for (const { def } of entries) width += def.width || 1;
+    return width;
+}
+
+/**
+ * Place one south-flowing entry belt per source shape at y = 0, centered on
+ * the grid, one column each with MACHINE_GAP between them.
+ *
+ * @returns {Map} shapeId -> { x, y, shapeCode }
+ */
+function placeSources(sources, gridWidth, sourceWidth, belts) {
+    const sourceEntries = new Map();
+    const startX = Math.max(0, Math.floor((gridWidth - sourceWidth) / 2));
+    let i = 0;
+    for (const [shapeId, shapeCode] of sources) {
+        const x = startX + i * (1 + MACHINE_GAP);
+        sourceEntries.set(shapeId, { x, y: 0, shapeCode });
+        belts.push({ x, y: 0, floor: 0, direction: 'S', kind: 'normal', shapeCode });
+        i++;
+    }
+    return sourceEntries;
+}
+
+/**
+ * Place one row of machines left to right, centered on the grid. Records each
+ * machine's position and its output ports (front face, port-defined floor).
+ */
+function placeRow(entries, y, gridWidth, placed) {
+    let curX = Math.max(0, Math.floor((gridWidth - rowWidth(entries)) / 2));
+
+    for (const { stepIdx, step, def } of entries) {
+        const width = def.width || 1;
+        const depth = def.depth || 1;
+        const floor = def.floorRestriction ?? 0;
+
+        placed.machines.push({
+            operation: step.operation,
+            x: curX,
+            y,
+            floor,
+            inputShapes: step.inputs.map(inp => inp.shape),
+            outputShapes: step.outputs.map(out => out.shape),
+            params: step.params || {},
+            def
+        });
+        placed.machinePos.set(stepIdx, { x: curX, y, width, depth, def, floor });
+
+        placed.outputPortsByStep.set(stepIdx, step.outputs.map((out, oi) => {
+            const portDef = def.outputs[oi];
+            return {
+                x: curX + (portDef ? portDef.offset : oi),
+                y: y + depth, // front face
+                floor: portDef?.floor ?? floor,
+                shapeId: out.id,
+                shapeCode: out.shape
+            };
+        }));
+
+        curX += width + MACHINE_GAP;
+    }
+}
+
+/**
  * Place source-entry belts and machine rows, recording the positions and
  * output ports that later phases route belts between.
  *
@@ -22,154 +103,51 @@ export const MACHINE_GAP = 1;
  *
  * @returns {{
  *   machines: Array, belts: Array,
- *   machinePos: Map, outputPorts: Map, sourceEntries: Map,
+ *   machinePos: Map, outputPortsByStep: Map, sourceEntries: Map,
  *   maxRowWidth: number
  * }} machinePos: stepIdx -> { x, y, width, depth, def, floor };
- *    outputPorts: stepIdx -> [{ x, y, floor, shapeId, shapeCode }];
+ *    outputPortsByStep: stepIdx -> [{ x, y, floor, shapeId, shapeCode }];
  *    sourceEntries: shapeId -> { x, y, shapeCode }.
  */
 function placeMachines(rows, solutionPath, sources) {
-    const machines = [];
-    const belts = [];
-
-    // Sort row keys numerically
     const rowKeys = Array.from(rows.keys()).sort((a, b) => a - b);
+    const entriesByRow = new Map(rowKeys.map(r => [r, rowEntries(rows.get(r), solutionPath)]));
 
-    const machinePos = new Map();
-    const outputPorts = new Map();
-    const sourceEntries = new Map();
+    const sourceWidth = sources.size > 0 ? sources.size + (sources.size - 1) * MACHINE_GAP : 0;
+    let maxRowWidth = Math.max(1, sourceWidth);
+    for (const entries of entriesByRow.values()) {
+        maxRowWidth = Math.max(maxRowWidth, rowWidth(entries));
+    }
 
-    // First, figure out how wide each row is to center everything later
-    const rowWidths = new Map();
+    const belts = [];
+    const sourceEntries = placeSources(sources, maxRowWidth, sourceWidth, belts);
+
+    // Machine rows start ROW_PITCH below the source entries, if there are any
+    const firstMachineY = sources.size > 0 ? ROW_PITCH : 0;
+    const placed = { machines: [], machinePos: new Map(), outputPortsByStep: new Map() };
     for (const rowIdx of rowKeys) {
-        const stepsInRow = rows.get(rowIdx);
-        let width = 0;
-        for (let i = 0; i < stepsInRow.length; i++) {
-            const stepIdx = stepsInRow[i];
-            const step = solutionPath[stepIdx];
-            const def = BUILDING_DATA[step.operation];
-            if (!def) continue; // shouldn't happen for non-Belt-Split steps
-            const machineWidth = def.width || 1;
-            width += machineWidth;
-            if (i < stepsInRow.length - 1) width += MACHINE_GAP;
-        }
-        rowWidths.set(rowIdx, width);
+        placeRow(entriesByRow.get(rowIdx), firstMachineY + rowIdx * ROW_PITCH, maxRowWidth, placed);
     }
 
-    // Collect all source shapes
-    const allSourceIds = Array.from(sources.keys());
-
-    // Determine total grid width: max of all row widths and source entries
-    let maxRowWidth = 0;
-    for (const w of rowWidths.values()) {
-        if (w > maxRowWidth) maxRowWidth = w;
-    }
-    // Source entries: each gets one column, packed with 1-tile gaps
-    const sourceWidth = allSourceIds.length > 0
-        ? allSourceIds.length + (allSourceIds.length - 1) * MACHINE_GAP
-        : 0;
-    if (sourceWidth > maxRowWidth) maxRowWidth = sourceWidth;
-
-    // Ensure minimum width
-    if (maxRowWidth < 1) maxRowWidth = 1;
-
-    // Place source entry points at the very top (y = 0)
-    const sourceY = 0;
-    let sourceX = Math.floor((maxRowWidth - sourceWidth) / 2);
-    if (sourceX < 0) sourceX = 0;
-
-    for (let i = 0; i < allSourceIds.length; i++) {
-        const shapeId = allSourceIds[i];
-        const shapeCode = sources.get(shapeId);
-        const x = sourceX + i * (1 + MACHINE_GAP);
-        sourceEntries.set(shapeId, { x, y: sourceY, shapeCode });
-
-        // Place a source entry belt (flowing south into the factory)
-        belts.push({
-            x,
-            y: sourceY,
-            floor: 0,
-            direction: 'S',
-            kind: 'normal',
-            shapeCode
-        });
-    }
-
-    // Machine rows start after the source entries, with ROW_PITCH gap
-    const firstMachineY = allSourceIds.length > 0 ? sourceY + ROW_PITCH : 0;
-
-    for (const rowIdx of rowKeys) {
-        const stepsInRow = rows.get(rowIdx);
-        const y = firstMachineY + rowIdx * ROW_PITCH;
-
-        // Calculate this row's total width for centering
-        const rw = rowWidths.get(rowIdx) || 0;
-        let curX = Math.floor((maxRowWidth - rw) / 2);
-        if (curX < 0) curX = 0;
-
-        for (const stepIdx of stepsInRow) {
-            const step = solutionPath[stepIdx];
-            const def = BUILDING_DATA[step.operation];
-            if (!def) continue;
-
-            const machineWidth = def.width || 1;
-            const machineDepth = def.depth || 1;
-
-            // Determine machine floor: use floorRestriction if set, otherwise floor 0
-            const machineFloor = def.floorRestriction !== undefined ? def.floorRestriction : 0;
-
-            machines.push({
-                operation: step.operation,
-                x: curX,
-                y,
-                floor: machineFloor,
-                inputShapes: step.inputs.map(inp => inp.shape),
-                outputShapes: step.outputs.map(out => out.shape),
-                params: step.params || {},
-                def
-            });
-
-            machinePos.set(stepIdx, { x: curX, y, width: machineWidth, depth: machineDepth, def, floor: machineFloor });
-
-            // Record output ports (including floor from port definition)
-            const ports = [];
-            for (let oi = 0; oi < step.outputs.length; oi++) {
-                const out = step.outputs[oi];
-                const portDef = def.outputs[oi];
-                const portOffset = portDef ? portDef.offset : oi;
-                const portFloor = portDef?.floor ?? machineFloor;
-                ports.push({
-                    x: curX + portOffset,
-                    y: y + machineDepth, // front face = bottom edge + depth
-                    floor: portFloor,
-                    shapeId: out.id,
-                    shapeCode: out.shape
-                });
-            }
-            outputPorts.set(stepIdx, ports);
-
-            curX += machineWidth + MACHINE_GAP;
-        }
-    }
-
-    return { machines, belts, machinePos, outputPorts, sourceEntries, maxRowWidth };
+    return { ...placed, belts, sourceEntries, maxRowWidth };
 }
 
 // ---------------------------------------------------------------------------
-// Phase B: build the output-port lookup, propagate Belt Splits, route belts
+// Phase B: map each shape to where it is produced, propagate Belt Splits, route belts
 // ---------------------------------------------------------------------------
 
 /**
- * Build a lookup from shapeId to the physical output-port position that
- * produces it, seeded from machine output ports and source entries.
+ * Build a lookup from shapeId to the tile its belt starts from: a machine
+ * output port, or the exit tile below a source entry. propagateBeltSplits
+ * later adds virtual positions for Belt Split outputs.
  *
  * @returns {Map} shapeId -> { x, y, floor, shapeCode }
  */
-function buildPortLookup(outputPorts, sourceEntries) {
-    const outputPortLookup = new Map();
-    for (const ports of outputPorts.values()) {
+function buildProducerLookup(outputPortsByStep, sourceEntries) {
+    const producerPosByShapeId = new Map();
+    for (const ports of outputPortsByStep.values()) {
         for (const port of ports) {
-            outputPortLookup.set(port.shapeId, {
+            producerPosByShapeId.set(port.shapeId, {
                 x: port.x,
                 y: port.y,
                 floor: port.floor,
@@ -178,35 +156,34 @@ function buildPortLookup(outputPorts, sourceEntries) {
         }
     }
 
-    // Also add source entries to the lookup (sources are always on floor 0)
+    // Sources are always on floor 0; their belt exits the source tile going south
     for (const [shapeId, entry] of sourceEntries) {
-        outputPortLookup.set(shapeId, {
+        producerPosByShapeId.set(shapeId, {
             x: entry.x,
-            y: entry.y + 1, // belt exits from source tile going south
+            y: entry.y + 1,
             floor: 0,
             shapeCode: entry.shapeCode
         });
     }
 
-    return outputPortLookup;
+    return producerPosByShapeId;
 }
 
 /**
  * Propagate upstream output positions through Belt Split steps. For each split
  * we place a split belt at the upstream output position and register a virtual
  * output position for every split output, so downstream consumers can find
- * their source. Mutates `outputPortLookup` and appends to `belts`.
+ * their source. Mutates `producerPosByShapeId` and appends to `belts`.
  */
-function propagateBeltSplits(solutionPath, outputPortLookup, belts) {
+function propagateBeltSplits(solutionPath, producerPosByShapeId, belts) {
     for (let i = 0; i < solutionPath.length; i++) {
         const step = solutionPath[i];
         if (step.operation !== 'Belt Split') continue;
 
         const inputId = step.inputs[0].id;
-        const upstreamPos = outputPortLookup.get(inputId);
+        const upstreamPos = producerPosByShapeId.get(inputId);
         if (!upstreamPos) continue;
 
-        // Place a split belt at the upstream position
         belts.push({
             x: upstreamPos.x,
             y: upstreamPos.y,
@@ -216,13 +193,11 @@ function propagateBeltSplits(solutionPath, outputPortLookup, belts) {
             shapeCode: step.inputs[0].shape
         });
 
-        // Each output of the Belt Split gets a virtual position.
-        // If multiple outputs, spread them horizontally.
+        // Split outputs fan out one column apart, one tile below the split
         for (let oi = 0; oi < step.outputs.length; oi++) {
             const out = step.outputs[oi];
-            const offsetX = oi === 0 ? 0 : oi; // first output stays in-line
-            outputPortLookup.set(out.id, {
-                x: upstreamPos.x + offsetX,
+            producerPosByShapeId.set(out.id, {
+                x: upstreamPos.x + oi,
                 y: upstreamPos.y + 1,
                 floor: upstreamPos.floor,
                 shapeCode: out.shape
@@ -233,10 +208,10 @@ function propagateBeltSplits(solutionPath, outputPortLookup, belts) {
 
 /**
  * Route belts from each non-Belt-Split machine's input ports back to the
- * output ports that feed them, handling floor transitions via routeBelt.
+ * tiles that produce their shapes, handling floor transitions via routeBelt.
  * Appends routed belt tiles to `belts`.
  */
-function routeAllBelts(solutionPath, nodes, machinePos, outputPortLookup, belts) {
+function routeAllBelts(solutionPath, nodes, machinePos, producerPosByShapeId, belts) {
     const placeableSteps = new Set();
     for (const [idx, node] of nodes) {
         if (!node.isBeltSplit) placeableSteps.add(idx);
@@ -259,18 +234,12 @@ function routeAllBelts(solutionPath, nodes, machinePos, outputPortLookup, belts)
             }
             const inputX = pos.x + inputOffset;
             const inputY = pos.y; // back face = top of machine
-
-            // Determine the floor this input port is on
             const inputFloor = def.inputs[ii]?.floor ?? pos.floor;
 
-            // Find where this shape comes from
-            const src = outputPortLookup.get(inp.id);
+            const src = producerPosByShapeId.get(inp.id);
             if (!src) continue;
 
-            const srcFloor = src.floor ?? 0;
-
-            // Route belt path from src to input port, handling floor transitions
-            routeBelt(belts, src.x, src.y, srcFloor, inputX, inputY, inputFloor, inp.shape, def, ii);
+            routeBelt(belts, src.x, src.y, src.floor ?? 0, inputX, inputY, inputFloor, inp.shape, def, ii);
         }
     }
 }
@@ -307,14 +276,14 @@ export function assignPositions(rows, solutionPath, topology) {
     const { nodes, sources } = topology;
 
     // Phase A: place source entries and machine rows
-    const { machines, belts, machinePos, outputPorts, sourceEntries, maxRowWidth } =
+    const { machines, belts, machinePos, outputPortsByStep, sourceEntries, maxRowWidth } =
         placeMachines(rows, solutionPath, sources);
 
-    // Phase B: build the shape -> output-port lookup, propagate Belt Splits,
-    // then route belts from each consumer's inputs back to their sources
-    const outputPortLookup = buildPortLookup(outputPorts, sourceEntries);
-    propagateBeltSplits(solutionPath, outputPortLookup, belts);
-    routeAllBelts(solutionPath, nodes, machinePos, outputPortLookup, belts);
+    // Phase B: map each shape to the tile that produces it, propagate Belt
+    // Splits, then route belts from each consumer's inputs back to those tiles
+    const producerPosByShapeId = buildProducerLookup(outputPortsByStep, sourceEntries);
+    propagateBeltSplits(solutionPath, producerPosByShapeId, belts);
+    routeAllBelts(solutionPath, nodes, machinePos, producerPosByShapeId, belts);
 
     // Phase C: compute grid bounds and floor count
     const { gridWidth, gridHeight } = computeGridBounds(machines, belts, maxRowWidth);

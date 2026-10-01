@@ -38,3 +38,17 @@ export function solvedStatusText(solution) {
     const base = `Solved in ${solution.solveTimeSec}s at Depth ${solution.depth} → ${solution.statesExplored} States`;
     return solution.strategyTrace ? `${base} | ${summarizeStrategyTrace(solution.strategyTrace)}` : base;
 }
+
+// result.aborted code → status-line builder for a solve that found no path.
+const ABORT_MESSAGES = {
+    maxStates: (result) => `No solution found — search hit the state limit (${result.statesExplored} states). Try BFS, a larger heuristic divisor, or a simpler target.`,
+    preventWaste: () => 'No solution found — a plan exists but leftover waste cannot be removed (enable Trash, or disable Prevent Waste).',
+    'path-invalid': () => 'No solution found — constructive assembly produced a path that does not hold the target.',
+    'no-decomposition': (result) => `No solution found — no constructive split solved this target within the node budget (${result.statesExplored} states).`,
+};
+
+// Status line for a failed solve; `result` may be null when the worker sent nothing.
+export function solveFailureMessage(result) {
+    const build = Object.hasOwn(ABORT_MESSAGES, result?.aborted) ? ABORT_MESSAGES[result.aborted] : null;
+    return build ? build(result) : 'No solution found.';
+}

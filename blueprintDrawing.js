@@ -5,10 +5,13 @@ export const TILE_SIZE = 48;
 
 export const BG_COLOR = "#121212";
 
-const BELT_COLOR         = "#666666";
-const BELT_SPLIT_COLOR   = "#8888cc";
-const BELT_MERGE_COLOR   = "#cc8844";
-const BELT_LIFT_COLOR    = "#44aacc";
+/** belt.kind → tile/arrow color and the badge drawn under the arrow (none for plain belts) */
+const BELT_KIND_STYLE = {
+    normal: { color: "#666666", badge: null },
+    split:  { color: "#8888cc", badge: "SPL" },
+    merge:  { color: "#cc8844", badge: "MRG" },
+    lift:   { color: "#44aacc", badge: "⇅" }, // ⇅ up-down arrow
+};
 const GRID_LINE_COLOR    = "#1f1f1f";
 const LABEL_COLOR        = "#e0e0e0";
 const LABEL_FONT         = "600 11px 'Barlow', sans-serif";
@@ -61,45 +64,23 @@ function drawBelts(ctx, visibleBelts, shapeIconCache) {
         const cx = belt.x * TILE_SIZE + TILE_SIZE / 2;
         const cy = belt.y * TILE_SIZE + TILE_SIZE / 2;
 
-        // Background tile
-        let bgColor;
-        if (belt.kind === "split") {
-            bgColor = BELT_SPLIT_COLOR;
-        } else if (belt.kind === "merge") {
-            bgColor = BELT_MERGE_COLOR;
-        } else if (belt.kind === "lift") {
-            bgColor = BELT_LIFT_COLOR;
-        } else {
-            bgColor = BELT_COLOR;
-        }
+        const style = BELT_KIND_STYLE[belt.kind] ?? BELT_KIND_STYLE.normal;
 
-        ctx.fillStyle = bgColor;
+        ctx.fillStyle = style.color;
         ctx.globalAlpha = 0.25;
         ctx.fillRect(belt.x * TILE_SIZE + 1, belt.y * TILE_SIZE + 1,
                      TILE_SIZE - 2, TILE_SIZE - 2);
         ctx.globalAlpha = 1.0;
 
-        // Arrow character
         const arrow = DIR_ARROW[belt.direction] ?? "?";
-        ctx.fillStyle = bgColor;
         ctx.font = "bold 20px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(arrow, cx, cy);
 
-        // Fork / join / lift icon for special belt types
-        if (belt.kind === "split") {
-            ctx.fillStyle = BELT_SPLIT_COLOR;
+        if (style.badge) {
             ctx.font = "bold 10px sans-serif";
-            ctx.fillText("SPL", cx, cy + 14);
-        } else if (belt.kind === "merge") {
-            ctx.fillStyle = BELT_MERGE_COLOR;
-            ctx.font = "bold 10px sans-serif";
-            ctx.fillText("MRG", cx, cy + 14);
-        } else if (belt.kind === "lift") {
-            ctx.fillStyle = BELT_LIFT_COLOR;
-            ctx.font = "bold 10px sans-serif";
-            ctx.fillText("\u21C5", cx, cy + 14); // ⇅ up-down arrow
+            ctx.fillText(style.badge, cx, cy + 14);
         }
 
         // Shape icon on belt tile. Cache at a higher backing resolution so it
@@ -162,33 +143,26 @@ function drawMachines(ctx, visibleMachines) {
 }
 
 /**
+ * port.side → center of a port spaced `t` (0..1) along that edge of the
+ * machine rectangle. Inputs enter from the back (top), outputs exit from the
+ * front (bottom); a port without a side is drawn on the back.
+ */
+const PORT_SIDE_ANCHOR = {
+    back:  (px, py, w, h, t) => ({ cx: px + w * t, cy: py }),
+    front: (px, py, w, h, t) => ({ cx: px + w * t, cy: py + h }),
+    left:  (px, py, w, h, t) => ({ cx: px,         cy: py + h * t }),
+    right: (px, py, w, h, t) => ({ cx: px + w,     cy: py + h * t }),
+};
+
+/**
  * Draw small port indicators on the edges of a machine rectangle.
  */
 function drawPorts(ctx, machine, px, py, w, h) {
     const portSize = 6;
     const drawPort = (port, color, index, total) => {
         ctx.fillStyle = color;
-        const side = port.side || 'back';
-        let cx, cy;
-        if (side === 'back') {
-            // Top edge — inputs enter from the back
-            const step = w / (total + 1);
-            cx = px + step * (index + 1);
-            cy = py;
-        } else if (side === 'front') {
-            // Bottom edge — outputs exit from the front
-            const step = w / (total + 1);
-            cx = px + step * (index + 1);
-            cy = py + h;
-        } else if (side === 'left') {
-            const step = h / (total + 1);
-            cx = px;
-            cy = py + step * (index + 1);
-        } else {
-            const step = h / (total + 1);
-            cx = px + w;
-            cy = py + step * (index + 1);
-        }
+        const anchor = PORT_SIDE_ANCHOR[port.side] ?? PORT_SIDE_ANCHOR.back;
+        const { cx, cy } = anchor(px, py, w, h, (index + 1) / (total + 1));
         ctx.fillRect(cx - portSize / 2, cy - portSize / 2, portSize, portSize);
     };
 
