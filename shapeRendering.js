@@ -120,18 +120,29 @@ export function createShapeElement(shapeCode) {
     const container = document.createElement('div');
     container.className = 'shape-display';
 
-    const canvas = createShapeCanvas(shapeCode, 40);
-    canvas.className = 'shape-canvas';
-
-    // Store shape code as data attribute for easy refresh
-    canvas.dataset.shapeCode = shapeCode;
-
     const label = document.createElement('span');
     label.className = SHAPE_LABEL_CLASS;
     label.textContent = shapeCode;
 
-    container.appendChild(canvas);
+    container.appendChild(createInlineCanvas(shapeCode));
     container.appendChild(label);
 
     return container;
+}
+
+// The 40px thumbnail inside a shape element. It keeps its code in a data
+// attribute so refreshShapeElements can redraw it.
+function createInlineCanvas(shapeCode) {
+    const canvas = createShapeCanvas(shapeCode, 40);
+    canvas.className = 'shape-canvas';
+    canvas.dataset.shapeCode = shapeCode;
+    return canvas;
+}
+
+// Redraw every shape element's thumbnail in the current color mode.
+export function refreshShapeElements() {
+    document.querySelectorAll('.shape-canvas').forEach((canvas) => {
+        const code = canvas.dataset.shapeCode;
+        if (code) canvas.replaceWith(createInlineCanvas(code));
+    });
 }

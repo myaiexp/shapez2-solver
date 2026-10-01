@@ -1,6 +1,6 @@
-import { SHAPE_LABEL_CLASS } from './domConstants.js';
-import { $, $all, byId } from './domUtils.js';
+import { byId } from './domUtils.js';
 import { operations } from './shapeSolverOperations.js';
+import { readStartingShapes, readEnabledOperations, operationItems, activeTab, activateTab } from './uiControls.js';
 
 export const STORAGE_KEY = 'shapez2-solver-state-v1';
 export const SCHEMA_VERSION = 1;
@@ -121,17 +121,6 @@ function stringList(value) {
     return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : null;
 }
 
-// Switch a tab group only when the named button and panel both exist. Clearing
-// first and then failing the lookup (a stale or corrupt tab name) would leave the
-// group with no active tab — a blank sidebar or output pane.
-function activateTab(buttonClass, contentClass, btn, content) {
-    if (!btn || !content) return;
-    $all(`.${buttonClass}`).forEach((b) => b.classList.remove('active'));
-    $all(`.${contentClass}`).forEach((c) => c.classList.remove('active'));
-    btn.classList.add('active');
-    content.classList.add('active');
-}
-
 export function captureState(runtime) {
     const inputs = {};
     for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {
@@ -139,19 +128,16 @@ export function captureState(runtime) {
         if (!el) continue;
         inputs[field] = kind === 'checked' ? el.checked : el.value;
     }
-    inputs.startingShapes = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((el) => el.textContent);
-    inputs.enabledOperations = $all('#enabled-operations .operation-item.enabled').map((el) => el.dataset.operation);
-
-    const sidebarBtn = $('.tab-button.active');
-    const viewBtn = $('.view-tab-button.active');
+    inputs.startingShapes = readStartingShapes();
+    inputs.enabledOperations = readEnabledOperations();
 
     return {
         version: SCHEMA_VERSION,
         inputs,
         solution: runtime.currentSolution,
         view: {
-            activeSidebarTab: sidebarBtn ? sidebarBtn.id.replace('-tab-btn', '') : 'shapes',
-            activeOutputView: viewBtn ? viewBtn.id.replace('-view-tab-btn', '') : 'flowchart',
+            activeSidebarTab: activeTab('sidebar') ?? 'shapes',
+            activeOutputView: activeTab('output') ?? 'flowchart',
             graphDirection: byId('direction-select')?.value ?? 'TB',
             edgeStyle: byId('edge-style-select')?.value ?? '',
             blueprintFloor: runtime.currentBlueprintFloor ?? 0,
@@ -186,21 +172,15 @@ export function applyState(state, deps) {
     const enabledOperations = stringList(state.inputs.enabledOperations);
     if (enabledOperations) {
         const enabledSet = new Set(enabledOperations);
-        $all('#enabled-operations .operation-item').forEach((el) => {
+        operationItems().forEach((el) => {
             el.classList.toggle('enabled', enabledSet.has(el.dataset.operation));
         });
     }
 
     byId('search-method-select').dispatchEvent(new Event('change'));
 
-    const sidebarTab = state.view.activeSidebarTab;
-    if (sidebarTab) {
-        activateTab('tab-button', 'tab-content', byId(`${sidebarTab}-tab-btn`), byId(`${sidebarTab}-content`));
-    }
-    const outputView = state.view.activeOutputView;
-    if (outputView) {
-        activateTab('view-tab-button', 'view-tab-content', byId(`${outputView}-view-tab-btn`), byId(`${outputView}-view`));
-    }
+    if (state.view.activeSidebarTab) activateTab('sidebar', state.view.activeSidebarTab);
+    if (state.view.activeOutputView) activateTab('output', state.view.activeOutputView);
 
     const directionSel = byId('direction-select');
     if (state.view.graphDirection && directionSel) directionSel.value = state.view.graphDirection;

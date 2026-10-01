@@ -6,7 +6,7 @@
 // ClipboardItem, insecure context — so each failure mode must produce a message,
 // and the transient message must hand the status line back without clobbering
 // anything the solver wrote in the meantime.
-import { copyText, copyImage, reportCopyFailure, FLASH_MS } from '../../clipboardFeedback.js';
+import { copyText, copyTextFrom, copyImage, reportCopyFailure, FLASH_MS } from '../../clipboardFeedback.js';
 
 let passed = 0;
 let total = 0;
@@ -161,6 +161,32 @@ check('second flash replaces the first', status.textContent, "Couldn't copy B: n
 check('first flash timer is cancelled', firstTimer.cleared, true);
 runTimers();
 check('chained flashes restore the original status', status.textContent, SOLVED);
+
+// --- generated text (Copy Blueprint): async build, then copy ---
+reset();
+written = null;
+setClipboard({ writeText: async (t) => { written = t; } });
+check('copyTextFrom resolves true on success',
+    await copyTextFrom(async () => 'SHAPEZ2-2-abc$', 'blueprint string'), true);
+check('copyTextFrom writes the generated text', written, 'SHAPEZ2-2-abc$');
+check('copyTextFrom success message', status.textContent, 'Copied blueprint string to clipboard.');
+
+reset();
+written = null;
+setClipboard({ writeText: async (t) => { written = t; } });
+check('copyTextFrom resolves false when the build rejects',
+    await copyTextFrom(async () => { throw new Error('Unknown building: Foo.'); }, 'blueprint string'), false);
+check('build failure is reported on #status', status.textContent, "Couldn't copy blueprint string: Unknown building: Foo.");
+check('build failure writes nothing', written, null);
+
+reset();
+let built = false;
+setClipboard(undefined);
+check('copyTextFrom resolves false without navigator.clipboard',
+    await copyTextFrom(() => { built = true; return 'x'; }, 'blueprint string'), false);
+check('no clipboard: the build is not started', built, false);
+check('no clipboard explains the https requirement', status.textContent,
+    "Couldn't copy blueprint string: the clipboard is unavailable (it needs an https page).");
 
 // --- explicit failure report (nothing to copy) ---
 reset();

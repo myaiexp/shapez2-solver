@@ -125,8 +125,27 @@ check('empty path builds no elements', build([]).length === 0);
 
 // --- renderGraph / reRenderGraph against DOM + cytoscape stubs ----------------
 const cyCalls = [];
+// Each element becomes a node with get/set data() and a class set, enough for
+// refreshGraphColors' `cy.nodes('.cls')` walk.
+const makeNode = (el) => {
+    const data = { ...el.data };
+    const classes = new Set((el.classes ?? '').split(' ').filter(Boolean));
+    return {
+        classes,
+        data(key, value) {
+            if (value === undefined) return data[key];
+            data[key] = value;
+        },
+        toggleClass(cls, on) { if (on) classes.add(cls); else classes.delete(cls); },
+    };
+};
 globalThis.cytoscape = (opts) => {
-    const cy = { opts, destroyed: false, on() {}, destroy() { cy.destroyed = true; } };
+    const all = opts.elements.filter((e) => e.data.id !== undefined).map(makeNode);
+    const cy = {
+        opts, destroyed: false, on() {}, destroy() { cy.destroyed = true; },
+        nodes: (sel) => all.filter((n) => n.classes.has(sel.slice(1))),
+        node: (id) => all.find((n) => n.data('id') === id),
+    };
     cyCalls.push(cy);
     return cy;
 };
@@ -147,7 +166,7 @@ globalThis.document = {
     createElement: makeCanvas,
 };
 
-const { renderGraph, reRenderGraph, clearLastSolutionPath } = await import('../../operationGraph2D.js');
+const { renderGraph, reRenderGraph, clearLastSolutionPath, refreshGraphColors } = await import('../../operationGraph2D.js');
 const instances = await import('../../operationGraphInstances.js');
 
 const PATH = [
@@ -195,6 +214,32 @@ for (const cleared of [null, []]) {
     instances.setGraph3dInstance(space);
     renderGraph(PATH);
     check('renderGraph destroys a live space-explorer graph', space.gone && instances.graph3dInstance === null);
+}
+
+// --- refreshGraphColors: a color-mode change re-tints the live graph ----------
+{
+    instances.setCyInstance(null);
+    refreshGraphColors();
+    check('refreshGraphColors with no graph is a no-op', instances.cyInstance === null);
+
+    selects['color-mode-select'].value = 'cmyk';
+    renderGraph([
+        step('Painter', [[0, 'CuCuCuCu']], [[1, 'CrCrCrCr']], { color: 'r' }),
+        step('Crystal Generator', [[1, 'CrCrCrCr']], [[2, 'cgcgcgcg']], { color: 'g' }),
+        step('Painter', [[2, 'cgcgcgcg']], [[3, 'cgcgcgcg']], { color: 'x' }),
+    ]);
+    const cy = instances.cyInstance;
+    cy.node('shape-1').data('shapeCanvas', 'stale');
+    selects['color-mode-select'].value = 'rgb';
+    refreshGraphColors();
+    check('Painter re-tinted from the new palette',
+        cy.node('op-0').data('backgroundColor') === colorValues.rgb.r && cy.node('op-0').classes.has('colored-op'));
+    // Its label is 'Crystal Generator (g)': splitting it on spaces yields 'Generator'.
+    check('Crystal Generator re-tinted from the new palette',
+        cy.node('op-1').data('backgroundColor') === colorValues.rgb.g, cy.node('op-1').data('backgroundColor'));
+    check('a color outside the palette stays untinted',
+        cy.node('op-2').data('backgroundColor') === '#000' && !cy.node('op-2').classes.has('colored-op'));
+    check('shape thumbnails are re-rendered', cy.node('shape-1').data('shapeCanvas') === 'data:canvas-120');
 }
 
 delete globalThis.document;

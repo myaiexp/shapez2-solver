@@ -1,10 +1,12 @@
 import { createShapeCanvas } from './shapeRendering.js';
 import { getCurrentColorMode } from './colorMode.js';
 import { cyInstance, setCyInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
-import { buildGraphElements } from './operationGraphElements.js';
+import { buildGraphElements, opTint, UNTINTED_OP } from './operationGraphElements.js';
 import { copyText } from './clipboardFeedback.js';
 
 let lastSolutionPath = null;
+
+const shapeThumbnail = (code) => createShapeCanvas(code, 120).toDataURL();
 
 // Builds the Cytoscape style array for the 2D operation graph. A factory rather
 // than a constant because it closes over the per-render edge/branch styles and
@@ -149,7 +151,7 @@ export function renderGraph(solutionPath) {
     lastSolutionPath = solutionPath;
 
     const elements = buildGraphElements(solutionPath, {
-        shapeImage: (code) => createShapeCanvas(code, 120).toDataURL(),
+        shapeImage: shapeThumbnail,
         colorMode: getCurrentColorMode()
     });
 
@@ -184,8 +186,26 @@ export function renderGraph(solutionPath) {
     setCyInstance(cy);
 
     cy.on('tap', 'node.shape', (evt) => {
-        const code = evt.target.data('label');
+        const code = evt.target.data('shapeCode');
         copyText(code, code);
+    });
+}
+
+// Re-tint the live flowchart for the current color mode without re-running the
+// layout (a re-render would discard the user's pan/zoom and node drags). Writes
+// node data, which the `data(...)` style mappers pick up.
+export function refreshGraphColors() {
+    if (!cyInstance) return;
+    const colorMode = getCurrentColorMode();
+    cyInstance.nodes('.shape').forEach((node) => {
+        node.data('shapeCanvas', shapeThumbnail(node.data('shapeCode')));
+    });
+    cyInstance.nodes('.op').forEach((node) => {
+        const color = node.data('color');
+        if (color === undefined) return;
+        const tint = opTint(color, colorMode);
+        node.data('backgroundColor', tint ?? UNTINTED_OP);
+        node.toggleClass('colored-op', !!tint);
     });
 }
 

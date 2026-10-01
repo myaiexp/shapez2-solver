@@ -60,7 +60,17 @@ function requireClipboard() {
 }
 
 export function copyText(text, what) {
-    return copyWith(what, () => requireClipboard().writeText(text));
+    return copyTextFrom(() => text, what);
+}
+
+// `makeText` returns the string or a Promise of one (e.g. the blueprint string
+// export). Like copyImage, it runs only once the clipboard is known to exist,
+// and a throw or rejection from it is reported as the copy's failure.
+export function copyTextFrom(makeText, what) {
+    return copyWith(what, async () => {
+        const clipboard = requireClipboard();
+        await clipboard.writeText(await makeText());
+    });
 }
 
 // `makeImage` returns a PNG Blob or a Promise of one. It is only called once the

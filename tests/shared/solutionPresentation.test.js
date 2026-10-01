@@ -5,7 +5,9 @@
 // helpers, so the multiplier parse, the blueprint layout and the status line
 // can't drift between the two. presentSolution itself touches the DOM and
 // renderers and isn't importable headlessly (main.js wires listeners at load).
-import { parseThroughputMultiplier, buildSolutionLayout, summarizeStrategyTrace, solvedStatusText, solveFailureMessage } from '../../solutionPresentation.js';
+import {
+    parseThroughputMultiplier, buildSolutionLayout, summarizeStrategyTrace, solvedStatusText, solveFailureMessage, exploreStatus,
+} from '../../solutionPresentation.js';
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
 import { LAYOUT_FIXTURES } from './layoutFixtures.js';
 
@@ -77,6 +79,12 @@ checkEqual('solvedStatusText: trace → Constructive summary appended',
         checkEqual(`solveFailureMessage ${label} → generic`, solveFailureMessage(result), GENERIC);
     }
 }
+
+// --- Explore ----------------------------------------------------------------
+const explored = { shapes: [1, 2, 3], ops: [1, 2] };
+checkEqual('exploreStatus: complete', exploreStatus({ ...explored, aborted: null }, 4), 'Exploration complete — 3 shapes, 2 ops.');
+checkEqual('exploreStatus: node cap', exploreStatus({ ...explored, aborted: 'maxNodes', maxNodes: 6000, depth: 3 }, 5),
+    'Explored 3 shapes, 2 ops — stopped at the 6000-node cap partway through depth 3 of 5. Lower the depth or disable operations for a complete graph.');
 
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);

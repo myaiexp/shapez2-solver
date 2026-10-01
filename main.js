@@ -1,17 +1,17 @@
-import { createShapeCanvas, createShapeElement, colorValues } from './shapeRendering.js';
+import { createShapeElement, refreshShapeElements } from './shapeRendering.js';
 import { Shape } from './shapeClass.js';
 import { extractLayers, filterStartingShapes } from './startingShapes.js';
-import { cyInstance, copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph } from './operationGraph.js';
+import { copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph, refreshGraphColors } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
-import { parseThroughputMultiplier, buildSolutionLayout, solvedStatusText, solveFailureMessage } from './solutionPresentation.js';
+import { parseThroughputMultiplier, buildSolutionLayout, solvedStatusText, solveFailureMessage, exploreStatus } from './solutionPresentation.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
 import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, clearState, captureState, applyState } from './persistence.js';
-import { getCurrentColorMode } from './colorMode.js';
-import { SHAPE_LABEL_CLASS } from './domConstants.js';
-import { $, $all, byId } from './domUtils.js';
+import { $, byId } from './domUtils.js';
 import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
-import { copyImage } from './clipboardFeedback.js';
+import { copyImage, copyTextFrom, reportCopyFailure } from './clipboardFeedback.js';
+import { runSolverJob, cancelActiveJob, isJobRunning } from './solverJob.js';
+import { readStartingShapes, readEnabledOperations, operationItems, activeTab, onTabClick } from './uiControls.js';
 
 // Blueprint State
 let blueprintRenderer = null;
@@ -36,37 +36,8 @@ function persist() {
 }
 
 function refreshShapeColors() {
-    const container = byId('graph-container');
-    if (!container || !cyInstance) return;
-
-    const mode = getCurrentColorMode();
-
-    // Update shape nodes
-    cyInstance.nodes('.shape').forEach((node) => {
-        const code = node.data('label');
-        const canvas = createShapeCanvas(code, 120);
-        node.data('shapeCanvas', canvas.toDataURL());
-        node.trigger('style');
-    });
-
-    // Update color operations
-    cyInstance.nodes('.colored-op').forEach((node) => {
-        const parts = node.data('label').split(' ');
-        if (parts.length < 2) return;
-        const color = parts[1].replace(/[()]/g, '');
-        const col = colorValues[mode]?.[color];
-        if (col) node.style({ 'background-color': col });
-    });
-
-    // Refresh inline canvases
-    $all('.shape-canvas').forEach((canvas) => {
-        const code = canvas.dataset.shapeCode;
-        if (!code) return;
-        const newCanvas = createShapeCanvas(code, 40);
-        newCanvas.className = 'shape-canvas';
-        newCanvas.dataset.shapeCode = code;
-        canvas.replaceWith(newCanvas);
-    });
+    refreshGraphColors();
+    refreshShapeElements();
 }
 
 function initializeDefaultShapes() {
@@ -159,98 +130,32 @@ byId('extract-confirm').addEventListener('click', () => {
     }
 });
 
-$all('.tab-button').forEach((btn) => {
-    btn.addEventListener('click', () => {
-        $all('.tab-button').forEach((b) => b.classList.remove('active'));
-        $all('.tab-content').forEach((c) => c.classList.remove('active'));
+onTabClick('sidebar', persist);
 
-        btn.classList.add('active');
-        byId(btn.id.replace('-tab-btn', '-content')).classList.add('active');
-        persist();
-    });
-});
-
-// View Tab Switching (Flowchart / Blueprint)
-$all('.view-tab-button').forEach((btn) => {
-    btn.addEventListener('click', () => {
-        $all('.view-tab-button').forEach((b) => b.classList.remove('active'));
-        $all('.view-tab-content').forEach((c) => c.classList.remove('active'));
-
-        btn.classList.add('active');
-        const viewId = btn.id.replace('-tab-btn', '');
-        byId(viewId).classList.add('active');
-
-        if (viewId === 'blueprint-view') {
-            if (!blueprintRenderer) {
-                blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));
-            }
-            if (currentBlueprintLayout) {
-                blueprintRenderer.setLayout(currentBlueprintLayout);
-            }
-        } else if (blueprintRenderer) {
-            blueprintRenderer.destroy();
-            blueprintRenderer = null;
+// Output views (Flowchart / Blueprint): the blueprint renderer exists only while
+// its view is shown.
+onTabClick('output', (view) => {
+    if (view === 'blueprint') {
+        if (!blueprintRenderer) {
+            blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));
         }
-        syncFloorIndicator();
-        persist();
-    });
+        if (currentBlueprintLayout) {
+            blueprintRenderer.setLayout(currentBlueprintLayout);
+        }
+    } else if (blueprintRenderer) {
+        blueprintRenderer.destroy();
+        blueprintRenderer = null;
+    }
+    syncFloorIndicator();
+    persist();
 });
 
-// Operation Toggle
-$all('.operation-item').forEach((item) => {
+operationItems().forEach((item) => {
     item.addEventListener('click', () => {
         item.classList.toggle('enabled');
         persist();
     });
 });
-
-let solverWorker = null;
-// The single button that currently owns the shared worker ({ btn, idleLabel }),
-// or null when idle. Solve and Explore share one worker, so this — not the
-// per-call `btn` closure, and never the button's label text — is the source of
-// truth for which action is running. Label text is presentation only: routing a
-// click off it would couple control flow to display copy (a label tweak or i18n
-// would silently mis-route clicks). Tracking ownership here also lets a new job
-// reset the OTHER action's button.
-let activeJob = null;
-// Monotonic generation for the shared worker slot. finishJob() bumps it so any
-// already-queued main-thread message from a terminated worker is ignored even
-// if its handler still runs after cancel/replace (classic multi-job race).
-let jobGeneration = 0;
-
-// True while `btn` owns the worker, i.e. a click on it means "cancel", not "start".
-const isJobRunning = (btn) => activeJob?.btn === btn;
-
-// Reset whichever button owns the worker back to its idle label and tear the
-// worker down. Called on every terminal outcome (cancel, result, error, crash)
-// AND before starting a new job — so starting Explore mid-Solve (or vice versa)
-// can never leave the other button stuck on 'Cancel'.
-function finishJob() {
-    // Invalidate first so a message already scheduled for this turn cannot land
-    // after teardown and clobber status / graph / persisted solution.
-    jobGeneration += 1;
-    if (activeJob) {
-        activeJob.btn.textContent = activeJob.idleLabel;
-        activeJob = null;
-    }
-    if (solverWorker) {
-        // Drop handlers before terminate so a late event has no listener to run
-        // (generation still guards the case where a callback was already queued).
-        solverWorker.onmessage = null;
-        solverWorker.onerror = null;
-        solverWorker.onmessageerror = null;
-        solverWorker.terminate();
-        solverWorker = null;
-    }
-}
-
-// Stop the in-flight job and release the UI. The single cancel path: both click
-// handlers route here when their button owns the worker.
-function cancelActiveJob() {
-    if (solverWorker) solverWorker.postMessage({ action: 'cancel' });
-    finishJob();
-    byId('status').textContent = 'Cancelled.';
-}
 
 // Clear flowchart + blueprint presentation for a failed/aborted solve so status,
 // graph, blueprint, and lastSolution stay consistent (and reRenderGraph is a no-op).
@@ -281,81 +186,6 @@ function presentSolution(solution) {
     lastSolution = solution;
 }
 
-// Starts a job — never cancels one. Callers guard with isJobRunning() and route
-// cancel clicks to cancelActiveJob() before gathering any inputs.
-function runSolverWorker({ btn, idleLabel, action, data, onResult, onResultError, persistOnComplete = false, startStatus }) {
-    const status = byId('status');
-
-    // finishJob() resets any in-flight job's button (which must be the OTHER
-    // action, since a click on this btn while it owns the worker was routed to
-    // cancelActiveJob) and kills its worker before we spin up a fresh one.
-    finishJob();
-    // Capture after finishJob so this job owns the post-teardown generation.
-    const jobId = jobGeneration;
-    const isCurrent = () => jobId === jobGeneration;
-
-    solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
-    activeJob = { btn, idleLabel };
-
-    solverWorker.onmessage = ({ data: msg }) => {
-        if (!isCurrent()) return;
-        const { type, message, result } = msg;
-
-        if (type === 'status') {
-            status.textContent = message;
-            return;
-        }
-
-        if (type === 'error') {
-            status.textContent = message;
-            finishJob();
-            return;
-        }
-
-        if (type === 'result') {
-            try {
-                onResult(result);
-            } catch (err) {
-                console.error('Failed to present the worker result:', err);
-                if (isCurrent()) {
-                    status.textContent = `Error: ${err.message}`;
-                    // onResult may have drawn part of the new result before
-                    // throwing (e.g. the flowchart but not the blueprint); the
-                    // action resets what it owns so every view and the persisted
-                    // solution agree again.
-                    onResultError?.();
-                }
-            } finally {
-                // Re-check after onResult: a nested cancel during the callback
-                // (unlikely but cheap) must not persist a superseded solution.
-                // The error path persists too, so a reload shows the cleared
-                // state rather than resurrecting the solve it replaced.
-                if (isCurrent()) {
-                    finishJob();
-                    if (persistOnComplete) persist();
-                }
-            }
-        }
-    };
-
-    // A worker that throws before posting a terminal message (onerror) or sends
-    // an undeserializable one (onmessageerror) still has to release the UI.
-    solverWorker.onerror = (e) => {
-        if (!isCurrent()) return;
-        status.textContent = `Error: ${e.message || 'worker crashed'}`;
-        finishJob();
-    };
-    solverWorker.onmessageerror = () => {
-        if (!isCurrent()) return;
-        status.textContent = 'Error: worker sent an unreadable message.';
-        finishJob();
-    };
-
-    btn.textContent = 'Cancel';
-    if (startStatus) status.textContent = startStatus;
-    solverWorker.postMessage({ action, data });
-}
-
 byId('solve-btn').addEventListener('click', () => {
     const btn = byId('solve-btn');
     const status = byId('status');
@@ -369,8 +199,8 @@ byId('solve-btn').addEventListener('click', () => {
 
     // Gather inputs
     const target = byId('target-shape').value.trim();
-    let starting = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((x) => x.textContent);
-    const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
+    let starting = readStartingShapes();
+    const ops = readEnabledOperations();
 
     const maxLayers = parseInt(byId('max-layers').value) || 4;
     // Shared numeric control drives two distinct payload fields by method:
@@ -410,11 +240,11 @@ byId('solve-btn').addEventListener('click', () => {
 
     const startTime = performance.now();
 
-    runSolverWorker({
+    runSolverJob({
         btn,
         idleLabel: 'Solve',
         action: 'solve',
-        persistOnComplete: true,
+        onComplete: persist,
         onResultError: clearSolutionPresentation,
         data: {
             targetShapeCode: target,
@@ -457,8 +287,8 @@ byId('explore-btn').addEventListener('click', () => {
         return;
     }
 
-    const starting = $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((x) => x.textContent);
-    const ops = $all('#enabled-operations .operation-item.enabled').map((x) => x.dataset.operation);
+    const starting = readStartingShapes();
+    const ops = readEnabledOperations();
     // Empty/invalid -> a small default, never an effectively unbounded depth.
     // The worker also caps the graph at DEFAULT_EXPLORE_MAX_NODES, so a deep
     // request returns a partial graph instead of growing until the tab OOMs.
@@ -473,7 +303,7 @@ byId('explore-btn').addEventListener('click', () => {
         if (!showValidationErrors(code, 'starting shape')) return;
     }
 
-    runSolverWorker({
+    runSolverJob({
         btn,
         idleLabel: 'Explore',
         action: 'explore',
@@ -482,10 +312,7 @@ byId('explore-btn').addEventListener('click', () => {
         onResult(result) {
             if (!result) return;
             renderSpaceGraph(result);
-            const counts = `${result.shapes.length} shapes, ${result.ops.length} ops`;
-            byId('status').textContent = result.aborted === 'maxNodes'
-                ? `Explored ${counts} — stopped at the ${result.maxNodes}-node cap partway through depth ${result.depth} of ${depthLimit}. Lower the depth or disable operations for a complete graph.`
-                : `Exploration complete — ${counts}.`;
+            byId('status').textContent = exploreStatus(result, depthLimit);
         }
     });
 });
@@ -586,8 +413,7 @@ byId('reset-state-btn').addEventListener('click', () => {
 });
 
 byId('snapshot-btn').addEventListener('click', () => {
-    const blueprintActive = byId('blueprint-view').classList.contains('active');
-    if (blueprintActive && blueprintRenderer) {
+    if (activeTab('output') === 'blueprint' && blueprintRenderer) {
         const renderer = blueprintRenderer;
         copyImage(() => renderer.exportPng(), 'blueprint image');
     } else {
@@ -612,19 +438,13 @@ byId('floor-up-btn').addEventListener('click', () => {
         persist();
     }
 });
-byId('copy-blueprint-btn').addEventListener('click', async () => {
-    if (!currentBlueprintLayout || currentBlueprintLayout.machines.length === 0) return;
-    const btn = byId('copy-blueprint-btn');
-    const orig = btn.textContent;
-    try {
-        const str = await exportBlueprintString(currentBlueprintLayout);
-        await navigator.clipboard.writeText(str);
-        btn.textContent = 'Copied!';
-    } catch (err) {
-        console.error('Blueprint export failed:', err);
-        btn.textContent = 'Export failed';
+byId('copy-blueprint-btn').addEventListener('click', () => {
+    const layout = currentBlueprintLayout;
+    if (!layout || layout.machines.length === 0) {
+        reportCopyFailure('blueprint string', 'there is no blueprint yet');
+        return;
     }
-    setTimeout(() => { btn.textContent = orig; }, 1500);
+    copyTextFrom(() => exportBlueprintString(layout), 'blueprint string');
 });
 
 byId('floor-down-btn').addEventListener('click', () => {

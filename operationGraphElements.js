@@ -1,11 +1,22 @@
 import { colorValues } from './shapeRenderingColors.js';
 import { operations } from './shapeSolverOperations.js';
 
+// Background of an op node whose color is missing or outside the palette.
+export const UNTINTED_OP = '#000';
+
+// The palette tint for a color op's `color` in `colorMode`, or null when the
+// palette has no such color (the node then stays untinted).
+export function opTint(color, colorMode) {
+    return (color && colorValues[colorMode]?.[color]) || null;
+}
+
 // Cytoscape element definitions for one solution path — the whole structure of
 // the flowchart, kept free of DOM/canvas access so it runs (and is tested) in
 // plain node. `shapeImage(code)` supplies a shape node's thumbnail URL and
 // `colorMode` picks the palette for colored-op nodes; renderGraph passes the
-// live canvas renderer and the color-mode <select> value.
+// live canvas renderer and the color-mode <select> value. Shape nodes carry
+// their raw `shapeCode` and color ops their raw `color` so later passes
+// (recoloring, click-to-copy) read data instead of parsing display labels.
 export function buildGraphElements(solutionPath, { shapeImage, colorMode }) {
     if (!solutionPath || solutionPath.length === 0) return [];
 
@@ -19,7 +30,7 @@ export function buildGraphElements(solutionPath, { shapeImage, colorMode }) {
         if (nodeIds.has(nodeId)) return;
         nodeIds.add(nodeId);
         elements.push({
-            data: { id: nodeId, label: shape, shapeCanvas: shapeImage(shape) },
+            data: { id: nodeId, label: shape, shapeCode: shape, shapeCanvas: shapeImage(shape) },
             classes: 'shape'
         });
     }
@@ -46,13 +57,16 @@ export function buildGraphElements(solutionPath, { shapeImage, colorMode }) {
         const opId = `op-${stepIndex}`;
         let opLabel = operation;
         let nodeClasses = 'op';
-        let backgroundColor = '#000';
+        let backgroundColor = UNTINTED_OP;
+        const colorData = {};
 
         if (operations[operation]?.needsColor) {
             const color = params?.color;
             opLabel += ` (${color})`;
-            if (color && colorValues[colorMode]?.[color]) {
-                backgroundColor = colorValues[colorMode][color];
+            colorData.color = color;
+            const tint = opTint(color, colorMode);
+            if (tint) {
+                backgroundColor = tint;
                 nodeClasses += ' colored-op';
             }
         }
@@ -63,7 +77,8 @@ export function buildGraphElements(solutionPath, { shapeImage, colorMode }) {
                 id: opId,
                 label: opLabel,
                 image: `images/operations/${imageName}.png`,
-                backgroundColor
+                backgroundColor,
+                ...colorData
             },
             classes: nodeClasses
         });

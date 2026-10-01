@@ -52,3 +52,12 @@ export function solveFailureMessage(result) {
     const build = Object.hasOwn(ABORT_MESSAGES, result?.aborted) ? ABORT_MESSAGES[result.aborted] : null;
     return build ? build(result) : 'No solution found.';
 }
+
+// Status line for an explore result; shapeExplorerCore's maxNodes abort means
+// the last level is partial.
+export function exploreStatus(result, depthLimit) {
+    const counts = `${result.shapes.length} shapes, ${result.ops.length} ops`;
+    return result.aborted === 'maxNodes'
+        ? `Explored ${counts} — stopped at the ${result.maxNodes}-node cap partway through depth ${result.depth} of ${depthLimit}. Lower the depth or disable operations for a complete graph.`
+        : `Exploration complete — ${counts}.`;
+}
