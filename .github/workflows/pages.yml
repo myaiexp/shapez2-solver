@@ -36,7 +36,7 @@ jobs:
             echo "::endgroup::"
           done
           node tests/shared/smoke.js
-          node tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json
+          node tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json --expect-solved
           node tests/shared/solve.mjs --explore 2
 
   deploy:

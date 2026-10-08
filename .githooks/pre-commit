@@ -26,6 +26,6 @@ if [ "${#TESTS[@]}" -lt 30 ]; then
 fi
 for t in "${TESTS[@]}"; do run "$t"; done
 run tests/shared/smoke.js
-run tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json
+run tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json --expect-solved
 run tests/shared/solve.mjs --explore 2
 echo "✓ pre-commit: all tests passed"

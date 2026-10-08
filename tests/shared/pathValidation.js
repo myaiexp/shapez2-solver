@@ -163,7 +163,10 @@ export function invalidExplorerEdges(graph, config) {
 //   • an id consumed by two steps — the double-spend above
 //   • an id consumed before the step that produces it
 //   • with `starts` given, an unproduced input whose code is not a starting
-//     shape: a shape materialised out of nothing
+//     shape: a shape materialised out of nothing. A second id with a code that
+//     IS a start is not this check — Constructive gives each sub-plan its own
+//     copy of the starting set (shapeSolverFlatten.js), so one code may be
+//     drawn under more than one id.
 export function invalidPathIds(path, { starts } = {}) {
     if (!path) return [];
     const bad = [];

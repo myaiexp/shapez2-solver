@@ -1,6 +1,6 @@
 import { byId } from './domUtils.js';
 import { operations } from './shapeSolverOperations.js';
-import { readStartingShapes, readEnabledOperations, operationItems, activeTab, activateTab } from './uiControls.js';
+import { readStartingShapes, readEnabledOperations, operationItems, activeTab, activateTab, setStartingShapes } from './uiControls.js';
 
 export const STORAGE_KEY = 'shapez2-solver-state-v1';
 export const SCHEMA_VERSION = 1;
@@ -19,6 +19,18 @@ const INPUT_FIELDS = {
     maxLayers: { id: 'max-layers', kind: 'value' },
     colorMode: { id: 'color-mode-select', kind: 'value' },
 };
+
+// The ids main.js listens on. Built from INPUT_FIELDS so a new saved field
+// cannot be restored but never saved (or the reverse).
+export function persistedInputIds() {
+    return Object.values(INPUT_FIELDS).map(({ id }) => id);
+}
+
+export function onPersistedInputChange(handler) {
+    for (const id of persistedInputIds()) {
+        byId(id)?.addEventListener('change', handler);
+    }
+}
 
 export function loadState() {
     let raw;
@@ -147,9 +159,9 @@ export function captureState(runtime) {
 
 // Form, shapes, ops, tabs and graph selects are written straight into the page;
 // the solution is only validated and handed back — main.js's presentSolution
-// draws it, the same path a live solve takes. deps.createShapeItem builds a
-// starting-shape row.
-export function applyState(state, deps) {
+// draws it, the same path a live solve takes. Starting-shape rows come from
+// uiControls.setStartingShapes.
+export function applyState(state) {
     for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {
         const el = byId(id);
         if (!el || !(field in state.inputs)) continue;
@@ -161,13 +173,7 @@ export function applyState(state, deps) {
     // the page defaults alone; an explicit [] clears. A non-array (a corrupt string
     // would otherwise be iterated char-by-char into bogus shapes) counts as absent.
     const startingShapes = stringList(state.inputs.startingShapes);
-    if (startingShapes) {
-        const startingContainer = byId('starting-shapes');
-        startingContainer.replaceChildren();
-        for (const code of startingShapes) {
-            startingContainer.appendChild(deps.createShapeItem(code));
-        }
-    }
+    if (startingShapes) setStartingShapes(startingShapes);
 
     const enabledOperations = stringList(state.inputs.enabledOperations);
     if (enabledOperations) {

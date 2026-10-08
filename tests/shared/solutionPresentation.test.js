@@ -7,6 +7,7 @@
 // renderers and isn't importable headlessly (main.js wires listeners at load).
 import {
     parseThroughputMultiplier, buildSolutionLayout, summarizeStrategyTrace, solvedStatusText, solveFailureMessage, exploreStatus,
+    isSolvedResult,
 } from '../../solutionPresentation.js';
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
 import { LAYOUT_FIXTURES } from './layoutFixtures.js';
@@ -55,6 +56,14 @@ checkEqual('summarizeStrategyTrace: split breakdown, op count, reused sub-shapes
 checkEqual('summarizeStrategyTrace: a lone direct-search',
     summarizeStrategyTrace({ target: 'Cu------', method: 'direct-search', opCount: 0, children: [] }),
     'Constructive: direct-search | 0 ops | reused 0');
+
+// main.js routes on isSolvedResult. [] is the already-solved path the solver
+// returns; a length check would send that result to the failure line.
+checkEqual('isSolvedResult: empty path is solved', isSolvedResult({ solutionPath: [], depth: 0 }), true);
+checkEqual('isSolvedResult: a real path is solved', isSolvedResult({ solutionPath: [{ operation: 'Cutter' }] }), true);
+checkEqual('isSolvedResult: null path is a failure', isSolvedResult({ solutionPath: null }), false);
+checkEqual('isSolvedResult: missing result is a failure', isSolvedResult(null), false);
+checkEqual('isSolvedResult: a non-array path is a failure', isSolvedResult({ solutionPath: 'CuCuCuCu' }), false);
 
 const solved = { solutionPath: [], depth: 3, statesExplored: 42, solveTimeSec: '0.25' };
 checkEqual('solvedStatusText: no trace → time, depth, states', solvedStatusText(solved), 'Solved in 0.25s at Depth 3 → 42 States');

@@ -2,7 +2,7 @@
 
 Tests are plain `node tests/**/*.js` scripts (no framework), grouped by subsystem into `tests/{shape,solver,blueprint,shared}/` — mirroring the source's prefix-grouping.
 
-`shared/` holds the harness (`fixtures.js`, `layoutFixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `persistenceApply`, `solutionPresentation`, `exploreDepth`, `pathInventory`, `operationGraph2D`, `clipboardFeedback`, `solverJob`). `layoutFixtures.js` is the hand-written `buildLayout` paths; `fixtures.js` re-exports them. Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path. An optional `expectShapes` list is asserted present in the explored graph — use it when the count snapshot can't tell which color an op chose.
+`shared/` holds the harness (`fixtures.js`, `layoutFixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `persistenceApply`, `solutionPresentation`, `solveRequest`, `blueprintView`, `uiControls`, `solveCli`, `exploreDepth`, `pathInventory`, `operationGraph2D`, `clipboardFeedback`, `solverJob`). `layoutFixtures.js` is the hand-written `buildLayout` paths; `fixtures.js` re-exports them. Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path. An optional `expectShapes` list is asserted present in the explored graph — use it when the count snapshot can't tell which color an op chose.
 
 The Worker wrapper (`shapeSolver.js`) is covered by `tests/solver/workerDispatch.test.js`, which stubs `globalThis.self` and drives `self.onmessage` — Constructive dispatch, `nodeBudget` vs the core caps, explore-depth clamp, the explore node cap, cancel suppression, and `{type:'error'}` on a malformed target. The main-thread side — `solverJob.js`'s worker slot — is covered by `tests/shared/solverJob.test.js` against a fake `Worker`: button ownership, the generation guard against late messages from a replaced worker, and release on every terminal outcome.
 
@@ -34,7 +34,7 @@ Locally, `.githooks/pre-commit` runs it before each commit; activate once per cl
 
 ## Headless solve/explore harness
 
-`node tests/shared/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter) and one `--explore 2` so a signature change in the modules it wraps fails the gate.
+`node tests/shared/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter, with `--expect-solved` so a no-path result fails the gate) and one `--explore 2` so a signature change in the modules it wraps fails the gate. Without `--expect-solved` a miss still exits 0; an unknown `--` flag exits 2.
 
 Flag set, methods, and defaults live in the usage header at the top of `tests/shared/solve.mjs` — read that rather than copying a subset here.
 

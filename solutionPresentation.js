@@ -47,6 +47,12 @@ const ABORT_MESSAGES = {
     'no-decomposition': (result) => `No solution found — no constructive split solved this target within the node budget (${result.statesExplored} states).`,
 };
 
+// A worker result is solved when it carries a path array. That includes a
+// zero-op already-solved [] — an empty array is a path, not a failure.
+export function isSolvedResult(result) {
+    return Array.isArray(result?.solutionPath);
+}
+
 // Status line for a failed solve; `result` may be null when the worker sent nothing.
 export function solveFailureMessage(result) {
     const build = Object.hasOwn(ABORT_MESSAGES, result?.aborted) ? ABORT_MESSAGES[result.aborted] : null;

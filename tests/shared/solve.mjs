@@ -31,11 +31,15 @@
 //                        memory: uncapped depth 3 at the defaults passes 1.5 GB
 //                        of heap well inside 20 s
 //   --json               emit machine-readable JSON
+//   --expect-solved      exit 1 when the solve finds no path (CI / pre-commit).
+//                        Without it, a miss still prints solved:false and exits 0
+//                        so the harness stays usable as a diagnostic.
 //
 // Exit code is non-zero if any step/edge fails operation validation, if the id
 // bookkeeping is unbuildable (one shape fed to two consumers), if the path
 // never actually produces the target, or (with --prevent-waste) if leftovers
-// are not all acceptable forms of the target.
+// are not all acceptable forms of the target. An unknown `--` flag exits 2.
+// `--expect-solved` also exits 1 when there is no path. A timeout stays 2.
 
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { operations } from '../../shapeSolverOperations.js';
@@ -52,6 +56,7 @@ function parseArgs(argv) {
         if (a === '--prevent-waste') opts.preventWaste = true;
         else if (a === '--orientation') opts.orientation = true;
         else if (a === '--json') opts.json = true;
+        else if (a === '--expect-solved') opts.expectSolved = true;
         else if (a === '--start') opts.start = argv[++i];
         else if (a === '--ops') opts.ops = argv[++i];
         else if (a === '--method') opts.method = argv[++i];
@@ -61,6 +66,10 @@ function parseArgs(argv) {
         else if (a === '--node-budget') opts.nodeBudget = parseInt(argv[++i]);
         else if (a === '--explore') opts.explore = parseInt(argv[++i]);
         else if (a === '--max-nodes') opts.maxNodes = parseInt(argv[++i]);
+        else if (a.startsWith('--')) {
+            console.error(`unknown flag: ${a}`);
+            process.exit(2);
+        }
         else positional.push(a);
     }
     opts.target = positional[0];
@@ -124,7 +133,7 @@ if (!res || !res.solutionPath) {
     const cap = res?.aborted === 'maxStates' ? ` — hit ${opts.maxStates}-state cap` : '';
     if (opts.json) console.log(JSON.stringify({ target: opts.target, solved: false, aborted: res?.aborted ?? null, statesExplored: res?.statesExplored ?? null }));
     else console.log(`No solution for ${opts.target} (explored ${res?.statesExplored ?? '?'} states${cap})`);
-    process.exit(0);
+    process.exit(opts.expectSolved ? 1 : 0);
 }
 
 let bad = 0;

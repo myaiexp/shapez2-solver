@@ -4,18 +4,19 @@
 // These two read and write the live page (form fields, starting shapes, enabled
 // ops, tabs, graph selects), and main.js's DOMContentLoaded restore
 // is their only production caller — a throw there wipes storage and reloads. Here
-// they run against a fake `document` that mirrors index.html's ids/classes and
-// a fake createShapeItem that records its calls. applyState only validates the
-// saved solution and returns it — main.js's presentSolution draws it — so these
-// tests pin that nothing is presented here. The fake document throws on any
-// selector it doesn't know, so a selector change in persistence.js fails loudly
-// instead of matching nothing; and every id persistence.js asks for is checked
-// against the real index.html, so id drift can't silently skip a field.
+// they run against a fake `document` that mirrors index.html's ids/classes.
+// applyState rebuilds starting-shape rows through uiControls (real markup, canvas
+// stubbed) and only validates the saved solution — main.js's presentSolution
+// draws it — so these tests pin that nothing is presented here. The fake document
+// throws on any selector it doesn't know, so a selector change in persistence.js
+// fails loudly instead of matching nothing; and every id persistence.js asks for
+// is checked against the real index.html, so id drift can't silently skip a field.
 // Storage load/save/clear and isValidSolutionPath live in persistence.test.js;
 // the multiplier, layout and status line in solutionPresentation.test.js.
 import { readFileSync } from 'node:fs';
-import { captureState, applyState, SCHEMA_VERSION } from '../../persistence.js';
+import { captureState, applyState, SCHEMA_VERSION, persistedInputIds, onPersistedInputChange } from '../../persistence.js';
 import { solvedStatusText } from '../../solutionPresentation.js';
+import { readStartingShapes } from '../../uiControls.js';
 import { SHAPE_LABEL_CLASS } from '../../domConstants.js';
 
 let passed = 0;
@@ -37,6 +38,25 @@ function checkEqual(name, actual, expected) {
     }
 }
 
+// renderShape only calls context methods and assigns paint styles. A proxy that
+// answers every read with a callable is enough for the row builder; nothing
+// here asserts pixels.
+function noopCtx() {
+    return new Proxy({}, {
+        get(_t, prop) {
+            if (prop === 'canvas') return {};
+            return () => noopCtx();
+        },
+        set() { return true; },
+    });
+}
+
+function walk(el, pred, out = []) {
+    if (pred(el)) out.push(el);
+    for (const child of el.children || []) walk(child, pred, out);
+    return out;
+}
+
 class FakeElement {
     constructor({ id = '', classes = [], value = '', checked = false, dataset = {}, textContent = '' } = {}) {
         Object.assign(this, { id, value, checked, dataset, textContent });
@@ -47,14 +67,32 @@ class FakeElement {
             contains: (c) => set.has(c),
             toggle: (c, force) => ((force ?? !set.has(c)) ? set.add(c) : set.delete(c), set.has(c)),
         };
+        Object.defineProperty(this, 'className', {
+            get: () => [...set].join(' '),
+            set: (v) => {
+                set.clear();
+                for (const c of String(v).split(/\s+/).filter(Boolean)) set.add(c);
+            },
+        });
         this.children = [];
         this.events = [];
+        this._listeners = new Map();
     }
     appendChild(child) { this.children.push(child); return child; }
     replaceChildren(...kids) { this.children = kids; }
+    addEventListener(type, fn) {
+        const list = this._listeners.get(type) ?? [];
+        list.push(fn);
+        this._listeners.set(type, list);
+    }
+    getContext() { return noopCtx(); }
     // Records the element's value at dispatch time: main.js's search-method listener
     // reads it, so the change must fire after the fields are restored.
-    dispatchEvent(ev) { this.events.push({ type: ev.type, value: this.value }); return true; }
+    dispatchEvent(ev) {
+        this.events.push({ type: ev.type, value: this.value });
+        for (const fn of this._listeners.get(ev.type) ?? []) fn(ev);
+        return true;
+    }
 }
 
 const OPS = ['Rotator CW', 'Cutter', 'Stacker', 'Painter'];
@@ -97,9 +135,8 @@ function makeDom() {
         '.view-tab-button.active': () => active(view.btns),
         '#enabled-operations .operation-item': () => ops,
         '#enabled-operations .operation-item.enabled': () => ops.filter((e) => e.classList.contains('enabled')),
-        [`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`]: () => els.get('starting-shapes').children
-            .filter((c) => c.classList.contains('shape-item'))
-            .flatMap((c) => c.children.filter((l) => l.classList.contains(SHAPE_LABEL_CLASS))),
+        [`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`]: () => walk(els.get('starting-shapes'), (el) => el.classList?.contains('shape-item'))
+            .flatMap((item) => walk(item, (el) => el !== item && el.classList?.contains(SHAPE_LABEL_CLASS))),
     };
     const requested = new Set();
     const query = (sel) => {
@@ -110,6 +147,7 @@ function makeDom() {
         getElementById: (id) => (requested.add(id), els.get(id) ?? null),
         querySelector: (sel) => query(sel)[0] ?? null,
         querySelectorAll: query,
+        createElement: () => new FakeElement(),
     };
     return {
         el: (id) => els.get(id),
@@ -117,16 +155,8 @@ function makeDom() {
         ops, requested,
         activeIds: () => [...active(sidebar.btns), ...active(sidebar.contents), ...active(view.btns), ...active(view.contents)].map((e) => e.id),
         enabledOps: () => ops.filter((e) => e.classList.contains('enabled')).map((e) => e.dataset.operation),
-        shapeCodes: () => els.get('starting-shapes').children.map((c) => c.children[0].textContent),
-    };
-}
-
-// Fake main.js deps: applyState's only dep builds a starting-shape row.
-function makeDeps() {
-    const calls = { createShapeItem: [] };
-    return {
-        calls,
-        createShapeItem: (code) => (calls.createShapeItem.push(code), shapeItem(code)),
+        shapeCodes: () => walk(els.get('starting-shapes'), (el) => el.classList?.contains(SHAPE_LABEL_CLASS)).map((el) => el.textContent),
+        removeCount: () => walk(els.get('starting-shapes'), (el) => el.classList?.contains('remove-shape')).length,
     };
 }
 
@@ -166,12 +196,12 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
     check('capture: version and solution carried through', captured.version === SCHEMA_VERSION && captured.solution === runtime.currentSolution);
 
     const b = makeDom();
-    const deps = makeDeps();
     const stored = JSON.parse(JSON.stringify(captured));
-    const result = applyState(stored, deps);
+    const result = applyState(stored);
     checkEqual('round trip: recapture after apply equals the original', captureState(runtime), captured);
     checkEqual('apply: returns the validated solution + restoredFloor', result, { solution: solution(okPath), restoredFloor: 2 });
-    checkEqual('apply: starting shapes rebuilt via createShapeItem, in order', deps.calls.createShapeItem, ['RuRuRuRu', 'SuSuSuSu']);
+    checkEqual('apply: starting shapes rebuilt in order', readStartingShapes(), ['RuRuRuRu', 'SuSuSuSu']);
+    check('apply: each rebuilt row has a remove button', b.removeCount() === 2);
     checkEqual('apply: search-method change fires once, after the value is restored',
         b.el('search-method-select').events, [{ type: 'change', value: 'IDA*' }]);
     check('apply: status line untouched (presentSolution owns it)', b.el('status').textContent === 'Ready');
@@ -195,37 +225,34 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
 // --- Partial / corrupt-but-versioned inputs --------------------------------
 {
     const dom = makeDom();
-    const deps = makeDeps();
-    applyState(baseState({ target: 'CuCu----', preventWaste: 1 }), deps);
+    applyState(baseState({ target: 'CuCu----', preventWaste: 1 }));
     check('apply: saved value and truthy checkbox restored', dom.el('target-shape').value === 'CuCu----' && dom.el('prevent-waste').checked === true);
     check('apply: fields absent from inputs keep page defaults', dom.el('depth-limit-input').value === '5' && dom.el('monolayer-painting').checked === false);
-    checkEqual('apply: absent startingShapes leaves the default shapes', [dom.shapeCodes(), deps.calls.createShapeItem], [['CuCuCuCu'], []]);
+    checkEqual('apply: absent startingShapes leaves the default shapes', dom.shapeCodes(), ['CuCuCuCu']);
     checkEqual('apply: absent enabledOperations leaves every op enabled', dom.enabledOps(), OPS);
-    checkEqual('apply: no saved solution → solution null', applyState(baseState(), makeDeps()).solution, null);
+    checkEqual('apply: no saved solution → solution null', applyState(baseState()).solution, null);
 }
 {
     const dom = makeDom();
-    const deps = makeDeps();
-    applyState(baseState({ startingShapes: 'CuCu', enabledOperations: 'Cutter' }), deps);
-    checkEqual('apply: string startingShapes is not iterated char-by-char', [dom.shapeCodes(), deps.calls.createShapeItem], [['CuCuCuCu'], []]);
+    applyState(baseState({ startingShapes: 'CuCu', enabledOperations: 'Cutter' }));
+    checkEqual('apply: string startingShapes is not iterated char-by-char', dom.shapeCodes(), ['CuCuCuCu']);
     checkEqual('apply: string enabledOperations leaves ops untouched', dom.enabledOps(), OPS);
 }
 {
     const dom = makeDom();
-    const deps = makeDeps();
-    applyState(baseState({ startingShapes: ['RuRuRuRu', 42, null], enabledOperations: ['Cutter', 7] }), deps);
+    applyState(baseState({ startingShapes: ['RuRuRuRu', 42, null], enabledOperations: ['Cutter', 7] }));
     checkEqual('apply: non-string list entries are dropped', [dom.shapeCodes(), dom.enabledOps()], [['RuRuRuRu'], ['Cutter']]);
 }
 {
     const dom = makeDom();
-    applyState(baseState({ startingShapes: [], enabledOperations: [] }), makeDeps());
+    applyState(baseState({ startingShapes: [], enabledOperations: [] }));
     checkEqual('apply: explicit [] clears shapes and disables every op', [dom.shapeCodes(), dom.enabledOps()], [[], []]);
 }
 
 // --- Tabs: a stale/unknown name must not leave a group with no active tab ---
 {
     const dom = makeDom();
-    applyState(baseState({}, { activeSidebarTab: 'bogus', activeOutputView: 'flowchart-view' }), makeDeps());
+    applyState(baseState({}, { activeSidebarTab: 'bogus', activeOutputView: 'flowchart-view' }));
     checkEqual('apply: unknown tab names keep the current tabs active', dom.activeIds(),
         ['shapes-tab-btn', 'shapes-content', 'flowchart-view-tab-btn', 'flowchart-view']);
 }
@@ -237,12 +264,12 @@ for (const [label, path] of [
     ['Painter step without params.color', [{ operation: 'Painter', inputs: [{ id: 'a', shape: 'Cu------' }], outputs: [{ id: 'b', shape: 'Cr------' }] }]],
 ]) {
     makeDom();
-    const result = applyState(baseState({}, {}, solution(path)), makeDeps());
+    const result = applyState(baseState({}, {}, solution(path)));
     check(`apply: ${label} is rejected (solution null)`, result.solution === null);
 }
 {
     makeDom();
-    const result = applyState(baseState({}, {}, solution([])), makeDeps());
+    const result = applyState(baseState({}, {}, solution([])));
     checkEqual('apply: empty path is a valid solution; floor defaults to 0', result, { solution: solution([]), restoredFloor: 0 });
 }
 
@@ -261,7 +288,7 @@ const trace = {
     makeDom();
     const live = { ...solution(okPath), strategyTrace: trace };
     const stored = JSON.parse(JSON.stringify(baseState({}, {}, live)));
-    const { solution: restored } = applyState(stored, makeDeps());
+    const { solution: restored } = applyState(stored);
     checkEqual('apply: valid strategyTrace is carried through', restored, live);
     check('apply: restored status line matches the live one, Constructive summary included',
         solvedStatusText(restored) === solvedStatusText(live) && solvedStatusText(restored).includes('Constructive:'));
@@ -272,8 +299,20 @@ for (const [label, bad] of [
     ['child missing children', { ...trace, children: [{ target: 'Cu------', method: 'direct-search' }] }],
 ]) {
     makeDom();
-    const { solution: restored } = applyState(baseState({}, {}, { ...solution(okPath), strategyTrace: bad }), makeDeps());
+    const { solution: restored } = applyState(baseState({}, {}, { ...solution(okPath), strategyTrace: bad }));
     checkEqual(`apply: ${label} is dropped, solution kept`, restored, solution(okPath));
+}
+
+// --- One list of saved fields drives the change listeners -------------------
+{
+    const dom = makeDom();
+    let fired = 0;
+    onPersistedInputChange(() => { fired++; });
+    for (const id of persistedInputIds()) dom.el(id).dispatchEvent(new Event('change'));
+    check('every persisted input id fires the shared change handler', fired === persistedInputIds().length);
+    check('persisted ids cover the numeric fields Solve and Explore read',
+        ['max-layers', 'max-states-per-level', 'heuristic-divisor', 'throughput-multiplier']
+            .every((id) => persistedInputIds().includes(id)));
 }
 
 delete globalThis.document;

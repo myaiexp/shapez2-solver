@@ -1,9 +1,36 @@
-// The one place that knows the sidebar's markup: the starting-shape list, the
-// operation toggles, and the two tab groups' class/id conventions. main.js (the
-// Solve / Explore / tab handlers) and persistence.js (capture / restore) both go
-// through here, so a markup change is a single edit.
+// The one place that knows the sidebar's markup: it builds and reads the
+// starting-shape rows, reads the operation toggles and the numeric solver
+// fields, and owns the two tab groups' class/id conventions. main.js and
+// persistence.js both go through here, so a markup change is a single edit.
+import { createShapeElement } from './shapeRendering.js';
 import { SHAPE_LABEL_CLASS } from './domConstants.js';
 import { $, $all, byId } from './domUtils.js';
+
+// Row markup the remove handler and the restore path both depend on: a
+// .shape-item containing the rendered code and a .remove-shape button.
+export function createShapeItem(shapeCode) {
+    const item = document.createElement('div');
+    item.className = 'shape-item';
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'remove-shape';
+    removeBtn.textContent = '×';
+    removeBtn.dataset.shape = shapeCode;
+
+    item.appendChild(createShapeElement(shapeCode));
+    item.appendChild(removeBtn);
+    return item;
+}
+
+export function setStartingShapes(codes) {
+    const container = byId('starting-shapes');
+    container.replaceChildren();
+    for (const code of codes) container.appendChild(createShapeItem(code));
+}
+
+export function addStartingShape(code) {
+    byId('starting-shapes').appendChild(createShapeItem(code));
+}
 
 export const readStartingShapes = () =>
     $all(`#starting-shapes .shape-item .${SHAPE_LABEL_CLASS}`).map((el) => el.textContent);
@@ -12,6 +39,16 @@ export const operationItems = () => $all('#enabled-operations .operation-item');
 
 export const readEnabledOperations = () =>
     operationItems().filter((el) => el.classList.contains('enabled')).map((el) => el.dataset.operation);
+
+// Same fallbacks Solve and Explore used to spell inline (`parseInt(v) || n`).
+// 0 and NaN both mean "the field is blank or junk" and take the default.
+function readInt(id, fallback) {
+    return parseInt(byId(id).value) || fallback;
+}
+
+export const readMaxLayers = () => readInt('max-layers', 4);
+export const readLevelBudget = () => readInt('max-states-per-level', 1000);
+export const readHeuristicDivisor = () => parseFloat(byId('heuristic-divisor').value) || 0.1;
 
 // A tab's name ('shapes', 'blueprint', …) maps to its button and panel ids.
 const TAB_GROUPS = {

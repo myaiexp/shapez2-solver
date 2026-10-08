@@ -1,37 +1,39 @@
-import { createShapeElement, refreshShapeElements } from './shapeRendering.js';
+import { refreshShapeElements } from './shapeRendering.js';
 import { Shape } from './shapeClass.js';
-import { extractLayers, filterStartingShapes } from './startingShapes.js';
+import { extractLayers } from './startingShapes.js';
 import { copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph, refreshGraphColors } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
-import { parseThroughputMultiplier, buildSolutionLayout, solvedStatusText, solveFailureMessage, exploreStatus } from './solutionPresentation.js';
+import { solvedStatusText, solveFailureMessage, exploreStatus, isSolvedResult } from './solutionPresentation.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
+import { createBlueprintView } from './blueprintView.js';
+import { buildSolveRequest, buildExploreRequest } from './solveRequest.js';
 import { exportBlueprintString } from './blueprintExport.js';
-import { loadState, saveState, clearState, captureState, applyState } from './persistence.js';
+import { loadState, saveState, clearState, captureState, applyState, onPersistedInputChange } from './persistence.js';
 import { $, byId } from './domUtils.js';
-import { clampExploreDepth, DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
+import { DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
 import { copyImage, copyTextFrom, reportCopyFailure } from './clipboardFeedback.js';
 import { runSolverJob, cancelActiveJob, isJobRunning } from './solverJob.js';
-import { readStartingShapes, readEnabledOperations, operationItems, activeTab, onTabClick } from './uiControls.js';
-
-// Blueprint State
-let blueprintRenderer = null;
-let currentBlueprintLayout = null;
+import { readStartingShapes, readEnabledOperations, operationItems, activeTab, onTabClick, setStartingShapes, addStartingShape, readMaxLayers, readLevelBudget, readHeuristicDivisor } from './uiControls.js';
 
 // BlueprintRenderer.setLayout resets to floor 0 (and a fresh renderer starts
 // there), so every layout or floor change re-reads the label from the renderer
 // instead of tracking the floor separately.
 function syncFloorIndicator() {
-    byId('floor-indicator').textContent = `Floor ${blueprintRenderer?.currentFloor ?? 0}`;
+    byId('floor-indicator').textContent = `Floor ${blueprint.renderer?.currentFloor ?? 0}`;
 }
 
+const blueprint = createBlueprintView({
+    createRenderer: () => new BlueprintRenderer(byId('blueprint-canvas')),
+    onViewChanged: syncFloorIndicator,
+});
+
 // Persistence
-let lastSolution = null;
 let suspendPersist = false;
 function persist() {
     if (suspendPersist) return;
     saveState(captureState({
-        currentSolution: lastSolution,
-        currentBlueprintFloor: blueprintRenderer?.currentFloor ?? 0,
+        currentSolution: blueprint.solution,
+        currentBlueprintFloor: blueprint.renderer?.currentFloor ?? 0,
     }));
 }
 
@@ -41,26 +43,7 @@ function refreshShapeColors() {
 }
 
 function initializeDefaultShapes() {
-    const container = byId('starting-shapes');
-    ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu']
-        .forEach((code) => container.appendChild(createShapeItem(code)));
-}
-
-function createShapeItem(shapeCode) {
-    const item = document.createElement('div');
-    item.className = 'shape-item';
-
-    const display = createShapeElement(shapeCode);
-
-    const removeBtn = document.createElement('span');
-    removeBtn.className = 'remove-shape';
-    removeBtn.textContent = '×';
-    removeBtn.dataset.shape = shapeCode;
-
-    item.appendChild(display);
-    item.appendChild(removeBtn);
-
-    return item;
+    setStartingShapes(['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu']);
 }
 
 // Add Shape Button
@@ -70,7 +53,7 @@ byId('add-shape-btn').addEventListener('click', () => {
     if (!code) return alert('Please enter a shape code.');
     if (!showValidationErrors(code, 'starting shape')) return;
 
-    byId('starting-shapes').appendChild(createShapeItem(code));
+    addStartingShape(code);
     input.value = '';
     persist();
 });
@@ -111,9 +94,6 @@ byId('extract-confirm').addEventListener('click', () => {
     }
 
     try {
-        const container = byId('starting-shapes');
-        container.innerHTML = '';
-
         const variants = extractLayers(
             Shape.fromShapeCode(target),
             mode,
@@ -121,7 +101,7 @@ byId('extract-confirm').addEventListener('click', () => {
             includeColor
         );
 
-        variants.forEach((code) => container.appendChild(createShapeItem(code)));
+        setStartingShapes(variants);
         modal.style.display = 'none';
         persist();
     } catch (err) {
@@ -135,18 +115,7 @@ onTabClick('sidebar', persist);
 // Output views (Flowchart / Blueprint): the blueprint renderer exists only while
 // its view is shown.
 onTabClick('output', (view) => {
-    if (view === 'blueprint') {
-        if (!blueprintRenderer) {
-            blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));
-        }
-        if (currentBlueprintLayout) {
-            blueprintRenderer.setLayout(currentBlueprintLayout);
-        }
-    } else if (blueprintRenderer) {
-        blueprintRenderer.destroy();
-        blueprintRenderer = null;
-    }
-    syncFloorIndicator();
+    blueprint.showOutputView(view);
     persist();
 });
 
@@ -158,32 +127,23 @@ operationItems().forEach((item) => {
 });
 
 // Clear flowchart + blueprint presentation for a failed/aborted solve so status,
-// graph, blueprint, and lastSolution stay consistent (and reRenderGraph is a no-op).
-// State is dropped before the view teardown so a throwing renderer cannot leave
-// lastSolution or the blueprint layout pointing at a solve that is no longer drawn.
+// graph, blueprint, and the stored solution stay consistent (and reRenderGraph
+// is a no-op). State is dropped before the view teardown so a throwing renderer
+// cannot leave the stored solution or the blueprint layout pointing at a solve
+// that is no longer drawn.
 function clearSolutionPresentation() {
-    lastSolution = null;
-    currentBlueprintLayout = null;
+    blueprint.forget();
     renderGraph(null);
-    if (blueprintRenderer) {
-        blueprintRenderer.setLayout(null);
-    }
-    syncFloorIndicator();
+    blueprint.blank();
 }
 
 // Draw a solved result into every view — flowchart, blueprint layout (sized by
-// the form's throughput multiplier), status line — and adopt it as lastSolution.
-// The single presentation path for both a live solve and a restored one.
+// the form's throughput multiplier), status line — and adopt it as the current
+// solution. The single presentation path for both a live solve and a restored one.
 function presentSolution(solution) {
     renderGraph(solution.solutionPath);
-    const multiplier = parseThroughputMultiplier(byId('throughput-multiplier')?.value);
-    currentBlueprintLayout = buildSolutionLayout(solution.solutionPath, multiplier);
-    if (blueprintRenderer) {
-        blueprintRenderer.setLayout(currentBlueprintLayout);
-    }
-    syncFloorIndicator();
+    blueprint.present(solution, byId('throughput-multiplier')?.value);
     byId('status').textContent = solvedStatusText(solution);
-    lastSolution = solution;
 }
 
 byId('solve-btn').addEventListener('click', () => {
@@ -202,38 +162,39 @@ byId('solve-btn').addEventListener('click', () => {
     let starting = readStartingShapes();
     const ops = readEnabledOperations();
 
-    const maxLayers = parseInt(byId('max-layers').value) || 4;
-    // Shared numeric control drives two distinct payload fields by method:
-    // maxStatesPerLevel (BFS beam width) vs nodeBudget (Constructive per-node
-    // A* cap). Never call this "Max States" — that name is the third budget,
-    // maxStates (global ceiling), which the browser leaves uncapped.
-    const budgetInput = parseInt(byId('max-states-per-level').value) || 1000;
     const preventWaste = byId('prevent-waste').checked;
     const orientationSensitive = byId('orientation-sensitive').checked;
     const monolayerPainting = byId('monolayer-painting').checked;
-    const heuristicDivisor = parseFloat(byId('heuristic-divisor').value) || 0.1;
     const searchMethod = byId('search-method-select').value;
     const filterUnusedShapes = byId('filter-unused-shapes')?.checked ?? true;
 
     if (!showValidationErrors(target, 'target shape')) return;
 
-    // Filter unused shapes if enabled
-    if (filterUnusedShapes && starting.length > 0) {
-        const originalCount = starting.length;
-        starting = filterStartingShapes(starting, target);
-        const removedCount = originalCount - starting.length;
-        if (removedCount > 0) {
-            console.log(`Filtered out ${removedCount} unused starting shapes`);
-        }
+    // Filter unused shapes if enabled. The shared budget box is one number
+    // with two payload names (maxStatesPerLevel / nodeBudget). buildSolveRequest
+    // does not send maxStates — the browser leaves that ceiling uncapped.
+    const { request, filteredOut } = buildSolveRequest({
+        targetShapeCode: target,
+        startingShapeCodes: starting,
+        enabledOperations: ops,
+        maxLayers: readMaxLayers(),
+        budget: readLevelBudget(),
+        preventWaste,
+        orientationSensitive,
+        monolayerPainting,
+        heuristicDivisor: readHeuristicDivisor(),
+        searchMethod,
+        filterUnusedShapes,
+    });
+    if (filteredOut > 0) {
+        console.log(`Filtered out ${filteredOut} unused starting shapes`);
     }
 
-    // Validate remaining starting shapes
-    for (const code of starting) {
+    for (const code of request.startingShapeCodes) {
         if (!showValidationErrors(code, 'starting shape')) return;
     }
 
-    // Check if we have any starting shapes after filtering
-    if (starting.length === 0) {
+    if (request.startingShapeCodes.length === 0) {
         alert('No valid starting shapes remain after filtering. Please add shapes that match the target.');
         return;
     }
@@ -246,22 +207,9 @@ byId('solve-btn').addEventListener('click', () => {
         action: 'solve',
         onComplete: persist,
         onResultError: clearSolutionPresentation,
-        data: {
-            targetShapeCode: target,
-            startingShapeCodes: starting,
-            enabledOperations: ops,
-            maxLayers,
-            // Distinct identifiers end-to-end (see shapeSolver.js worker comment).
-            maxStatesPerLevel: budgetInput,
-            nodeBudget: budgetInput,
-            preventWaste,
-            orientationSensitive,
-            monolayerPainting,
-            heuristicDivisor,
-            searchMethod
-        },
+        data: request,
         onResult(result) {
-            if (result?.solutionPath) {
+            if (isSolvedResult(result)) {
                 presentSolution({
                     solutionPath: result.solutionPath,
                     depth: result.depth,
@@ -289,12 +237,8 @@ byId('explore-btn').addEventListener('click', () => {
 
     const starting = readStartingShapes();
     const ops = readEnabledOperations();
-    // Empty/invalid -> a small default, never an effectively unbounded depth.
-    // The worker also caps the graph at DEFAULT_EXPLORE_MAX_NODES, so a deep
-    // request returns a partial graph instead of growing until the tab OOMs.
-    const depthLimit = clampExploreDepth(byId('depth-limit-input').value);
-    const maxLayers = parseInt(byId('max-layers').value) || 4;
-    const targetShapeCode = byId('target-shape').value.trim() || null;
+    const targetRaw = byId('target-shape').value;
+    const targetShapeCode = targetRaw.trim() || null;
     // Empty target is optional for Explore (color-context heuristics only);
     // a non-empty value must pass the same allowlist Solve already uses.
     if (targetShapeCode && !showValidationErrors(targetShapeCode, 'target shape')) return;
@@ -303,16 +247,27 @@ byId('explore-btn').addEventListener('click', () => {
         if (!showValidationErrors(code, 'starting shape')) return;
     }
 
+    // Empty/invalid depth -> a small default, never an effectively unbounded
+    // depth. The worker also caps the graph at DEFAULT_EXPLORE_MAX_NODES, so a
+    // deep request returns a partial graph instead of growing until the tab OOMs.
+    const data = buildExploreRequest({
+        startingShapeCodes: starting,
+        enabledOperations: ops,
+        depthLimit: byId('depth-limit-input').value,
+        maxLayers: readMaxLayers(),
+        targetShapeCode: targetRaw,
+    });
+
     runSolverJob({
         btn,
         idleLabel: 'Explore',
         action: 'explore',
         startStatus: 'Exploring...',
-        data: { startingShapeCodes: starting, enabledOperations: ops, depthLimit, maxLayers, targetShapeCode },
+        data,
         onResult(result) {
             if (!result) return;
             renderSpaceGraph(result);
-            byId('status').textContent = exploreStatus(result, depthLimit);
+            byId('status').textContent = exploreStatus(result, data.depthLimit);
         }
     });
 });
@@ -355,17 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial toggle
     byId('search-method-select').dispatchEvent(new Event('change'));
 
-    // Wire change listeners on persisted form inputs (save on every edit)
-    const persistOnChange = [
-        'target-shape', 'depth-limit-input', 'search-method-select',
-        'max-states-per-level', 'heuristic-divisor',
-        'prevent-waste', 'orientation-sensitive', 'monolayer-painting',
-        'filter-unused-shapes', 'throughput-multiplier', 'max-layers',
-        'color-mode-select',
-    ];
-    for (const id of persistOnChange) {
-        byId(id)?.addEventListener('change', persist);
-    }
+    // Rebuild the blueprint when the multiplier changes after a solve. The
+    // generic listener below also saves the new value; this one runs first so
+    // the layout Copy Blueprint exports matches the select.
+    byId('throughput-multiplier')?.addEventListener('change', () => {
+        blueprint.setThroughputMultiplier(byId('throughput-multiplier').value);
+    });
+    onPersistedInputChange(persist);
 
     // Restore saved state
     const state = loadState();
@@ -375,22 +326,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // applyState restores the form first, so presentSolution reads the
             // restored throughput multiplier. A solution that failed validation
             // comes back null and is never drawn or adopted.
-            const { solution, restoredFloor } = applyState(state, { createShapeItem });
+            const { solution, restoredFloor } = applyState(state);
             if (solution) presentSolution(solution);
-            if (state.view.activeOutputView === 'blueprint' && currentBlueprintLayout) {
-                if (!blueprintRenderer) {
-                    blueprintRenderer = new BlueprintRenderer(byId('blueprint-canvas'));
+            // Create the renderer whenever the Blueprint tab is restored, even
+            // with no layout. presentSolution only draws if a renderer exists,
+            // so a later solve on this tab would otherwise leave the canvas blank.
+            if (state.view.activeOutputView === 'blueprint') {
+                blueprint.showOutputView('blueprint');
+                const layout = blueprint.layout;
+                const renderer = blueprint.renderer;
+                if (layout && renderer && restoredFloor > 0 && restoredFloor < layout.floorCount) {
+                    renderer.setFloor(restoredFloor);
+                    syncFloorIndicator();
                 }
-                blueprintRenderer.setLayout(currentBlueprintLayout);
-                if (restoredFloor > 0 && restoredFloor < currentBlueprintLayout.floorCount) {
-                    blueprintRenderer.setFloor(restoredFloor);
-                }
-                syncFloorIndicator();
             }
             suspendPersist = false;
         } catch (err) {
-            // applyState mutates form fields, shapes, tabs, and the graph in place,
-            // so a throw can leave the UI half-applied. We can't cleanly unwind
+            // applyState writes form fields, shapes, tabs and graph selects, and
+            // presentSolution draws. A throw from either can leave the UI
+            // half-applied. We can't cleanly unwind
             // that, so wipe the saved state and reload into a guaranteed-default
             // UI. Reload only if the wipe succeeded — otherwise the re-throw on the
             // next load would loop; leave persistence suspended so the half-applied
@@ -413,8 +367,8 @@ byId('reset-state-btn').addEventListener('click', () => {
 });
 
 byId('snapshot-btn').addEventListener('click', () => {
-    if (activeTab('output') === 'blueprint' && blueprintRenderer) {
-        const renderer = blueprintRenderer;
+    if (activeTab('output') === 'blueprint' && blueprint.renderer) {
+        const renderer = blueprint.renderer;
         copyImage(() => renderer.exportPng(), 'blueprint image');
     } else {
         copyGraphToClipboard();
@@ -430,16 +384,16 @@ byId('edge-style-select').addEventListener('change', () => {
 });
 
 byId('floor-up-btn').addEventListener('click', () => {
-    if (!blueprintRenderer || !currentBlueprintLayout) return;
-    const next = blueprintRenderer.currentFloor + 1;
-    if (next < currentBlueprintLayout.floorCount) {
-        blueprintRenderer.setFloor(next);
+    if (!blueprint.renderer || !blueprint.layout) return;
+    const next = blueprint.renderer.currentFloor + 1;
+    if (next < blueprint.layout.floorCount) {
+        blueprint.renderer.setFloor(next);
         syncFloorIndicator();
         persist();
     }
 });
 byId('copy-blueprint-btn').addEventListener('click', () => {
-    const layout = currentBlueprintLayout;
+    const layout = blueprint.layout;
     if (!layout || layout.machines.length === 0) {
         reportCopyFailure('blueprint string', 'there is no blueprint yet');
         return;
@@ -448,10 +402,10 @@ byId('copy-blueprint-btn').addEventListener('click', () => {
 });
 
 byId('floor-down-btn').addEventListener('click', () => {
-    if (!blueprintRenderer) return;
-    const next = blueprintRenderer.currentFloor - 1;
+    if (!blueprint.renderer) return;
+    const next = blueprint.renderer.currentFloor - 1;
     if (next >= 0) {
-        blueprintRenderer.setFloor(next);
+        blueprint.renderer.setFloor(next);
         syncFloorIndicator();
         persist();
     }
