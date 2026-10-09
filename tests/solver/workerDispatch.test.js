@@ -3,8 +3,9 @@
 //
 // Every other solver test imports shapeSolverCore / shapeExplorerCore /
 // shapeSolverConstructive directly. The browser talks to shapeSolver.js, which
-// is the only file that dispatches Constructive vs core, aliases the three
-// budgets, clamps explore depth, and posts {type: result|status|error}. Stub
+// is the only file that dispatches Constructive vs core, routes each of the
+// three budgets to its own solver (nodeBudget to Constructive, maxStatesPerLevel
+// and maxStates to core), clamps explore depth, and posts {type: result|status|error}. Stub
 // `self` before the dynamic import (the file only assigns self.onmessage at
 // load) and drive the handler as the Worker would.
 import { shapeExplorer } from '../../shapeExplorerCore.js';
@@ -191,6 +192,50 @@ const UI_OPS = ['Rotator CW', 'Rotator CCW', 'Rotator 180', 'Half Destroyer', 'C
     check('malformed: error message is prefixed',
         resultsOf('error')[0]?.message?.startsWith('Error: ') === true);
     check('malformed: posts no result', resultsOf('result').length === 0);
+}
+
+// --- Explore forwards targetShapeCode (Painter color narrowing) ---------------
+// Dropping `targetShapeCode || null` would fall back to the inventory-union
+// palette and this graph would match the untargeted run instead.
+{
+    const starts = ['CuCuCuCu', 'CrCrCrCr', 'CgCgCgCg'];
+    const ops = ['Painter'];
+    sent.length = 0;
+    await dispatch('explore', {
+        startingShapeCodes: starts,
+        enabledOperations: ops,
+        depthLimit: 1,
+        maxLayers: 4,
+        targetShapeCode: 'CrCrCrCr',
+    });
+    const workerGraph = resultsOf('result')[0]?.result;
+    const targeted = await shapeExplorer(starts, ops, 1, 4, () => false, () => {}, 'CrCrCrCr');
+    const untargeted = await shapeExplorer(starts, ops, 1, 4, () => false, () => {});
+    check('explore-target: posts a graph', workerGraph != null && resultsOf('error').length === 0);
+    check('explore-target: matches a direct explorer call that receives the target',
+        graphKey(workerGraph) === graphKey(targeted));
+    check('explore-target: differs from the untargeted inventory-union graph',
+        graphKey(workerGraph) !== graphKey(untargeted));
+}
+
+// --- Explore catch posts {type:'error'} and no result -------------------------
+{
+    sent.length = 0;
+    let threw = false;
+    try {
+        await dispatch('explore', {
+            startingShapeCodes: null,
+            enabledOperations: ['Painter'],
+            depthLimit: 1,
+            maxLayers: 4,
+        });
+    } catch {
+        threw = true;
+    }
+    check('explore-error: handler does not reject', !threw);
+    check('explore-error: exactly one message prefixed Error: ',
+        resultsOf('error').length === 1 && resultsOf('error')[0].message?.startsWith('Error: ') === true);
+    check('explore-error: posts no result', resultsOf('result').length === 0);
 }
 
 console.log(`[${passed}/${total} passed]`);

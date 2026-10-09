@@ -63,7 +63,7 @@ export function buildLayout(solutionPath) {
     const sorted = topoSort(topology);
 
     // Step 3: group into rows
-    const rows = groupIntoRows(sorted, topology, solutionPath);
+    const rows = groupIntoRows(sorted, topology);
 
     // Step 4: assign positions and route belts
     const layout = assignPositions(rows, solutionPath, topology);

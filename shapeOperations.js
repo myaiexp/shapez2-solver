@@ -75,7 +75,7 @@ export function halfCut(shape, config = new ShapeOperationConfig()) {
     return [rightHalf];
 }
 
-export const swapHalves = requireSameNumParts(function(shapeA, shapeB, config = new ShapeOperationConfig()) {
+export const swapHalves = requireSameNumParts(function swapHalves(shapeA, shapeB, config = new ShapeOperationConfig()) {
     const numLayers = Math.max(shapeA.numLayers, shapeB.numLayers);
     const leftSize = leftHalfSize(shapeA.numParts);
     const [leftA, rightA] = cut(shapeA, config);
@@ -114,7 +114,7 @@ export const swapHalves = requireSameNumParts(function(shapeA, shapeB, config = 
     return [new Shape(processedA), new Shape(processedB)];
 });
 
-export const stack = requireSameNumParts(function(bottomShape, topShape, config = new ShapeOperationConfig()) {
+export const stack = requireSameNumParts(function stack(bottomShape, topShape, config = new ShapeOperationConfig()) {
     // Deep-copy input layers: makeLayersFall mutates its `layers` argument in place,
     // so passing the shared layer arrays from bottomShape/topShape would corrupt those
     // (cached) shapes. cut() and pushPin() copy for the same reason.

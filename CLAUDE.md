@@ -14,7 +14,7 @@
 
 ## Project Structure
 
-Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintLayout`, `blueprintRenderer` — is a public-entry-point file with a small set of sibling helper files prefixed by the same name (e.g., `shapeSolverCache.js`, `blueprintTopology.js`). `shapeSolver.js` is a thin Web Worker wrapper around the algorithm in `shapeSolverCore.js`. The space explorer is a fifth cluster: `shapeExplorerCore.js` plus `operationGraphSpace.js` (3D force graph).
+Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintLayout`, `blueprintRenderer` — is a public-entry-point file with a small set of sibling helper files prefixed by the same name (e.g., `shapeSolverCache.js`, `blueprintTopology.js`). `shapeSolver.js` is a thin Web Worker wrapper around the algorithm in `shapeSolverCore.js`. The space explorer is a fifth cluster: `shapeExplorerCore.js` plus `operationGraphSpace.js` (3D force graph). `operationGraph.js` is the flowchart and space-graph facade over the `operationGraph*` modules. `main.js` delegates the worker, status text, form, and blueprint lifetime to `solverJob.js`, `solutionPresentation.js`, `uiControls.js`, and `blueprintView.js` (see [architecture conventions](docs/architecture-conventions.md)).
 
 ## Deployment
 

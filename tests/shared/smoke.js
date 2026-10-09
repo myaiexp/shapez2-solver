@@ -8,7 +8,7 @@ import { getSimilarity } from './similarity.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { shapeExplorer } from '../../shapeExplorerCore.js';
-import { invalidPathSteps, invalidPathIds, pathReachesTarget, pathInventoryAcceptable, invalidExplorerEdges } from './pathValidation.js';
+import { invalidPathSteps, invalidPathIds, pathReachesTarget, pathInventoryAcceptable, invalidDisallowedOps, invalidExplorerEdges } from './pathValidation.js';
 import { PURE_OP_CHECKS, LAYOUT_FIXTURES, SOLVER_FIXTURES, EXPLORER_FIXTURES } from './fixtures.js';
 import { applySnapshot } from './smokeSnapshot.js';
 import { overlappingBeltTiles, beltsOverMachineFootprint } from './layoutCollisions.js';
@@ -162,6 +162,17 @@ for (const fixture of SOLVER_FIXTURES) {
     if (badIds.length) {
         total++;
         console.log(`✗ ${key} — UNBUILDABLE id flow: ${badIds.join(' | ')}`);
+        failed = true;
+        continue;
+    }
+
+    // Enabled-ops gate: a path can replay and reach the target while still
+    // using an operation the fixture turned off. The snapshot's op count would
+    // not always move.
+    const badOps = invalidDisallowedOps(path, fixture.ops);
+    if (badOps.length) {
+        total++;
+        console.log(`✗ ${key} — disabled op used: ${badOps.join(' | ')}`);
         failed = true;
         continue;
     }

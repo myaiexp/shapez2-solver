@@ -211,16 +211,13 @@ function propagateBeltSplits(solutionPath, producerPosByShapeId, belts) {
  * tiles that produce their shapes, handling floor transitions via routeBelt.
  * Appends routed belt tiles to `belts`.
  */
-function routeAllBelts(solutionPath, nodes, machinePos, producerPosByShapeId, belts) {
-    const placeableSteps = new Set();
-    for (const [idx, node] of nodes) {
-        if (!node.isBeltSplit) placeableSteps.add(idx);
-    }
-
-    for (const stepIdx of placeableSteps) {
-        const step = solutionPath[stepIdx];
+function routeAllBelts(solutionPath, machinePos, producerPosByShapeId, belts) {
+    // machinePos holds only placed steps (Belt Split is never placed). Sort by
+    // step index so belt tiles append in path order, not row order.
+    const stepIdxs = [...machinePos.keys()].sort((a, b) => a - b);
+    for (const stepIdx of stepIdxs) {
         const pos = machinePos.get(stepIdx);
-        if (!pos) continue;
+        const step = solutionPath[stepIdx];
         const def = pos.def;
 
         for (let ii = 0; ii < step.inputs.length; ii++) {
@@ -273,7 +270,7 @@ function computeFloorCount(machines, belts) {
  * @returns {BlueprintLayout}
  */
 export function assignPositions(rows, solutionPath, topology) {
-    const { nodes, sources } = topology;
+    const { sources } = topology;
 
     // Phase A: place source entries and machine rows
     const { machines, belts, machinePos, outputPortsByStep, sourceEntries, maxRowWidth } =
@@ -283,7 +280,7 @@ export function assignPositions(rows, solutionPath, topology) {
     // Splits, then route belts from each consumer's inputs back to those tiles
     const producerPosByShapeId = buildProducerLookup(outputPortsByStep, sourceEntries);
     propagateBeltSplits(solutionPath, producerPosByShapeId, belts);
-    routeAllBelts(solutionPath, nodes, machinePos, producerPosByShapeId, belts);
+    routeAllBelts(solutionPath, machinePos, producerPosByShapeId, belts);
 
     // Phase C: compute grid bounds and floor count
     const { gridWidth, gridHeight } = computeGridBounds(machines, belts, maxRowWidth);

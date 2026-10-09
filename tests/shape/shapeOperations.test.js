@@ -12,7 +12,7 @@
 // remaining structural ops (halfCut, swapHalves, trash, beltSplit) had no
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
-import { Shape } from '../../shapeClass.js';
+import { Shape, InvalidOperationInputs } from '../../shapeClass.js';
 import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit } from '../../shapeOperations.js';
 import { getSimilarity } from '../shared/similarity.js';
 
@@ -128,6 +128,28 @@ check('trash returns no output shapes',
 // unchanged. A multi-part input pins that nothing is dropped or altered.
 check('beltSplit duplicates the shape onto both outputs',
     codes(beltSplit(s('CuRuSuWu'))), ['CuRuSuWu', 'CuRuSuWu']);
+
+// --- mixed quad/hex part counts are rejected --------------------------------
+// Stacker and Swapper can only align layers that hold the same number of
+// parts. The wrapper names the operation in the error; an anonymous inner
+// function would report operation ''.
+function checkRejects(name, fn) {
+    total++;
+    try {
+        fn();
+        console.log(`✗ ${name} — expected InvalidOperationInputs`);
+        failed = true;
+    } catch (err) {
+        const ok = err instanceof InvalidOperationInputs && err.message.includes(name);
+        if (ok) { console.log(`✓ ${name}`); passed++; }
+        else {
+            console.log(`✗ ${name} — ${err?.name}: ${err?.message}`);
+            failed = true;
+        }
+    }
+}
+checkRejects("operation 'stack'", () => stack(s('CuCuCuCu'), s('CuCuCuCuCuCu')));
+checkRejects("operation 'swapHalves'", () => swapHalves(s('CuCuCuCu'), s('CuCuCuCuCuCu')));
 
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);

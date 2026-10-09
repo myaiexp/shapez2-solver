@@ -182,6 +182,28 @@ async function run() {
         check('lift belt L on floor 1', entries[0].L, 1);
     }
 
+    // The reference doc's minimal example, as literals. T/R/V/Icon are not read
+    // back out of BUILDING_DATA or the exporter's own maps, so a wrong game id,
+    // belt variant, rotation, version or icon fails even when those copies match.
+    {
+        const layout = {
+            machines: [{ operation: 'Cutter', x: 0, y: 0, floor: 0 }],
+            belts: [{ x: 0, y: -1, floor: 0, direction: 'S', kind: 'normal' }],
+        };
+        const bp = decode(await exportBlueprintString(layout));
+        check('reference example: whole JSON', bp, {
+            V: 1,
+            BP: {
+                $type: 'Building',
+                Entries: [
+                    { T: 'CutterDefaultInternalVariant', X: 0, Y: 0, R: 1 },
+                    { T: 'BeltDefaultForwardInternalVariant', X: 0, Y: -1, R: 1 },
+                ],
+                Icon: { Data: [null, null, null, null] },
+            },
+        });
+    }
+
     // Unknown direction falls back to R=1 (south), matching DIR_TO_ROTATION ?? 1.
     {
         const layout = {

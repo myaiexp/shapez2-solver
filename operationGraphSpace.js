@@ -3,6 +3,54 @@ import { setGraph3dInstance, destroy2DGraph, destroySpaceGraph } from './operati
 import { clearLastSolutionPath } from './operationGraph2D.js';
 import { copyText } from './clipboardFeedback.js';
 
+// Pure node/link data for the 3D force graph, so the transform can be tested
+// without THREE or a DOM. Belt Split is not drawn as an op node (it is a belt
+// tee, same as the 2D flowchart); edges that touch a skipped op are dropped,
+// otherwise the link names an id the graph never built and d3-force rejects it.
+export function buildSpaceGraphData(graph, shapeImage) {
+    if (!graph) return { nodes: [], links: [] };
+
+    const nodes = [];
+    const skipped = new Set();
+    for (const s of graph.shapes) {
+        nodes.push({
+            id: s.id,
+            kind: 'shape',
+            label: s.code,
+            image: shapeImage(s.code)
+        });
+    }
+
+    for (const op of graph.ops) {
+        if (op.type === 'Belt Split') {
+            skipped.add(op.id);
+            continue;
+        }
+
+        nodes.push({
+            id: op.id,
+            kind: 'op',
+            label: op.type,
+            image: `images/operations/${op.type.toLowerCase().replace(/\s+/g,'-')}.png`
+        });
+    }
+
+    const links = [];
+    for (const e of graph.edges) {
+        if (skipped.has(e.source) || skipped.has(e.target)) continue;
+        links.push({
+            source: e.source,
+            target: e.target,
+            kind:
+                e.target.startsWith('op-') ? 'to-op' :
+                e.source.startsWith('op-') ? 'from-op' :
+                ''
+        });
+    }
+
+    return { nodes, links };
+}
+
 function makeNodeSprite(image, scale) {
     const tex = new THREE.TextureLoader().load(image, t => { t.colorSpace = THREE.SRGBColorSpace; t.premultiplyAlpha = false; });
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, premultipliedAlpha: false, depthTest: true, depthWrite: false, });
@@ -24,51 +72,7 @@ export function renderSpaceGraph(graph) {
 
     if (!graph) return;
 
-    const nodes = [];
-    const links = [];
-    const nodeMap = new Map();
-
-    // Shape nodes
-    for (const s of graph.shapes) {
-        const nodeId = s.id;
-        const canvas = createShapeCanvas(s.code, 120);
-
-        const node = {
-            id: nodeId,
-            kind: 'shape',
-            label: s.code,
-            image: canvas.toDataURL()
-        };
-        nodeMap.set(nodeId, node);
-        nodes.push(node);
-    }
-
-    // Operation nodes
-    for (const op of graph.ops) {
-        if (op.type === 'Belt Split') continue;
-
-        const opId = op.id;
-        const img = `images/operations/${op.type.toLowerCase().replace(/\s+/g,'-')}.png`;
-
-        nodes.push({
-            id: opId,
-            kind: 'op',
-            label: op.type,
-            image: img
-        });
-    }
-
-    // Edges
-    for (const e of graph.edges) {
-        links.push({
-            source: e.source,
-            target: e.target,
-            kind:
-                e.target.startsWith('op-') ? 'to-op' :
-                e.source.startsWith('op-') ? 'from-op' :
-                ''
-        });
-    }
+    const { nodes, links } = buildSpaceGraphData(graph, (code) => createShapeCanvas(code, 120).toDataURL());
 
     const g3d = ForceGraph3D()(container)
         .graphData({ nodes, links })

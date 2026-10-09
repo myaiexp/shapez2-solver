@@ -4,7 +4,7 @@
 # Bypass a single commit:    git commit --no-verify
 #
 # Mirrors the CI `test` job in .github/workflows/pages.yml. The suite is
-# zero-dependency and runs in well under a second, so it gates every commit.
+# zero-dependency and takes about 10 seconds, so it gates every commit.
 set -uo pipefail
 
 run() {

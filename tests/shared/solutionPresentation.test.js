@@ -41,6 +41,14 @@ for (const [value, expected] of [
         buildSolutionLayout(path, 3), duplicateForThroughput(buildLayout(path), 3));
 }
 
+// --- Already-solved: an empty path is a real layout, not a crash -------------
+{
+    const empty = { machines: [], belts: [], gridWidth: 0, gridHeight: 0, floorCount: 1 };
+    checkEqual('buildSolutionLayout([]) ×1 is the empty layout', buildSolutionLayout([], 1), empty);
+    checkEqual('buildSolutionLayout([]) ×3 stays empty (nothing to duplicate)', buildSolutionLayout([], 3), empty);
+    checkEqual('buildSolutionLayout(null) is the empty layout', buildSolutionLayout(null, 1), empty);
+}
+
 // --- Status line ------------------------------------------------------------
 const trace = {
     target: 'CuRuCuRu', method: 'quadrant-split', opCount: 5,

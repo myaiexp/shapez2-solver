@@ -355,5 +355,33 @@ let sharedRenderer, sharedLayout;
     check('firing the ResizeObserver callback after destroy does not throw', threw === null, threw ? String(threw) : '');
 }
 
+// 12. Empty layout (zero-op already-solved path): 0×0 grid must not throw ---
+{
+    const { renderer } = harness();
+    const empty = { machines: [], belts: [], gridWidth: 0, gridHeight: 0, floorCount: 1 };
+    let threw = null;
+    try { renderer.setLayout(empty); } catch (err) { threw = err; }
+    check('setLayout(empty): does not throw', threw === null, threw ? String(threw) : '');
+    check('setLayout(empty): zoom and pan stay finite',
+        [renderer._zoom, renderer._panX, renderer._panY].every(Number.isFinite),
+        `zoom=${renderer._zoom} pan=${renderer._panX},${renderer._panY}`);
+    // A throw before the promise is returned is not a rejection. The executor's
+    // own throw rejects the promise and counts as settled.
+    let outcome = 'threw';
+    try {
+        const pending = renderer.exportPng();
+        try {
+            await pending;
+            outcome = 'resolved';
+        } catch {
+            outcome = 'rejected';
+        }
+    } catch (err) {
+        outcome = `threw: ${err}`;
+    }
+    check('exportPng(empty): settles (resolve or reject) without throwing',
+        outcome === 'resolved' || outcome === 'rejected', outcome);
+}
+
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);

@@ -173,13 +173,10 @@ async function run() {
     {
         const noStacker = ALL_OPS.filter((op) => op !== 'Stacker');
         const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, noStacker, { maxLayers: 4 });
-        if (r.solutionPath) {
-            assertPathIsBuildable('CuRuSuWu (no Stacker)', r.solutionPath, 'CuRuSuWu', { ops: noStacker });
-            assert('CuRuSuWu (no Stacker) emits no Stacker',
-                !r.solutionPath.some((s) => s.operation === 'Stacker'));
-        } else {
-            assert('CuRuSuWu (no Stacker) fails without emitting Stacker', r.solutionPath === null);
-        }
+        // Today's contract, not "whichever branch happened": assembly without
+        // Stacker does not solve, and the abort is no-decomposition.
+        assert('CuRuSuWu (no Stacker) fails with no-decomposition',
+            r.solutionPath === null && r.aborted === 'no-decomposition');
     }
 
     // --- preventWaste: true on a decomposing multi-quadrant target. Sub-piece

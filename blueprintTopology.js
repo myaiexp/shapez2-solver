@@ -21,10 +21,8 @@
  * Missing nodes terminate the walk. `visited` guards against cycles and is
  * mutated across the recursion.
  *
- * Note: a non-Belt-Split node is exactly a placeable step in both call sites
- * (topoSort's `placeableSteps` and groupIntoRows' `placeableSteps` are each the
- * full set of non-Belt-Split steps), so testing `!node.isBeltSplit` here is
- * equivalent to the `placeableSteps.has(...)` check the callers used inline.
+ * A non-Belt-Split node is a placeable step, so `!node.isBeltSplit` is the
+ * same test as membership in the callers' placeable-step sets.
  *
  * @param {number} stepIdx        step to resolve
  * @param {Set<number>} visited   cycle guard (mutated)
@@ -255,7 +253,7 @@ export function topoSort(topology) {
  *
  * @returns {Map<number, number[]>} rowIndex -> [stepIndices in that row]
  */
-export function groupIntoRows(sortedSteps, topology, solutionPath) {
+export function groupIntoRows(sortedSteps, topology) {
     // Build effective upstream map for placeable steps
     const placeableSteps = new Set(sortedSteps);
     const upstreamOf = new Map(); // stepIdx -> Set<stepIdx>
