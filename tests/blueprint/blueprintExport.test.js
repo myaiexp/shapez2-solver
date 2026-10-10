@@ -6,7 +6,8 @@
 //   • wrapper format
 //   • entry count = machines with a gameId + belts (nothing silently dropped)
 //   • machine T/R/L and belt T/R/L contracts
-//   • the two silent-drop branches (missing BUILDING_DATA, unknown belt kind)
+//   • the silent-drop branch (missing BUILDING_DATA / missing gameId) and the
+//     unknown-belt-kind fallback, which keeps the belt as a forward belt
 import { gunzipSync } from 'zlib';
 import { exportBlueprintString } from '../../blueprintExport.js';
 import { buildLayout } from '../../blueprintLayout.js';

@@ -94,6 +94,13 @@ check('ids: two feeds of the same starting code are fine',
     invalidPathIds([step('Stacker', [io(0, 'CuCuCuCu'), io(1, 'CuCuCuCu')], [io(2, 'CuCuCuCu:CuCuCuCu')])],
         { starts: ['CuCuCuCu', 'CuCuCuCu'] }).length === 0);
 
+// One start drawn under a second id is a second feed, not a conjured copy:
+// Constructive offsets each sub-plan's starting ids (shapeSolverFlatten.js), and
+// the blueprint gives every unproduced id its own source belt.
+check('ids: a start drawn again under an offset id (a second feed) is accepted',
+    invalidPathIds([step('Stacker', [io(0, 'CuCuCuCu'), io(7, 'CuCuCuCu')], [io(8, 'CuCuCuCu:CuCuCuCu')])],
+        { starts: ['CuCuCuCu'] }).length === 0);
+
 check('ids: an id produced by two steps is rejected',
     invalidPathIds([CUT, step('Cutter', [io(1, 'RuRuRuRu')], [io(2, '----RuRu'), io(9, 'RuRu----')])]).length === 1);
 

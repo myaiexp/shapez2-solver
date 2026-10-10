@@ -1,8 +1,8 @@
 // End-to-end tests for the Constructive decompose-and-search planner.
 // Run with: node tests/solver/constructive.test.js
 //
-// Every emitted step is re-validated as a real operation (output === the actual
-// op applied to its inputs) via the shared tests/shared/pathValidation.js — the
+// Every emitted step is re-validated as a real operation via the shared
+// tests/shared/pathValidation.js — the
 // spliced/id-remapped path must be physically constructible, not just plausible.
 // Three separate things can go wrong with a spliced path, so all three shared
 // gates run: the ops must be real, the ids must flow (each consumed once — the

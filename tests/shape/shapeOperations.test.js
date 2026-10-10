@@ -1,9 +1,7 @@
 // Golden regression tests for the core shapeOperations primitives that lacked a
 // hard-coded anchor — run with: node tests/shape/shapeOperations.test.js
 //
-// smoke.js "tests" these ops via a snapshot file that auto-baselines whatever the
-// code emits on first run (no regression protection on a fresh baseline). The
-// other unit suites already pin rotation (shapeRotation.test.js), crystals/pins
+// The other unit suites already pin rotation (shapeRotation.test.js), crystals/pins
 // (shapeCrystals.test.js) and gravity (shapeGravity.test.js) with literals — but
 // the half-split geometry of cut, the layer order of stack, the Painter
 // primitive (topPaint), getSimilarity (legacy shape-comparison metric, now a
