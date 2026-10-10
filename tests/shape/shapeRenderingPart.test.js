@@ -108,6 +108,29 @@ function isCssColor(value) {
     check('Nothing and Pin drawers do not throw', threw === null, threw ? `threw ${threw}` : '');
 }
 
+// An unknown geometry mode is a caller bug, not a bad shape: the error must
+// name the mode, and the pin must not fall through to arcs at undefined centres.
+function thrownMessage(fn) {
+    try {
+        fn();
+    } catch (err) {
+        return String(err.message);
+    }
+    return null;
+}
+for (const part of ['c', 'P', 'C']) {
+    const message = thrownMessage(() => exercise(part, 'r', 'tri', 'rgb', 1));
+    check(
+        `unknown geometry mode with part ${part} throws a geometry-mode error`,
+        message !== null && message.includes('geometry mode') && message.includes('tri'),
+        `message=${message}`
+    );
+}
+{
+    const message = thrownMessage(() => exercise('Q', 'r', QUAD_MODE, 'rgb'));
+    check('unknown part char throws naming the char', message !== null && message.includes('Q'), `message=${message}`);
+}
+
 // --- Drift guard: every validator-accepted char pair draws in every mode -----
 let comboThrows = 0;
 let comboBadFills = 0;
