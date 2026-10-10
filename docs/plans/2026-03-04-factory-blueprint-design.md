@@ -101,9 +101,9 @@ Factory layout follows a **row-based pipeline** pattern matching how players act
 6. **Orient machines** within each row side-by-side, all facing the same direction
 7. **Belt routing is simple** — mostly straight runs between rows. Crossings handled by launchers/catchers or belt lifts (obstacles are minimal in Shapez 2)
 
-### Floor Assignment (Deferred)
+### Floor Assignment
 
-For MVP: place everything on floor 0. Multi-floor machine placement is a future iteration. The data model supports it (floor property on I/O ports, `floors` on buildings), but the placement algorithm treats everything as single-floor for now.
+Every machine's base tile sits on floor 0 (`floorRestriction` if set, else 0); there is no per-machine choice of floor. Higher floors come from the data model, not from placement: a building with `floors > 1` (the Stacker) occupies floors 0–1, its top input port is on floor 1, and `routeBelt` inserts a belt-lift tile on both the source and destination floor wherever a belt changes floor. The layout's `floorCount` is derived from the floors that placed machines span and belts occupy, so a solution that stacks renders as two floors.
 
 ---
 
@@ -153,7 +153,7 @@ For MVP: place everything on floor 0. Multi-floor machine placement is a future 
 
 ## 5. Deferred Decisions
 
-- **Multi-floor machine placement** — some machines can/must use specific floors. Data model supports it; placement algorithm ignores it for MVP.
+- **Choosing a machine's floor** — every machine is based on floor 0; placing machines on upper floors (to save area or route around others) is not done. Multi-floor spans (Stacker) and belt lifts are implemented — see Floor Assignment.
 - **Platform/notch constraints** — platform sizing and notch-based entry/exit points. Not needed for internal layout.
 - **Throughput optimization** — building-per-belt ratios for determining how many machines per row. Future enhancement.
 

@@ -8,7 +8,7 @@ The Worker wrapper (`shapeSolver.js`) is covered by `tests/solver/workerDispatch
 
 Presentation code runs against stubs, not a browser. The flowchart's structure is built by the pure `buildGraphElements` (`operationGraphElements.js`); `tests/shared/operationGraph2D.test.js` covers it directly, then drives `renderGraph`/`reRenderGraph` with `document` + `cytoscape` stubs to pin that a cleared solve is never redrawn. `tests/blueprint/blueprintRenderer.test.js` stubs `window`, `ResizeObserver`, `document.createElement` and a recording 2D context to cover `BlueprintRenderer` floors, zoom/pan, hover, `exportPng` and `destroy`; `blueprintDrawing.test.js` records `fillRect`/`fillText` calls to pin belt-kind colors and badges and per-side port positions. Neither can catch a real Cytoscape or canvas rendering regression.
 
-The full suite is zero-dependency and takes about 10 seconds (one pre-commit-equivalent run: every `tests/**/*.test.js`, then `smoke.js` and the two `solve.mjs` checks). `constructive.test.js` is the slowest file, about 3 seconds. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/shared/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites.
+The full suite is zero-dependency; `npm test` (`tests/run-suite.sh`) runs it — every `tests/**/*.test.js` plus `smoke.js` under `node --test` with coverage, then the two `solve.mjs` checks — in about 25 seconds. `constructive.test.js` is the slowest file, about 3 seconds. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/shared/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites.
 
 Shape ops must never mutate their input `Shape` objects — the solver shares parsed shapes via `getCachedShape`, so in-place mutation corrupts the cache and yields impossible paths; `tests/shape/shapeCacheIntegrity.test.js` guards this.
 
@@ -28,9 +28,15 @@ It has its own unit suite, `pathValidation.test.js`, because a hole in the gate 
 
 CI (the `test` job in `.github/workflows/pages.yml`) runs the suite on every push to `master`, and the Pages **deploy is gated on it** (`deploy: needs: test`) — a red test blocks shipping to mase.fi/shapez.
 
-Both gates discover `tests/**/*.test.js` into an array (quoted iteration, so paths with spaces stay one file), refuse to proceed if fewer than 30 files matched (an empty `find` used to make the loop succeed vacuously), then run `node tests/shared/smoke.js` and two cheap `solve.mjs` invocations. Keep the floor and the `solve.mjs` lines in lockstep between the workflow and `.githooks/pre-commit`.
+Both gates run `tests/run-suite.sh`, the one definition of the suite, so there is nothing to keep in lockstep. It discovers `tests/**/*.test.js` into an array (quoted iteration, so paths with spaces stay one file), refuses to proceed if fewer than 30 files matched (an empty `find` used to make the run succeed vacuously), runs those files plus `tests/shared/smoke.js` through `node --test` (each in its own process; a non-zero exit fails the run), then two cheap `solve.mjs` invocations.
 
-Locally, `.githooks/pre-commit` runs it before each commit; activate once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).
+Locally, `.githooks/pre-commit` runs it before each commit and prints the output only on failure; activate once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).
+
+### Coverage floor
+
+The `node --test` run measures coverage of the root `*.js` modules and fails below 97% lines, 94% branches and 97% functions (Node ≥ 22.8 for the threshold flags; thresholds are integers). The floor sits just under the measured numbers (about 97.9 / 94.7 / 97.2) so erosion fails the gate; raise it when coverage rises rather than lowering it to land a change. Branch and line figures move by about 0.1 between runs because a timing-dependent block in `shapeSolverCore.js` is hit only on some runs.
+
+Node only reports modules some test imports. `main.js`, `operationGraph.js` and `operationGraphExport.js` are never imported (browser-only: DOM, CDN globals), so they are absent from the report rather than counted as 0%, and a new module no test imports is invisible to the floor too.
 
 ## Headless solve/explore harness
 

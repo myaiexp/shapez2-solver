@@ -3,29 +3,14 @@
 # Activate once per clone:   git config core.hooksPath .githooks
 # Bypass a single commit:    git commit --no-verify
 #
-# Mirrors the CI `test` job in .github/workflows/pages.yml. The suite is
-# zero-dependency and takes about 10 seconds, so it gates every commit.
+# The suite, its coverage floor and the solve.mjs checks live in tests/run-suite.sh,
+# which the CI `test` job in .github/workflows/pages.yml runs too.
 set -uo pipefail
 
-run() {
-  local out
-  if ! out=$(node "$@" 2>&1); then
-    echo "✗ pre-commit FAILED: $*"
-    echo "$out"
-    exit 1
-  fi
-}
-
 echo "pre-commit: running test suite…"
-# Tests are grouped into tests/{shape,solver,blueprint,shared}/ — discover recursively.
-# Floor is a canary for an empty/missing tests/ tree (keep in lockstep with .github/workflows/pages.yml).
-mapfile -t TESTS < <(find tests -name '*.test.js' | sort)
-if [ "${#TESTS[@]}" -lt 30 ]; then
-  echo "✗ pre-commit FAILED: expected >=30 test files, found ${#TESTS[@]}"
+if ! out=$(bash tests/run-suite.sh 2>&1); then
+  echo "$out"
+  echo "✗ pre-commit FAILED: tests/run-suite.sh"
   exit 1
 fi
-for t in "${TESTS[@]}"; do run "$t"; done
-run tests/shared/smoke.js
-run tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json --expect-solved
-run tests/shared/solve.mjs --explore 2
 echo "✓ pre-commit: all tests passed"

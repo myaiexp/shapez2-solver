@@ -59,7 +59,7 @@ import { BUILDING_DATA } from './buildingData.js';
  * @property {string} operation
  * @property {number} x              - grid column (top-left)
  * @property {number} y              - grid row (top-left)
- * @property {number} floor          - always 0 in MVP
+ * @property {number} floor          - base floor (floorRestriction ?? 0); a Stacker spans floor+1 too
  * @property {string[]} inputShapes  - shape codes flowing in
  * @property {string[]} outputShapes - shape codes flowing out
  * @property {Object} params         - forwarded from solutionPath (e.g. {color})
@@ -224,7 +224,7 @@ export class BlueprintRenderer {
 - Solve a different shape → blueprint updates
 - Snapshot from blueprint tab → copies PNG
 - Snapshot from flowchart tab → existing behavior
-- Floor buttons update display (even though MVP only has floor 0)
+- Floor buttons update display (a Stacker solution has floors 0 and 1)
 
 **Commit:** `feat: wire blueprint rendering into main app`
 

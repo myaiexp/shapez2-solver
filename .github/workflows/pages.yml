@@ -20,24 +20,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-      # Zero-dependency suite — no install step. Mirrors .githooks/pre-commit.
+      # Zero-dependency suite — no install step. tests/run-suite.sh is the one
+      # gate definition, shared with .githooks/pre-commit; it needs Node >= 22.8
+      # for the coverage threshold flags (22 resolves to the latest 22.x).
       - name: Run test suite
-        run: |
-          # Tests are grouped into tests/{shape,solver,blueprint,shared}/ — discover recursively.
-          # Floor is a canary for an empty/missing tests/ tree (keep in lockstep with .githooks/pre-commit).
-          mapfile -t TESTS < <(find tests -name '*.test.js' | sort)
-          if [ "${#TESTS[@]}" -lt 30 ]; then
-            echo "expected >=30 test files, found ${#TESTS[@]}"
-            exit 1
-          fi
-          for t in "${TESTS[@]}"; do
-            echo "::group::$t"
-            node "$t"
-            echo "::endgroup::"
-          done
-          node tests/shared/smoke.js
-          node tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json --expect-solved
-          node tests/shared/solve.mjs --explore 2
+        run: bash tests/run-suite.sh
 
   deploy:
     needs: test

@@ -1,6 +1,6 @@
 # Modularize Large Files — Design
 
-> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, fixtures/snapshots are in `tests/shared/`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
+> **Historical — the module map and test paths have moved on.** The file tables, export names and test commands below describe the 2026-04-18 split as planned, not today's tree. Files and helpers have since been renamed, split again or removed: there is no `shapeOperationsHelpers.js` or `shapeAnalysis.js` (see `shapeLayerMechanics.js`, `shapeColorAnalysis.js`, `startingShapes.js`), `shapeExplorer` lives in `shapeExplorerCore.js`, the operations table in `shapeSolverOperations.js`, the cache exports are `getCachedUnaryResult` / `getCachedColoredUnaryResult` / `getCachedBinaryResult`, the similarity closures are gone, and `solverJob.js` (not `main.js`) constructs the Worker. Current module boundaries and the orchestrator exceptions: [architecture-conventions.md](../architecture-conventions.md). Tests now live under `tests/{shape,solver,blueprint,shared}/` (smoke is `node tests/shared/smoke.js`); current commands are in [testing.md](../testing.md).
 
 **Date**: 2026-04-18
 **Status**: Approved, ready for plan
