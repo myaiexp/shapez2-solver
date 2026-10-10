@@ -19,7 +19,7 @@ Shape ops must never mutate their input `Shape` objects — the solver shares pa
 `tests/shared/pathValidation.js` is the single correctness gate behind every harness and suite that validates a path. A path must clear three independent checks:
 
 1. every step replays as a real op
-2. the ids flow physically (each consumed once; fan-out needs a `Belt Split`)
+2. the ids flow physically (each consumed once; fan-out of a produced shape needs a `Belt Split`; a starting shape may be fed again under a fresh id, since every unproduced id gets its own source belt)
 3. the final inventory holds the target (a zero-op path passes iff a starting shape is acceptable)
 
 It has its own unit suite, `pathValidation.test.js`, because a hole in the gate silently unblocks every importer at once. Production inventory predicates (`pathReachesTarget`, `pathInventoryAcceptable`, `acceptableCodes`) live in `pathInventory.js` and are re-exported from `pathValidation.js` so harness imports stay one-stop.
