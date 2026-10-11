@@ -1,6 +1,6 @@
 # Persistent Solver State Implementation Plan
 
-> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md). Persistence is now covered by `tests/shared/persistence.test.js` (storage) and `tests/shared/persistenceApply.test.js` (`captureState`/`applyState` against a fake document).
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md). Persistence is now covered by `tests/shared/persistence.test.js` (storage) and `tests/shared/persistenceApply.test.js` (`captureState`/`applyState` against a fake document). The `lastSolution` wiring in the main.js steps below did not ship: `persist()` saves `blueprint.solution`, which may include `strategyTrace` (see the design schema).
 
 **Goal:** Persist solver inputs, the most recent solution, and view state to localStorage so a page refresh restores the user's exact prior state.
 

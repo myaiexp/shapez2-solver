@@ -31,7 +31,7 @@ One module — `persistence.js` — exporting:
 - `loadState()` — reads + parses localStorage; returns a state object or `null` on missing/invalid data (unparseable JSON, wrong `version`, missing `inputs`/`view`).
 - `saveState(state)` — serializes + writes to localStorage; swallows quota errors.
 - `clearState()` — removes the storage key; returns `true` iff the removal succeeded (storage errors are swallowed and return `false`). Used by Reset Saved State and the restore-failure path.
-- `captureState(runtime)` — reads the current DOM into a state object. `runtime` supplies what the DOM cannot: `currentSolution` (main.js's `lastSolution`) and `currentBlueprintFloor`.
+- `captureState(runtime)` — reads the current DOM into a state object. `runtime` supplies what the DOM cannot: `currentSolution` (`main.js` passes `blueprint.solution`) and `currentBlueprintFloor`.
 - `applyState(state)` — writes form fields, starting shapes, enabled ops, tabs and graph selects into the DOM and returns `{ solution, restoredFloor }`. It does not draw. `solution` is the persisted solve in the shape a live solve presents, or `null` when the path fails `isValidSolutionPath`. Starting-shape rows are rebuilt by `setStartingShapes` in `uiControls.js` (no injected deps). `main.js` then calls `presentSolution(solution)`, the same path as a live solve.
 - `isValidSolutionPath(path)` — structural check (non-empty operation name, input/output endpoints with a string shape and an id, `params.color` on colored ops) that `applyState` runs before a saved `solutionPath` reaches the renderers.
 - `STORAGE_KEY`, `SCHEMA_VERSION` — the key and version constants.
@@ -69,6 +69,13 @@ Storage key: `shapez2-solver-state-v1`. Single JSON blob:
     depth: number,
     statesExplored: number,
     solveTimeSec: string,            // raw `(elapsedMs/1000).toFixed(2)` value, e.g. "3.14" — no "s" suffix
+    strategyTrace?: {                // Constructive only; omitted on other methods
+      target: string,
+      method: string,
+      opCount: number,               // required on the root for the trace to survive restore
+      statesExplored?: number,
+      children: object[],            // nested nodes: target, method, children (opCount optional below the root)
+    },
   },
   view: {
     activeSidebarTab: 'shapes' | 'options',
@@ -80,7 +87,9 @@ Storage key: `shapez2-solver-state-v1`. Single JSON blob:
 }
 ```
 
-**Why store `solutionPath` and not the layout:** the layout is recomputable via `buildLayout(solutionPath)` + `duplicateForThroughput(layout, multiplier)`. Storing only `solutionPath` keeps the blob smaller and avoids breakage if the layout schema ever changes — old solutions still re-layout cleanly. The Cytoscape graph is rebuilt the same way (`renderGraph(solutionPath)`).
+**Why store `solutionPath` and not the layout:** the layout is recomputable via `buildLayout(solutionPath)` + `duplicateForThroughput(layout, multiplier)`. Storing the path instead of the layout keeps the blob smaller and avoids breakage if the layout schema ever changes — old solutions still re-layout cleanly. The Cytoscape graph is rebuilt the same way (`renderGraph(solutionPath)`).
+
+**Why store `strategyTrace`:** the Constructive status summary is derived from the trace, not from `solutionPath`. `captureState` writes `blueprint.solution` through unchanged, so a Constructive solve keeps its trace. On restore, `restorableSolution` keeps a valid trace and drops a corrupt one without rejecting the path (`tests/shared/persistenceApply.test.js`).
 
 **Why strings for numeric inputs:** mirrors what the form actually holds. Avoids `null`/`NaN` round-trip issues when an input is empty.
 

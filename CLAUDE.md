@@ -41,7 +41,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 
 ## Known Issues / Tech Debt
 
-- Blueprint layout bases every machine on floor 0; only the Stacker's second floor and belt lifts reach floor 1 — machines are never placed on upper floors
+- Machines are not given a non-zero origin floor (`placeRow` uses `floorRestriction ?? 0`, so Trash stays on the ground). A Stacker spans floor 1 and the router lifts belts onto that floor
 - Blueprint belt routing uses simple L-shaped paths, no obstacle avoidance — layout snapshots record `overlappingBeltTiles` (currently non-zero) and `beltsOverMachineFootprint` (0)
 - Building data footprints not fully verified against in-game values — [shapez-2-reference.md](docs/shapez-2-reference.md)
 - No linter configured (tests do exist — see [testing](docs/testing.md))

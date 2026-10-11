@@ -99,7 +99,7 @@ Factory layout follows a **row-based pipeline** pattern matching how players act
 4. **Belt Merge = collect** — outputs from all machines in a row merge onto a single belt
 5. **Connect rows sequentially** — merged output from row N feeds the split for row N+1
 6. **Orient machines** within each row side-by-side, all facing the same direction
-7. **Belt routing is simple** — mostly straight runs between rows. Crossings handled by launchers/catchers or belt lifts (obstacles are minimal in Shapez 2)
+7. **Belt routing is L-shaped** — horizontal first, then vertical, with no obstacle avoidance. A floor change inserts a lift tile pair. Launchers and catchers are not placed.
 
 ### Floor Assignment
 
@@ -111,7 +111,7 @@ Every machine's base tile sits on floor 0 (`floorRestriction` if set, else 0); t
 
 ### Tile Rendering
 - Fixed tile size (e.g., 32px), zoomable via mouse wheel
-- Tile types: empty, machine (with type icon + orientation arrow), belt (with direction), belt split/merge point, launcher/catcher pair, belt lift
+- Tile types: empty, machine (with type icon + orientation arrow), belt (with direction), belt split/merge point, belt lift
 - Machines spanning multiple tiles (Cutter = 2x1) occupy full footprint
 - Color-coded by machine type
 
@@ -166,6 +166,6 @@ See `docs/shapez-2-reference.md` for detailed building footprints, belt mechanic
 Key facts for the layout algorithm:
 - Belt Split is a belt mechanic, not a building. Used to distribute one belt to a row of machines.
 - Resources don't dry up — always deliver full belt from initial shapes to factories.
-- Belt crossings are trivial (launcher/catcher or belt lift over obstacles).
+- Belt crossings are not routed around: paths are L-shaped and may overlap. A floor change uses a belt lift. Launchers and catchers are an in-game mechanic this layout does not emit.
 - Trash is ground-floor only.
 - Stacker spans 2 floors (bottom input floor 0, top input floor 1).

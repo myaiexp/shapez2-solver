@@ -49,7 +49,7 @@ The factory builder needs a building catalog with footprint (width × depth), he
 
 Foundations connect to other foundations or space belts only at notches, which are 1×4 build areas on the edge of each space grid tile. Each platform type (1×1 = 16×16 tiles, 2×1 = 32×16, etc.) has a fixed number of notches. That determines how many belt lanes can enter/exit a platform.
 
-Belt launcher/catcher pairs (1–4 tile range) are the layout algorithm's way to route around obstacles vertically within a platform.
+This solver's layout does not place launcher/catcher pairs. Belts are L-shaped (`blueprintRouting.js`), and a floor change inserts a lift tile on each floor. Launchers and catchers stay an in-game 1–4 tile throw (see Belt mechanics); the layout and the blueprint exporter do not emit them.
 
 The notch system is the tightest constraint. Machines and belts inside a platform are relatively free-form, but shapes in and out are bottlenecked by those fixed 1×4 notch positions. Layout can work backwards from "how many inputs/outputs does this factory need" to "what platform size is required" before doing internal placement.
 
