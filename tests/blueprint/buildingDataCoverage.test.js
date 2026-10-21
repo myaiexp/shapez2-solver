@@ -8,6 +8,7 @@
 //
 // Run with: node tests/blueprint/buildingDataCoverage.test.js
 import { BUILDING_DATA } from '../../buildingData.js';
+import { MACHINE_COLORS, machineColor } from '../../blueprintColors.js';
 import { operations } from '../../shapeSolverOperations.js';
 
 let passed = 0;
@@ -151,6 +152,21 @@ for (const key of Object.keys(BUILDING_DATA)) {
 
 const nullKeys = Object.keys(BUILDING_DATA).filter(k => BUILDING_DATA[k] === null);
 check('Belt Split is the only null BUILDING_DATA entry', nullKeys, ['Belt Split']);
+
+// MACHINE_COLORS is a third hand-kept op table. A missing key does not drop
+// the machine — machineColor falls back to grey — so the layout still looks
+// plausible. Every placed building must have its own entry; Belt Split is not
+// placed, so it must not have one.
+const placedOps = Object.keys(BUILDING_DATA).filter(k => BUILDING_DATA[k] !== null);
+const colorKeys = Object.keys(MACHINE_COLORS).sort();
+check('MACHINE_COLORS keys are exactly the placed buildings',
+    colorKeys, [...placedOps].sort());
+for (const key of placedOps) {
+    check(`${key} machineColor is its table entry, not the grey fallback`,
+        machineColor(key), MACHINE_COLORS[key]);
+}
+check('Belt Split has no MACHINE_COLORS entry',
+    Object.hasOwn(MACHINE_COLORS, 'Belt Split'), false);
 
 for (const [key, def] of Object.entries(BUILDING_DATA)) {
     if (def === null) continue;
