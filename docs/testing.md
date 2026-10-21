@@ -40,7 +40,7 @@ Node only reports modules some test imports. `main.js`, `operationGraph.js` and 
 
 ## Headless solve/explore harness
 
-`node tests/shared/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter, with `--expect-solved` so a no-path result fails the gate) and one `--explore 2` so a signature change in the modules it wraps fails the gate. Without `--expect-solved` a miss still exits 0; an unknown `--` flag exits 2.
+`node tests/shared/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter, with `--expect-solved` so a no-path result fails the gate) and one `--explore 2` so a signature change in the modules it wraps fails the gate. Without `--expect-solved` a miss still exits 0. An unknown `--` flag exits 2, and so does an invalid target or starting shape (before any search). A shape code that starts with `--` (empty quadrants) is a target, not a flag.
 
 Flag set, methods, and defaults live in the usage header at the top of `tests/shared/solve.mjs` — read that rather than copying a subset here.
 

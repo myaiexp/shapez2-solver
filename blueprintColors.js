@@ -1,4 +1,4 @@
-const MACHINE_COLORS = {
+export const MACHINE_COLORS = {
     "Rotator CW":        "#4a90d9",
     "Rotator CCW":       "#4a90d9",
     "Rotator 180":       "#4a90d9",

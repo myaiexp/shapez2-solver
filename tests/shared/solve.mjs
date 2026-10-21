@@ -39,6 +39,9 @@
 // bookkeeping is unbuildable (one shape fed to two consumers), if the path
 // never actually produces the target, or (with --prevent-waste) if leftovers
 // are not all acceptable forms of the target. An unknown `--` flag exits 2.
+// A token that is itself a valid shape code is a positional target even when
+// it starts with `--` (empty quadrants); `--help` is not a shape, so it stays
+// an unknown flag. An invalid target or starting shape exits 2 before search.
 // `--expect-solved` also exits 1 when there is no path. A timeout stays 2.
 
 import { shapeSolver } from '../../shapeSolverCore.js';
@@ -47,6 +50,7 @@ import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
 import { validateStep, validateExplorerEdges, invalidPathIds, pathReachesTarget, pathInventoryAcceptable } from './pathValidation.js';
+import { validateShapeCode } from '../../shapeValidation.js';
 
 function parseArgs(argv) {
     const opts = { start: 'CuCuCuCu,RuRuRuRu,SuSuSuSu,WuWuWuWu', method: 'A*', maxLayers: 4, timeout: 20000, maxStates: 100000, nodeBudget: 4000, maxNodes: 100000 };
@@ -67,8 +71,14 @@ function parseArgs(argv) {
         else if (a === '--explore') opts.explore = parseInt(argv[++i]);
         else if (a === '--max-nodes') opts.maxNodes = parseInt(argv[++i]);
         else if (a.startsWith('--')) {
-            console.error(`unknown flag: ${a}`);
-            process.exit(2);
+            // Empty quadrants are a leading '--'. A token the shape validator
+            // accepts is a target, not a flag; anything else is an unknown flag
+            // (`--help` included — it is not a shape code).
+            if (validateShapeCode(a).isValid) positional.push(a);
+            else {
+                console.error(`unknown flag: ${a}`);
+                process.exit(2);
+            }
         }
         else positional.push(a);
     }
@@ -84,6 +94,21 @@ function parseArgs(argv) {
 
 const opts = parseArgs(process.argv.slice(2));
 const starting = opts.start.split(',').map(s => s.trim()).filter(Boolean);
+
+for (const code of starting) {
+    const verdict = validateShapeCode(code);
+    if (!verdict.isValid) {
+        console.error(`invalid starting shape ${code}: ${verdict.errors[0]}`);
+        process.exit(2);
+    }
+}
+if (opts.target) {
+    const verdict = validateShapeCode(opts.target);
+    if (!verdict.isValid) {
+        console.error(`invalid target ${opts.target}: ${verdict.errors[0]}`);
+        process.exit(2);
+    }
+}
 const ops = opts.ops ? opts.ops.split(',').map(s => s.trim()) : Object.keys(operations);
 // Validate every step under the same layer cap this run solved with.
 const opConfig = new ShapeOperationConfig(opts.maxLayers);

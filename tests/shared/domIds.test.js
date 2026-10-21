@@ -40,5 +40,19 @@ check('scanned the root scripts', files.length > 0);
 check('found literal DOM lookups', seen.size > 0, `matched ${seen.size}`);
 check('every literal DOM id exists in index.html', missing.length === 0, missing.join(', '));
 
+// Repeated ids make getElementById ambiguous. separator and the input row are
+// styling hooks, so they have to be classes — one id per element.
+const idList = [...page.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+const dupes = [...new Set(idList.filter((id, i) => idList.indexOf(id) !== i))];
+check('index.html ids are unique', dupes.length === 0, dupes.join(', '));
+
+const css = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+check('separator styling hook is a class',
+    page.includes('class="separator"') && !page.includes('id="separator"')
+        && css.includes('.separator') && !css.includes('#separator'));
+check('input-row styling hook is a class',
+    page.includes('class="input-button-container"') && !page.includes('id="input-button-container"')
+        && css.includes('.input-button-container') && !css.includes('#input-button-container'));
+
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);
