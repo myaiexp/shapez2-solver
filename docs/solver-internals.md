@@ -49,3 +49,7 @@ Abort reasons (all mapped in `constructiveResult`, `shapeSolverFlatten.js`; a ca
 - `{ aborted: 'path-invalid' }` — flatten yields a path whose final inventory lacks the target (assembly/id bug, not a missing split)
 
 Final-inventory predicates (`pathReachesTarget`, `pathInventoryAcceptable`, `acceptableCodes`, unused-start multiset) live in production `pathInventory.js` (shared with the harness gate) so preventWaste scrub and CI stay lockstep.
+
+## Intentional limits
+
+**Paint is free.** The solver treats every paintable color as an input the Painter can apply. It does not model the Color Mixer, or the steps that produce a fluid (white+white → black, and the rest of the 1.0 mixing table). Mixing is upstream of the shape recipe: counting mixer steps would change the cost model and the operation set without changing which shapes are reachable. A blueprint therefore understates factory cost for a derived color, on purpose.
