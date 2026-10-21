@@ -35,6 +35,34 @@ function run(args) {
 }
 
 {
+    const res = run(['not-a-shape', '--json', '--max-states', '30', '--timeout', '5000']);
+    check('invalid target exits 2 before a search', res.status === 2, `status=${res.status} out=${res.stdout} err=${res.stderr}`);
+    check('invalid target names the code on stderr', (res.stderr || '').includes('invalid target not-a-shape'));
+    check('invalid target does not print a solve result', !(res.stdout || '').includes('solved'));
+}
+
+{
+    const res = run(['CuCuCuCu', '--start', 'CuCuCuCu,nope', '--json', '--max-states', '30', '--timeout', '5000']);
+    check('invalid starting shape exits 2', res.status === 2, `status=${res.status} err=${res.stderr}`);
+    check('invalid starting shape names the code', (res.stderr || '').includes('invalid starting shape nope'));
+}
+
+{
+    // A real shape code can start with '--' (empty quadrants). That must stay a
+    // target, not an unknown flag — the rejection of --help must not swallow it.
+    const res = run([
+        '--CuCu--:RuRu----', '--start', 'CuCuCuCu,RuRuRuRu',
+        '--ops', 'Cutter,Stacker', '--json', '--max-states', '50', '--timeout', '8000',
+    ]);
+    check('a shape code that starts with -- is not an unknown flag',
+        res.status !== 2 || !(res.stderr || '').includes('unknown flag'),
+        `status=${res.status} err=${res.stderr}`);
+    check('that shape reaches the solver (json result)',
+        (res.stdout || '').includes('"solved"'),
+        `out=${res.stdout} err=${res.stderr}`);
+}
+
+{
     const res = run(['--not-a-real-flag']);
     check('any other unknown -- flag exits 2', res.status === 2, `status=${res.status}`);
 }
