@@ -26,25 +26,25 @@
         <div id="shapes-content" class="tab-content active">
             <h2>Target Shape</h2>
             <p>A specific shape you want the solver to make. This will try to find a valid production chain and will show it as a hierarchical graph.</p>
-            <div id="input-button-container">
+            <div class="input-button-container">
                 <input type="text" id="target-shape" placeholder="Shape Code">
                 <button id="solve-btn">Solve</button>
             </div>
 
-            <div id="separator"></div>
+            <div class="separator"></div>
 
             <h2>Shape Explorer</h2>
             <p>Choose a depth to explore all shapes that can be created within that many operation steps from the starting set. This produces a 3D graph of the entire transformation space.</p>
-            <div id="input-button-container">
+            <div class="input-button-container">
                 <input type="number" id="depth-limit-input" placeholder="Depth" min="1">
                 <button id="explore-btn">Explore</button>
             </div>
 
-            <div id="separator"></div>
+            <div class="separator"></div>
             
             <h2>Starting Shapes</h2>
             <p>Shapes to start from. You can add the same shape multiple times.</p>
-            <div id="input-button-container">
+            <div class="input-button-container">
                 <input type="text" id="new-shape-input" placeholder="Shape Code">
                 <button id="add-shape-btn">+</button>
             </div>
@@ -78,7 +78,7 @@
                 </div>
             </div>
 
-            <div id="separator"></div>
+            <div class="separator"></div>
 
             <h2>Solver Options</h2>
             <p>Options specific to the solver. This will not affect the shape explorer.</p>
@@ -149,7 +149,7 @@
                 <p class="option-desc">Duplicate processing machines in the blueprint layout for higher throughput. Adds splitters and mergers automatically.</p>
             </div>
 
-            <div id="separator"></div>
+            <div class="separator"></div>
 
             <h2>Shape Options</h2>
 
@@ -169,7 +169,7 @@
                 <p class="option-desc">Choose how you want colors to be displayed on shapes.</p>
             </div>
 
-            <div id="separator"></div>
+            <div class="separator"></div>
 
             <h2>Saved State</h2>
             <p class="option-desc">Clear inputs, options, and the last solution restored from this browser, then reload defaults.</p>
