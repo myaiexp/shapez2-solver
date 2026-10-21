@@ -53,3 +53,5 @@ Final-inventory predicates (`pathReachesTarget`, `pathInventoryAcceptable`, `acc
 ## Intentional limits
 
 **Paint is free.** The solver treats every paintable color as an input the Painter can apply. It does not model the Color Mixer, or the steps that produce a fluid (white+white → black, and the rest of the 1.0 mixing table). Mixing is upstream of the shape recipe: counting mixer steps would change the cost model and the operation set without changing which shapes are reachable. A blueprint therefore understates factory cost for a derived color, on purpose.
+
+**Refined X/Y are starting shapes.** X and Y are unpaintable (`UNPAINTABLE_SHAPES` in `shapeClass.js`) and the operation table has no Trade Station. A colored exotic (for example `Xr`) is solvable only when that exact shape is supplied as a start. Structural ops already treat X/Y as ordinary solid parts. A refine pseudo-op is not a shape operation: a Trade Station's output is an economic choice, not a function of its inputs.
