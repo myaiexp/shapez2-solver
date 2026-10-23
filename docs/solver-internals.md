@@ -22,6 +22,10 @@ On the global cap the search aborts gracefully with `{ aborted: 'maxStates' }`. 
 
 The worker dispatches `searchMethod==='Constructive'` to `solveConstructive` (core never imports the planner → no cycle), reusing the shared budget input (`maxStatesPerLevel` for BFS, relabelled "Node Search Budget" and sent as `nodeBudget` for Constructive) — not the global `maxStates` ceiling, which the browser leaves uncapped.
 
+## Belt Split in forward search
+
+The state is a multiset of shape codes, so a Belt Split adds one more copy of a held code (`expandBeltSplit`, `shapeSolverExpansion.js`, idea #4716). This is what makes same-shape stacks like `CuCuCuCu:CuCuCuCu` from one `CuCuCuCu` start reachable. The split is refused once the state would hold more than `maxLayers` copies of that code: no stack uses more copies of one shape than it has layers, and an uncapped split would multiply the frontier. The space explorer does not draw splits, because its nodes are distinct codes and a split would be a self-loop.
+
 ## Space-explorer bounds
 
 The explorer's BFS re-applies every enabled op across the whole frontier each level, so the graph grows multiplicatively with depth: at the UI defaults (4 starts, all ops) depth 2 is 2052 shapes + 2846 ops, while uncapped depth 3 runs through gigabytes of heap without finishing. `exploreDepth.js` holds two bounds:

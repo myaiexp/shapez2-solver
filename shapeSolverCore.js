@@ -9,7 +9,7 @@ import {
 } from './shapeSolverCache.js';
 import { buildBackwardReachability } from './shapeSolverBackward.js';
 import { operations } from './shapeSolverOperations.js';
-import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
+import { expandUnaryOp, expandBinaryOp, expandBeltSplit } from './shapeSolverExpansion.js';
 import { acceptableCodes } from './pathInventory.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
@@ -290,6 +290,10 @@ export async function shapeSolver(
 
     function* generateSuccessors(availableIds) {
         const referenceCodes = Array.from(availableIds).map(id => shapeCodesById.get(id));
+        const heldCounts = new Map();
+        for (const code of referenceCodes) heldCounts.set(code, (heldCounts.get(code) || 0) + 1);
+        // Two ids holding one code split into the same successor state.
+        const splitCodes = new Set();
 
         for (const opName of enabledOperations) {
             if (shouldCancel()) return;
@@ -306,6 +310,14 @@ export async function shapeSolver(
                         if (preventWaste && !acceptable.has(inputCode)) {
                             yield { type: opName, inputIds: [id], outputCodes: [], color: null };
                         }
+                        continue;
+                    }
+
+                    if (opName === 'Belt Split') {
+                        if (splitCodes.has(inputCode)) continue;
+                        splitCodes.add(inputCode);
+                        const desc = expandBeltSplit(id, inputCode, heldCounts.get(inputCode), maxLayers);
+                        if (desc) yield desc;
                         continue;
                     }
 

@@ -61,6 +61,16 @@ export const SOLVER_FIXTURES = [
         ...baseSolverParams,
     },
     {
+        // Same-shape stack from one start: the Stacker's second input is a
+        // Belt Split copy, so this pins that forward search proposes the split.
+        name: 'split-stack-same-shape',
+        target: 'CuCuCuCu:CuCuCuCu',
+        starting: ['CuCuCuCu'],
+        ops: ['Belt Split', 'Stacker'],
+        method: 'A*',
+        ...baseSolverParams,
+    },
+    {
         name: 'paint-astar',
         target: 'CrCrCrCr',
         starting: ['CuCuCuCu'],

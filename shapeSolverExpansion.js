@@ -3,7 +3,8 @@ import { getPaintColors, getCrystalColors } from './shapeColorAnalysis.js';
 import {
     getCachedUnaryResult,
     getCachedColoredUnaryResult,
-    getCachedBinaryResult
+    getCachedBinaryResult,
+    getCachedShape
 } from './shapeSolverCache.js';
 import { isLeftHalfEmptyShape, isRightHalfEmptyShape } from './shapeHalfGeometry.js';
 
@@ -20,6 +21,18 @@ export function buildSingleInputDescriptor(opName, id, inputCode, outputs, color
     return outputCodes.length > 0
         ? { type: opName, inputIds: [id], outputCodes, color }
         : null;
+}
+
+// Belt Split copies a shape, so both outputs equal the input and
+// buildSingleInputDescriptor would drop them; the solver's state is a multiset,
+// so a split instead raises that code's count by one. `heldCount` is how many
+// copies of inputCode the state holds now. The count may not pass `maxCopies`
+// (the solver passes maxLayers): no stack uses more copies of one shape than it
+// has layers, and an unbounded split would multiply the frontier.
+export function expandBeltSplit(id, inputCode, heldCount, maxCopies) {
+    if (heldCount + 1 > maxCopies) return null;
+    if (getCachedShape(inputCode).isEmpty()) return null;
+    return { type: 'Belt Split', inputIds: [id], outputCodes: [inputCode, inputCode], color: null };
 }
 
 // Build a two-input successor descriptor. Returns null on no-op or empty outputs.

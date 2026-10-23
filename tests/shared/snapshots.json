@@ -172,5 +172,9 @@
     "shapeCount": 2,
     "opCount": 1,
     "edgeCount": 2
+  },
+  "Solver: split-stack-same-shape": {
+    "numOps": 2,
+    "depth": 2
   }
 }
