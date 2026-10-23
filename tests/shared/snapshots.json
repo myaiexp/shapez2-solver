@@ -153,8 +153,8 @@
     "floorCount": 2
   },
   "Solver: cut-stack-ida": {
-    "numOps": 3,
-    "depth": 3
+    "numOps": 5,
+    "depth": 5
   },
   "Solver: pin-pusher-bfs": {
     "numOps": 1,

@@ -48,7 +48,7 @@ Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/page
 - A\* coverage heuristic is intentionally inadmissible (weighted A\*); paths aren't guaranteed shortest — [solver internals](docs/solver-internals.md)
 - Three distinct search budgets (`maxStates`, `maxStatesPerLevel`, `nodeBudget`) — the browser leaves the global ceiling uncapped; do not call the shared input "Max States". Details: [solver internals](docs/solver-internals.md)
 - Space explorer graphs stop at a 6000-node cap (`aborted: 'maxNodes'`; the last level is partial), so default-ops explores past depth 2 are truncated; UI depth is clamped to 1–8 — [solver internals](docs/solver-internals.md)
-- Multi-distinct-quadrant targets (`CuRuSuWu` and kin) are not found by forward search at any reasonable cap; **Constructive** decomposes and assembles them. Scope, abort codes, inventory rules: [solver internals](docs/solver-internals.md). Design: [2026-06-11](docs/plans/2026-06-11-recursive-decompose-search-design.md)
+- Mixed multi-layer multi-quadrant targets (`CuRuSuWu:WuSuRuCu` and kin) are not found by forward search at any reasonable cap; **Constructive** decomposes and assembles them. Single-layer `CuRuSuWu` is found by A\*. Scope, abort codes, inventory rules: [solver internals](docs/solver-internals.md). Design: [2026-06-11](docs/plans/2026-06-11-recursive-decompose-search-design.md)
 - Forked originally from another solver repo; added A\* search and visual improvements
 
 ## Conventions

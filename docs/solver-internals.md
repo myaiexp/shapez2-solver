@@ -4,7 +4,18 @@ Search methods, budgets, the space-explorer bound, and the Constructive planner.
 
 ## A\* coverage heuristic
 
-Solver A\* uses a per-slot **clean sub-shape coverage** heuristic (`getHeuristic`/`_matchAndCoverage` in `shapeSolverCore.js`, idea #1677): each target (layer, quadrant) is scored by the cheapest way any held shape can supply it (0 if a clean piece already covers it, up to 3 to isolate, 4 to fabricate), summed, plus a stack-to-merge term. `heuristicDivisor` (default 0.1) then weights it (weighted A\*, W = 1/divisor), so it's intentionally inadmissible for speed and paths aren't guaranteed shortest — use a larger divisor or BFS for more optimal/bounded search.
+Solver A\* uses a per-slot **clean sub-shape coverage** heuristic (`createCoverageHeuristic` in `shapeSolverHeuristic.js`, idea #1677): each target (layer, quadrant) is scored by the cheapest way any held shape can supply it (0 if a clean piece already covers it, up to 3 to isolate, 4 to fabricate), summed, plus the stacks still needed. `heuristicDivisor` (default 0.1) then weights it (weighted A\*, W = 1/divisor), so it's intentionally inadmissible for speed and paths aren't guaranteed shortest — use a larger divisor or BFS for more optimal/bounded search.
+
+Idea #6540 fixed four ways the estimate rewarded the wrong moves. The why for each is in the module header:
+
+- An orientation-insensitive goal is scored against each target rotation separately, and the cheapest is taken. Held pieces must agree on one rotation of the target.
+- A piece held in the wrong rotation costs 1 more.
+- A shape matches at any layer offset, because a Stacker lifts it there. This stops Pin Pusher looking like progress.
+- The stack term counts only the clean pieces a greedy cover needs, so merging spare copies is not progress either.
+
+## State key
+
+A search state is the multiset of held shape codes, **exact** — rotations are never folded together, even when orientation-insensitive. Cutter, Half Destroyer and Swapper act on a fixed axis, and Stacker depends on the inputs' relative rotation, so a rotated shape builds different things. Folding rotations (the old per-shape canonicalization) made every Rotator step revisit its parent state, which left `Cu------` unreachable from `CuCuCuCu` and capped the default-start solves (idea #6540). Orientation-insensitivity lives only in the goal check (`acceptableCodes`).
 
 ## Three budgets
 
@@ -37,7 +48,7 @@ The BFS posts `Exploring depth d/N...` at each level and every ~100 ms within on
 
 ## Constructive method
 
-Multi-distinct-quadrant targets are **not** found by forward search at any reasonable cap. Reachable, genuinely simple targets like `CuRuSuWu` (one quadrant cut from each of the four default starts, then stacked, ~15 ops) miss A\*/BFS/IDA\*/Bidirectional because of **frontier width / state multiplicity near the goal** — thousands of near-equivalent partial assemblies over the multiset-of-shapes state space. The coverage heuristic improved the gradient but did not breach this structural limit.
+Since idea #6540, forward A\* finds single-layer four-quadrant targets from the default starts: `CuRuSuWu` takes 12 ops and about 4.5k states. Mixed multi-layer targets (`CuRuSuWu:WuSuRuCu`, three-layer patterns) still exceed 100k states. The cause is **frontier width**: thousands of near-equivalent partial assemblies in the multiset-of-shapes state space.
 
 The **Constructive** method (`shapeSolverConstructive.js` planner + `shapeSolverDecompose.js` splits/cost + `shapeSolverFlatten.js` Plan-tree → path and result) tries the bounded core A\* first at every node (so clever shortcuts like `CuCuRuRu`→1 Swapper are preserved), and only on a cap does it split the target (by-quadrant / by-half / by-layer), recurse on the pieces, and pick the cheapest assembled plan by reuse-credited op count (decomposition depth as tie-break).
 

@@ -1,5 +1,4 @@
-import { ShapeOperationConfig, NOTHING_CHAR } from './shapeClass.js';
-import { getAllRotations } from './shapeRotation.js';
+import { ShapeOperationConfig } from './shapeClass.js';
 import { getCrystalColors } from './shapeColorAnalysis.js';
 import { PriorityQueue } from './shapeSolverPriorityQueue.js';
 import {
@@ -11,6 +10,7 @@ import { buildBackwardReachability } from './shapeSolverBackward.js';
 import { operations } from './shapeSolverOperations.js';
 import { expandUnaryOp, expandBinaryOp, expandBeltSplit } from './shapeSolverExpansion.js';
 import { acceptableCodes } from './pathInventory.js';
+import { createCoverageHeuristic } from './shapeSolverHeuristic.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
 // precompute outward from the target before the forward A* runs. 4 trades map
@@ -79,114 +79,13 @@ export async function shapeSolver(
         nextId++;
     }
 
-    // ---------------------------------------------------------------------------
-    // Clean sub-shape coverage heuristic (idea #1677)
-    // ---------------------------------------------------------------------------
-    // Similarity-to-target was a poor guide for ASSEMBLY targets, in two ways:
-    //   1. A single building-block quadrant (e.g. Cu------) scored the SAME as the
-    //      uniform start it came from (CuCuCuCu), so cutting toward the right piece
-    //      showed zero progress.
-    //   2. Taking the max similarity over available shapes gave NO credit for holding
-    //      several complementary pieces at once, so assembling the 2nd/3rd/4th
-    //      quadrant in parallel sat on a flat plateau — across which A* degenerates to
-    //      brute BFS and floods the state cap before it can stack them together.
-    //
-    // Instead we score each target SLOT independently by how close any held shape is to
-    // cleanly providing it, then sum — so progress on the 2nd/3rd/4th quadrant counts
-    // even while it is still being cut, leaving no plateau for the frontier to flood.
-    // Per shape, over rotations, we compute:
-    //   • slotCost: for each target (layer,quadrant) the shape can fill with the right
-    //     part, the rough ops to ISOLATE that part = conflicts (its other filled slots
-    //     that do not match the target), capped at 3. 0 when the shape is already a
-    //     clean sub-shape. So CuCuCuCu (3 conflicts) → 3, CuCu---- (1) → 1, Cu------ → 0.
-    //   • cleanSlots: target slots covered when the shape is a fully clean sub-shape
-    //     (no conflicts) — a piece that can be stacked straight in. [] otherwise.
-    // Colour is ignored: a wrong colour is one cheap Painter op, whereas STRUCTURE is
-    // what the search cannot assemble.
-    function _matchAndCoverage(shape) {
-        const rotShapes = orientationSensitive
-            ? [shape]
-            : Array.from(getAllRotations(shape, config)).map(getCachedShape);
-        let bestClean = [];
-        const slotCost = new Map();  // "l:q" -> min isolate-cost this shape offers
-        for (const r of rotShapes) {
-            let filled = 0;
-            const matched = [];
-            for (let l = 0; l < r.numLayers; l++) {
-                const rl = r.layers[l], tl = target.layers[l];
-                const len = Math.max(rl ? rl.length : 0, tl ? tl.length : 0);
-                for (let q = 0; q < len; q++) {
-                    const rp = rl && rl[q], tp = tl && tl[q];
-                    if (!rp || rp.shape === NOTHING_CHAR) continue;
-                    filled++;
-                    if (tp && tp.shape === rp.shape) matched.push(l + ':' + q);
-                }
-            }
-            const conflicts = filled - matched.length;
-            const cost = Math.min(3, conflicts);
-            for (const key of matched) {
-                const prev = slotCost.get(key);
-                if (prev === undefined || cost < prev) slotCost.set(key, cost);
-            }
-            if (conflicts === 0 && matched.length > bestClean.length) bestClean = matched;
-        }
-        return { cleanSlots: bestClean, slotCost };
-    }
-
-    const matchCache = new Map();
-    function getCachedMatch(shapeCode) {
-        let m = matchCache.get(shapeCode);
-        if (m !== undefined) return m;
-        m = _matchAndCoverage(getCachedShape(shapeCode));
-        matchCache.set(shapeCode, m);
-        return m;
-    }
-
-    // All target slot keys, for the per-slot cost sum below.
-    const targetSlotKeys = [];
-    for (let l = 0; l < target.numLayers; l++) {
-        for (let q = 0; q < target.layers[l].length; q++) {
-            if (target.layers[l][q].shape !== NOTHING_CHAR) targetSlotKeys.push(l + ':' + q);
-        }
-    }
-
-    // Estimated ops remaining, in real op-units: for each target slot, the cheapest way
-    // any held shape can supply it (0 if a clean piece already covers it, up to 3 to
-    // isolate, 4 to fabricate from scratch); plus 1 stack to merge each clean piece
-    // beyond the first; plus 1 stack per still-missing layer. heuristicDivisor then
-    // weights this estimate (weighted A*, W = 1/divisor; default 0.1 → 10×) so h
-    // dominates g and the search descends the gradient greedily — essential at this
-    // branching factor, where a near-admissible h explores far too broadly.
+    const coverageHeuristic = createCoverageHeuristic({
+        target, config, orientationSensitive, preventWaste, heuristicDivisor,
+    });
     function getHeuristic(availableIds) {
-        if (availableIds.size === 0) return Infinity;
-
-        const slotMin = new Map();  // target slot -> cheapest supply cost across held shapes
-        let cleanPieces = 0;
-        let maxLayerCount = 0;
-
-        for (const id of availableIds) {
-            const code = shapeCodesById.get(id);
-            const shape = getCachedShape(code);
-            if (shape.numLayers > maxLayerCount) maxLayerCount = shape.numLayers;
-            const m = getCachedMatch(code);
-            if (m.cleanSlots.length > 0) cleanPieces++;
-            for (const [key, cost] of m.slotCost) {
-                const prev = slotMin.get(key);
-                if (prev === undefined || cost < prev) slotMin.set(key, cost);
-            }
-        }
-
-        let h = Math.max(0, cleanPieces - 1) + Math.max(0, target.numLayers - maxLayerCount);
-        for (const key of targetSlotKeys) {
-            const c = slotMin.get(key);
-            h += (c === undefined) ? 4 : c;  // 4 = no held shape has this part at all
-        }
-
-        if (preventWaste && availableIds.size > 1) {
-            h += (availableIds.size - 1);  // At least 1 op per extra to incorporate/trash
-        }
-
-        return Math.ceil(h / heuristicDivisor);
+        const codes = [];
+        for (const id of availableIds) codes.push(shapeCodesById.get(id));
+        return coverageHeuristic(codes);
     }
 
     // State score for BFS beam pruning: higher is kept. Uses the same coverage signal
@@ -196,28 +95,18 @@ export async function shapeSolver(
         return -getHeuristic(availableIds);
     }
 
-    // ---------------------------------------------------------------------------
-    // Symmetry Canonicalization
-    // ---------------------------------------------------------------------------
-    const canonicalCache = new Map();
-
-    function getCanonicalCode(shapeCode) {
-        if (orientationSensitive) return shapeCode;
-        let canonical = canonicalCache.get(shapeCode);
-        if (canonical) return canonical;
-        const rotations = getAllRotations(getCachedShape(shapeCode), config);
-        canonical = Array.from(rotations).sort()[0];
-        canonicalCache.set(shapeCode, canonical);
-        return canonical;
-    }
-
-    // Build a state key (multiset of canonical codes) from raw codes — the visited
+    // Build a state key (multiset of exact codes) from raw codes — the visited
     // check is order-independent, so two states with the same shapes match.
+    // Codes are NOT folded to a canonical rotation, even when orientation-
+    // insensitive: Cutter, Half Destroyer and Swapper act on a fixed axis and
+    // Stacker on the inputs' relative rotation, so a rotated shape can build
+    // different things. Folding rotations made every Rotator step a revisit of
+    // its parent state, which left Cu------ unreachable from CuCuCuCu (idea
+    // #6540). Orientation-insensitivity belongs to the goal check (`acceptable`).
     function stateKeyFromCodes(codes) {
         const countMap = {};
         for (const code of codes) {
-            const canon = getCanonicalCode(code);
-            countMap[canon] = (countMap[canon] || 0) + 1;
+            countMap[code] = (countMap[code] || 0) + 1;
         }
         // Sorted "code:count" multiset, joined with '|'. Shape codes contain no
         // digits, so the trailing :<count> is always unambiguous, and '|' never

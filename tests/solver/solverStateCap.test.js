@@ -1,7 +1,7 @@
 // Unit tests for the solver's maxStates cap (idea #1675) — run with:
 //   node tests/solver/solverStateCap.test.js
 //
-// Hard targets (e.g. alternating quadrants CuRuCuRu) have an effectively
+// Hard targets (e.g. the three-layer CuRuSuCu:SuCuRuSu:RuSuCuRu) have an effectively
 // unbounded state space. Before the cap the search OOM'd the process; now it
 // aborts gracefully once `maxStates` distinct states are discovered. These tests
 // use a TINY cap so they are bounded-by-construction and safe to run — they never
@@ -41,8 +41,11 @@ const CAP = 2000;
 // Branching-factor headroom only (one expansion / a few successors), not a
 // full frontier of runaway growth.
 const CAP_SLOP = 256;
+// CuRuCuRu was the hard target until the search kept rotations distinct (#6540);
+// IDA* now solves it inside this cap.
+const HARD_TARGET = 'CuRuSuCu:SuCuRuSu:RuSuCuRu';
 for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
-    const res = await shapeSolver('CuRuCuRu', STARTS, ALL_OPS, {
+    const res = await shapeSolver(HARD_TARGET, STARTS, ALL_OPS, {
         maxLayers: 4, maxStatesPerLevel: 1000,
         searchMethod: method, shouldCancel: noCancel, onProgress: noop, maxStates: CAP,
     });

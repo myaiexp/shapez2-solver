@@ -57,44 +57,44 @@ async function astar(heuristicDivisor) {
 }
 
 const beam1 = await bfs(1);
-const beam2 = await bfs(2);
+const beam3 = await bfs(3);
 const beamWide = await bfs(1000);
 
 check('beam 1 still returns a valid path', valid(beam1));
-check('beam 2 returns a valid path', valid(beam2));
+check('beam 3 returns a valid path', valid(beam3));
 check('unpruned beam returns a valid path', valid(beamWide));
 
-// Beam 1 is narrow enough to drop the depth-2 assembly and keep searching;
+// Beams 1 and 2 are narrow enough to drop the depth-2 assembly and keep searching;
 // a no-op prune would also find the 2-op path and this assertion would fail.
 check('beam 1 path is 3 ops / depth 3 (prune is live)',
     beam1.solutionPath?.length === 3 && beam1.depth === 3,
     `ops=${beam1.solutionPath?.length} depth=${beam1.depth}`);
-check('beam 2 path is 2 ops / depth 2',
-    beam2.solutionPath?.length === 2 && beam2.depth === 2,
-    `ops=${beam2.solutionPath?.length} depth=${beam2.depth}`);
+check('beam 3 path is 2 ops / depth 2',
+    beam3.solutionPath?.length === 2 && beam3.depth === 2,
+    `ops=${beam3.solutionPath?.length} depth=${beam3.depth}`);
 check('unpruned beam path is 2 ops / depth 2',
     beamWide.solutionPath?.length === 2 && beamWide.depth === 2,
     `ops=${beamWide.solutionPath?.length} depth=${beamWide.depth}`);
 
 check('wider beam never returns a longer BFS path than a narrower one',
-    beam2.solutionPath.length <= beam1.solutionPath.length
-    && beamWide.solutionPath.length <= beam2.solutionPath.length);
+    beam3.solutionPath.length <= beam1.solutionPath.length
+    && beamWide.solutionPath.length <= beam3.solutionPath.length);
 
-// Beam 1 can visit *more* states than beam 2 because it goes a level deeper.
+// Beam 1 can visit *more* states than beam 3 because it goes a level deeper.
 // Among beams that find the same-length path, a wider beam is non-decreasing.
-check('statesExplored is non-decreasing from beam 2 to unpruned',
-    typeof beam2.statesExplored === 'number'
+check('statesExplored is non-decreasing from beam 3 to unpruned',
+    typeof beam3.statesExplored === 'number'
     && typeof beamWide.statesExplored === 'number'
-    && beamWide.statesExplored >= beam2.statesExplored,
-    `beam2=${beam2.statesExplored} wide=${beamWide.statesExplored}`);
+    && beamWide.statesExplored >= beam3.statesExplored,
+    `beam3=${beam3.statesExplored} wide=${beamWide.statesExplored}`);
 
 const greedy = await astar(0.1);
-const bounded = await astar(10);
+const bounded = await astar(100);
 
 check('default heuristicDivisor still solves', valid(greedy));
 check('larger heuristicDivisor still solves', valid(bounded));
 // Default 0.1 is weighted A* (W=10) and takes the 3-op greedy path; divisor
-// 10 is close to g-only and finds the 2-op path. A no-op divisor would keep
+// 100 is close to g-only and finds the 2-op path. A no-op divisor would keep
 // both at 3 ops.
 check('default divisor takes the 3-op greedy path',
     greedy.solutionPath?.length === 3,

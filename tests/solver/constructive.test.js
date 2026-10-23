@@ -145,8 +145,11 @@ async function run() {
         assert('CuRu----:CuRu---- builds the shared piece once (not twice)',
             r.solutionPath.filter((s) => s.operation === 'Stacker').length === 2);
     }
+    // A tiny nodeBudget caps the top-level direct search so the planner
+    // decomposes: at the default budget direct search finds Belt Split + Stacker
+    // itself and never reaches flatten's second-feed path.
     {
-        const r = await solveConstructive('CuCuCuCu:CuCuCuCu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
+        const r = await solveConstructive('CuCuCuCu:CuCuCuCu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4, nodeBudget: 10 });
         assert('CuCuCuCu:CuCuCuCu solved', !!r.solutionPath);
         assertPathIsBuildable('CuCuCuCu:CuCuCuCu', r.solutionPath, 'CuCuCuCu:CuCuCuCu');
         assert('CuCuCuCu:CuCuCuCu draws a second feed instead of splitting a belt',
