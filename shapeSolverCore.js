@@ -18,6 +18,18 @@ import { createCoverageHeuristic } from './shapeSolverHeuristic.js';
 // rather than user-tunable and intentionally independent of maxLayers.
 const BIDIRECTIONAL_BACKWARD_DEPTH = 4;
 
+// IDA*'s weighted threshold returns a first goal far longer than needed (68 ops
+// for a 1-op Swapper target), so the pass keeps searching for a shorter one. The
+// browser leaves maxStates uncapped and Cancel discards the path, so that search
+// must end on its own: it stops once the distinct-state count passes
+// IDA_STALL_FACTOR × the count at the last improvement (at least
+// IDA_STALL_FLOOR). Measured improvement gaps were under 3× bar one 3.15× on
+// CuRuSuWu; the floor covers small searches, where Cu------ goes from 19 ops at
+// 67 states to 18 at 704. A budget tied to the first goal's cost instead cut the
+// two-start CuRuCuRu search off at 41 ops; it exhausts by itself at 8.
+const IDA_STALL_FACTOR = 3;
+const IDA_STALL_FLOOR = 5000;
+
 // ---------------------------------------------------------------------------
 // Main solver
 // ---------------------------------------------------------------------------
@@ -82,10 +94,13 @@ export async function shapeSolver(
     const coverageHeuristic = createCoverageHeuristic({
         target, config, orientationSensitive, preventWaste, heuristicDivisor,
     });
-    function getHeuristic(availableIds) {
+    function heldCodes(availableIds) {
         const codes = [];
         for (const id of availableIds) codes.push(shapeCodesById.get(id));
-        return coverageHeuristic(codes);
+        return codes;
+    }
+    function getHeuristic(availableIds) {
+        return coverageHeuristic(heldCodes(availableIds));
     }
 
     // State score for BFS beam pruning: higher is kept. Uses the same coverage signal
@@ -346,9 +361,9 @@ export async function shapeSolver(
     // reaches the cap. Two things keep it bounded:
     //   • bestG, a per-pass transposition table (state key -> lowest g pushed this
     //     pass): a successor reached again at g >= its best is skipped, because its
-    //     subtree was already searched with at least as much threshold budget. This
-    //     does not change which goal is found first — a skipped subtree was already
-    //     searched without finding one.
+    //     subtree was already searched with at least as much threshold budget and a
+    //     bound no tighter than the current one, so it holds no goal the current
+    //     bound would keep.
     //   • popped frames delete their output ids from shapeCodesById, so the id
     //     registry holds only the current stack's shapes, not every push ever made.
     async function runIdaStar() {
@@ -387,13 +402,18 @@ export async function shapeSolver(
             };
 
             let nextThreshold = Infinity;
-            let found = false;
             let aborted = false;
+            // Shortest goal path found this pass. The weighted threshold sits far
+            // above the true depth, so the first goal DFS reaches is often several
+            // times too long; after one is found the pass keeps going (branch and
+            // bound against its length) until it exhausts or stalls (stallLimit).
             let solutionPath = null;
+            let stallLimit = Infinity;
 
             while (stack.length > 0 && !shouldCancel()) {
                 // Same top-of-loop check as A* (costSoFar.size) / BFS (visited.size).
                 if (distinctStates.size > maxStates) { aborted = true; break; }
+                if (distinctStates.size > stallLimit) break;
 
                 const frame = stack[stack.length - 1];
 
@@ -413,13 +433,35 @@ export async function shapeSolver(
                         continue;
                     }
 
+                    // A frame only exists at g < the best length so far (see the
+                    // push bound below), so any goal here is a strict improvement.
                     if (isGoal(frame.availableIds)) {
+                        stallLimit = IDA_STALL_FACTOR * Math.max(distinctStates.size, IDA_STALL_FLOOR);
                         solutionPath = pathStack.map(formatStep);
-                        found = true;
-                        break;
+                        onProgress(`IDA* | Pass:${passCount} | Found ${solutionPath.length}-op path, searching for shorter | Distinct:${distinctStates.size}`);
+                        popFrame();
+                        continue;
+                    }
+
+                    // Bound by the UNWEIGHTED estimate (anytime weighted search):
+                    // the weighted f orders the descent, but a frame that cannot
+                    // plausibly beat the best path is not worth expanding. g alone
+                    // tightens the bound one op per goal and runs to the state cap.
+                    if (solutionPath && frame.g + coverageHeuristic.unweighted(heldCodes(frame.availableIds)) >= solutionPath.length) {
+                        popFrame();
+                        continue;
                     }
 
                     frame.successorIterator = generateSuccessors(frame.availableIds);
+                }
+
+                // Branch and bound: every successor sits at g + 1, so once that
+                // reaches the best goal length this frame can only lead to goals
+                // at least as long — drop it without generating the rest.
+                const succG = frame.g + 1;
+                if (solutionPath && succG >= solutionPath.length) {
+                    popFrame();
+                    continue;
                 }
 
                 // Try next successor
@@ -434,7 +476,6 @@ export async function shapeSolver(
 
                 // Transposition + cycle check: skip unless this pass has not yet
                 // reached the key at this g or lower.
-                const succG = frame.g + 1;
                 const seenG = bestG.get(succKey);
                 if (seenG !== undefined && seenG <= succG) continue;
                 bestG.set(succKey, succG);
@@ -462,7 +503,10 @@ export async function shapeSolver(
 
             // statesExplored reports distinct keys (same unit as BFS visited.size /
             // the maxStates cap), not cumulative expansions across passes.
-            if (found) {
+            // Cancel wins over a found path, matching the other methods. A path
+            // found before the cap is returned: hitting maxStates only ends the
+            // search for a shorter one.
+            if (solutionPath && !shouldCancel()) {
                 return { solutionPath, depth: solutionPath.length, statesExplored: distinctStates.size };
             }
 

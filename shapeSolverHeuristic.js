@@ -133,6 +133,8 @@ function orientationCost(codes, variant) {
 // weights the estimate (weighted A*, W = 1/divisor; default 0.1 → 10×) so h
 // dominates g and the search descends the gradient greedily — essential at this
 // branching factor, where a near-admissible h explores far too broadly.
+// heuristic.unweighted(codes) is the same estimate before weighting, for bounding
+// against a found path (IDA*'s branch and bound) rather than for ordering.
 export function createCoverageHeuristic({ target, config, orientationSensitive, preventWaste, heuristicDivisor }) {
     const variantCodes = orientationSensitive
         ? [target.toShapeCode()]
@@ -154,13 +156,16 @@ export function createCoverageHeuristic({ target, config, orientationSensitive, 
         };
     });
 
-    return function heuristic(codes) {
+    function unweighted(codes) {
         if (codes.length === 0) return Infinity;
         let h = Infinity;
         for (const variant of variants) h = Math.min(h, orientationCost(codes, variant));
         if (preventWaste && codes.length > 1) {
             h += codes.length - 1;  // At least 1 op per extra to incorporate/trash
         }
-        return Math.ceil(h / heuristicDivisor);
-    };
+        return h;
+    }
+    const heuristic = (codes) => Math.ceil(unweighted(codes) / heuristicDivisor);
+    heuristic.unweighted = unweighted;
+    return heuristic;
 }

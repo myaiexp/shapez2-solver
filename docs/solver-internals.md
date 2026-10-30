@@ -13,6 +13,10 @@ Idea #6540 fixed four ways the estimate rewarded the wrong moves. The why for ea
 - A shape matches at any layer offset, because a Stacker lifts it there. This stops Pin Pusher looking like progress.
 - The stack term counts only the clean pieces a greedy cover needs, so merging spare copies is not progress either.
 
+## IDA\* branch and bound
+
+IDA\* runs its thresholds on the same weighted estimate, so the first threshold sits far above the real depth and the first goal its DFS reaches is many times too long (68 ops for the 1-op Swapper target `CuCuRuRu`). After that first goal the pass keeps searching (idea #6547). A frame is dropped once `g + h_unweighted` (`heuristic.unweighted`) reaches the best path length. A bound on `g` alone shortens the path one op per goal and runs to the state cap. The pass ends when it exhausts, at `maxStates` (the best path is returned, not `aborted`), or when it stalls: once the distinct-state count passes `IDA_STALL_FACTOR` (3) × the count at the last improvement, with a 5000-state floor. That stop matters in the browser, which sends no `maxStates` and whose Cancel discards the path. A budget tied to the first goal's cost was too small when that goal came cheap. Measured: CuCuRuRu 68 → 1 op, CuRuCuRu 71 → 8 (A\*: 10, ~8 s), `CuRuCuRu:RuCuRuCu` 161 → 13 (~40 s).
+
 ## State key
 
 A search state is the multiset of held shape codes, **exact** — rotations are never folded together, even when orientation-insensitive. Cutter, Half Destroyer and Swapper act on a fixed axis, and Stacker depends on the inputs' relative rotation, so a rotated shape builds different things. Folding rotations (the old per-shape canonicalization) made every Rotator step revisit its parent state, which left `Cu------` unreachable from `CuCuCuCu` and capped the default-start solves (idea #6540). Orientation-insensitivity lives only in the goal check (`acceptableCodes`).
