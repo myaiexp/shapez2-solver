@@ -82,6 +82,33 @@ function pushHorizontalRun(belts, fromX, toX, y, floor, shapeCode) {
     }
 }
 
+// Copy columns for every machine, packed per row. Each machine's N copies are
+// centered on its own x, but a row's groups go left to right with at least
+// MACHINE_GAP between them: centering each group alone stacked row-mates'
+// copies onto each other (two adjacent machines at ×4 both spanned x 0..6).
+// The group start is clamped, not each copy: per-copy Math.max(0, copyX)
+// collapses neighbors onto the origin when a machine sits at x=0 (finding #8224).
+function packCopyColumns(machines, multiplier) {
+    const rows = new Map();
+    for (const machine of machines) {
+        if (!rows.has(machine.y)) rows.set(machine.y, []);
+        rows.get(machine.y).push(machine);
+    }
+    const columns = new Map();
+    for (const row of rows.values()) {
+        row.sort((a, b) => a.x - b.x);
+        let nextFreeX = 0;
+        for (const machine of row) {
+            const mw = machine.def.width || 1;
+            const totalWidth = multiplier * mw + (multiplier - 1) * MACHINE_GAP;
+            const startX = Math.max(nextFreeX, machine.x - Math.floor((totalWidth - mw) / 2));
+            columns.set(machine, Array.from({ length: multiplier }, (_, copy) => startX + copy * (mw + MACHINE_GAP)));
+            nextFreeX = startX + totalWidth + MACHINE_GAP;
+        }
+    }
+    return columns;
+}
+
 /**
  * Post-process a layout to duplicate machines for throughput.
  * Each processing machine is duplicated N times with splitters
@@ -97,6 +124,7 @@ export function duplicateForThroughput(layout, multiplier = 1) {
     const newMachines = [];
     const newBelts = [...layout.belts];
     let maxWidth = layout.gridWidth;
+    const columns = packCopyColumns(layout.machines, multiplier);
 
     for (const machine of layout.machines) {
         // buildLayout always attaches def (rowEntries skips a step with none,
@@ -106,23 +134,17 @@ export function duplicateForThroughput(layout, multiplier = 1) {
         const mw = def.width || 1;
         const inputCode = machine.inputShapes?.[0];
 
-        // Place N copies side by side, centered on the original position.
-        // Clamp the group's start, not each copy: per-copy Math.max(0, copyX)
-        // collapses neighbors onto the origin when the original sits at x=0
-        // (finding #8224).
-        const totalWidth = multiplier * mw + (multiplier - 1) * MACHINE_GAP;
-        const startX = Math.max(0, machine.x - Math.floor((totalWidth - mw) / 2));
-        const copyXs = [];
-        for (let copy = 0; copy < multiplier; copy++) {
-            copyXs.push(startX + copy * (mw + MACHINE_GAP));
-        }
+        const copyXs = columns.get(machine);
         for (const copyX of copyXs) {
             newMachines.push({ ...machine, x: copyX });
         }
 
-        const rightEdge = startX + totalWidth;
+        const rightEdge = copyXs[copyXs.length - 1] + mw;
         if (rightEdge > maxWidth) maxWidth = rightEdge;
 
+        // The splitter stays at the original x, where buildLayout routed this
+        // machine's input belt; a group packed off that column is still fed
+        // through the horizontal run.
         const splitX = machine.x;
         const splitY = machine.y - 1;
         newBelts.push({
