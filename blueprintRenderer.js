@@ -188,7 +188,23 @@ export class BlueprintRenderer {
         this._canvas.width  = Math.round(rect.width  * dpr);
         this._canvas.height = Math.round(rect.height * dpr);
 
+        // Keep the user's pan/zoom while any of the grid is still on screen;
+        // a shrink that strands it off-canvas would otherwise draw blank.
+        // A 0×0 parent (hidden) has nothing to fit to, so leave the view.
+        if (rect.width > 0 && rect.height > 0 && !this._gridInView()) {
+            this._centerView();
+        }
         this._render();
+    }
+
+    /** Whether the grid's screen rectangle overlaps the canvas viewport. */
+    _gridInView() {
+        if (!this._layout) return true;
+        const dpr = window.devicePixelRatio || 1;
+        const gw = this._layout.gridWidth  * TILE_SIZE * this._zoom;
+        const gh = this._layout.gridHeight * TILE_SIZE * this._zoom;
+        return this._panX < this._canvas.width / dpr && this._panX + gw > 0
+            && this._panY < this._canvas.height / dpr && this._panY + gh > 0;
     }
 
     // ------------------------------------------------------------------
