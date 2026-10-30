@@ -383,5 +383,44 @@ let sharedRenderer, sharedLayout;
         outcome === 'resolved' || outcome === 'rejected', outcome);
 }
 
+// 13. Resize: recenter only when the grid leaves the viewport ------------
+{
+    // Screen-space grid rect vs the CSS viewport (backing store / dpr).
+    const gridOverlapsViewport = (r, c) => {
+        const cw = c.width / 2, ch = c.height / 2;
+        const gw = r._layout.gridWidth * 48 * r._zoom, gh = r._layout.gridHeight * 48 * r._zoom;
+        return r._panX < cw && r._panX + gw > 0 && r._panY < ch && r._panY + gh > 0;
+    };
+
+    // Wide → narrow: the centered grid at 1440px sits right of a 165px viewport.
+    const canvas = makeCanvasStub();
+    const parent = makeParentStub({ left: 0, top: 0, width: 1440, height: 900 });
+    canvas.parentElement = parent;
+    const renderer = new BlueprintRenderer(canvas);
+    renderer.setLayout({ ...makeLayout(), gridWidth: 4, gridHeight: 4 });
+    renderer._zoom = 1; renderer._panX = 1000; renderer._panY = 300; // user zoomed in/panned right
+    parent._rect = { left: 0, top: 0, width: 165, height: 634 };
+    renderer._resizeObserver.cb();
+    check('resize: grid that falls off the viewport is recentered',
+        gridOverlapsViewport(renderer, canvas),
+        `pan=${renderer._panX},${renderer._panY} zoom=${renderer._zoom} canvas=${canvas.width}x${canvas.height}`);
+
+    // A resize that still shows the grid keeps the user's pan and zoom.
+    renderer._zoom = 1.5; renderer._panX = 10; renderer._panY = 20;
+    parent._rect = { left: 0, top: 0, width: 300, height: 600 };
+    renderer._resizeObserver.cb();
+    check('resize: grid still visible keeps pan and zoom',
+        renderer._zoom === 1.5 && renderer._panX === 10 && renderer._panY === 20,
+        `pan=${renderer._panX},${renderer._panY} zoom=${renderer._zoom}`);
+
+    // A 0×0 parent (hidden container) leaves the view alone, so the next real
+    // size does not inherit a fit computed for nothing.
+    parent._rect = { left: 0, top: 0, width: 0, height: 0 };
+    renderer._resizeObserver.cb();
+    check('resize: zero-size viewport leaves pan and zoom alone',
+        renderer._zoom === 1.5 && renderer._panX === 10 && renderer._panY === 20,
+        `pan=${renderer._panX},${renderer._panY} zoom=${renderer._zoom}`);
+}
+
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);
