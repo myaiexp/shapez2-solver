@@ -34,7 +34,7 @@ function cssRefs(text) {
 // hands to the DOM, which resolves them against the page, and `dirs` are the same
 // thing built by a template (`images/operations/${name}.png`), whose whole directory
 // has to ship because the names only exist at runtime.
-function jsRefs(text) {
+export function jsRefs(text) {
     const live = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     return {
         relative: [
