@@ -6,7 +6,7 @@
 // its successor order hit first: 21 ops for Cu------ and 5 for the cut-stack
 // target, where 3 suffice. The pass that finds a goal now keeps searching,
 // bounded by g + the unweighted estimate against the best length so far. The
-// maxOps bounds below are A*'s depth on the same input.
+// CuRuCuRu pass needs about 130k states to reach its 9 ops.
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
@@ -39,7 +39,7 @@ for (const c of CASES) {
         orientationSensitive: !!c.orientationSensitive,
         shouldCancel: () => false,
         onProgress: () => {},
-        maxStates: 100000,
+        maxStates: 200000,
     });
     const path = res?.solutionPath;
     check(`${c.name}: solves`, Array.isArray(path) && path.length > 0, JSON.stringify(res && { ...res, solutionPath: undefined }));

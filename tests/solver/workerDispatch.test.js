@@ -148,8 +148,10 @@ const UI_OPS = ['Rotator CW', 'Rotator CCW', 'Rotator 180', 'Half Destroyer', 'C
     check('cancel: posts no result', resultsOf('result').length === 0);
 
     sent.length = 0;
+    // Four colours outrun A* (see solverStateCap.test.js), so the solve is still
+    // running when the cancel arrives.
     const solveP = dispatch('solve', {
-        targetShapeCode: 'CuRuSuWu',
+        targetShapeCode: 'CrRgSbWy',
         startingShapeCodes: STARTS,
         enabledOperations: ['Cutter', 'Rotator CW', 'Rotator CCW', 'Rotator 180', 'Stacker', 'Painter', 'Swapper', 'Half Destroyer'],
         maxLayers: 4,

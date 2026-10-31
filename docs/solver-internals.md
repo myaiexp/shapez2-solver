@@ -4,7 +4,7 @@ Search methods, budgets, the space-explorer bound, and the Constructive planner.
 
 ## A\* coverage heuristic
 
-Solver A\* uses a per-slot **clean sub-shape coverage** heuristic (`createCoverageHeuristic` in `shapeSolverHeuristic.js`, idea #1677): each target (layer, quadrant) is scored by the cheapest way any held shape can supply it (0 if a clean piece already covers it, up to 3 to isolate, 4 to fabricate), summed, plus the stacks still needed. `heuristicDivisor` (default 0.1) then weights it (weighted A\*, W = 1/divisor), so it's intentionally inadmissible for speed and paths aren't guaranteed shortest — use a larger divisor or BFS for more optimal/bounded search.
+Solver A\* uses a per-slot **clean sub-shape coverage** heuristic (`createCoverageHeuristic` in `shapeSolverHeuristic.js`, idea #1677): each target (layer, quadrant) is scored by the cheapest way any held shape can supply it (0 if a clean piece already covers it, 4 to fabricate, and to isolate: 1 when the conflicts fill a cut side no matched part is on, 2 when a rotation must line that side up first, else 3), summed, plus the stacks still needed. `heuristicDivisor` (default 0.1) then weights it (weighted A\*, W = 1/divisor), so it's intentionally inadmissible for speed and paths aren't guaranteed shortest — use a larger divisor or BFS for more optimal/bounded search.
 
 Idea #6540 fixed four ways the estimate rewarded the wrong moves. The why for each is in the module header:
 
@@ -15,7 +15,7 @@ Idea #6540 fixed four ways the estimate rewarded the wrong moves. The why for ea
 
 ## IDA\* branch and bound
 
-IDA\* runs its thresholds on the same weighted estimate, so the first threshold sits far above the real depth and the first goal its DFS reaches is many times too long (68 ops for the 1-op Swapper target `CuCuRuRu`). After that first goal the pass keeps searching (idea #6547). A frame is dropped once `g + h_unweighted` (`heuristic.unweighted`) reaches the best path length. A bound on `g` alone shortens the path one op per goal and runs to the state cap. The pass ends when it exhausts, at `maxStates` (the best path is returned, not `aborted`), or when it stalls: once the distinct-state count passes `IDA_STALL_FACTOR` (3) × the count at the last improvement, with a 5000-state floor. That stop matters in the browser, which sends no `maxStates` and whose Cancel discards the path. A budget tied to the first goal's cost was too small when that goal came cheap. Measured: CuCuRuRu 68 → 1 op, CuRuCuRu 71 → 8 (A\*: 10, ~8 s), `CuRuCuRu:RuCuRuCu` 161 → 13 (~40 s).
+IDA\* runs its thresholds on the same weighted estimate, so the first threshold sits far above the real depth and the first goal its DFS reaches is many times too long (68 ops for the 1-op Swapper target `CuCuRuRu`). After that first goal the pass keeps searching (idea #6547). A frame is dropped once `g + h_unweighted` (`heuristic.unweighted`) reaches the best path length. A bound on `g` alone shortens the path one op per goal and runs to the state cap. The pass ends when it exhausts, at `maxStates` (the best path is returned, not `aborted`), or when it stalls: once the distinct-state count passes `IDA_STALL_FACTOR` (3) × the count at the last improvement, with a 5000-state floor. That stop matters in the browser, which sends no `maxStates` and whose Cancel discards the path. A budget tied to the first goal's cost was too small when that goal came cheap. Measured since idea #6549: CuCuRuRu 31 → 1 op, CuRuCuRu 111 → 9 (A\*: 5, ~6 s), CuRuSuWu 111 → 11; `CuRuCuRu:RuCuRuCu` reaches a 241-op first goal and finishes nothing within 60 s (A\*: 7 ops in 0.02 s).
 
 ## State key
 
@@ -52,7 +52,7 @@ The BFS posts `Exploring depth d/N...` at each level and every ~100 ms within on
 
 ## Constructive method
 
-Since idea #6540, forward A\* finds single-layer four-quadrant targets from the default starts: `CuRuSuWu` takes 12 ops and about 4.5k states. Mixed multi-layer targets (`CuRuSuWu:WuSuRuCu`, three-layer patterns) still exceed 100k states. The cause is **frontier width**: thousands of near-equivalent partial assemblies in the multiset-of-shapes state space.
+Since idea #6549 prices isolation by where the conflicts sit, forward A\* finds mixed multi-layer targets from the default starts: `CuRuSuWu` takes 6 ops and 280 states, `CuRuSuWu:WuSuRuCu` 8 ops and 382 states, inside the planner's default `nodeBudget`, so Constructive returns the direct path for them. It still exceeds its budget on four-colour targets such as `CrRgSbWy`, because the heuristic ignores colour, and on some three-layer patterns such as `RuCuRuCu:SuWuSuWu:CuCuCuCu`. The cause there is **frontier width**: thousands of near-equivalent partial assemblies in the multiset-of-shapes state space.
 
 The **Constructive** method (`shapeSolverConstructive.js` planner + `shapeSolverDecompose.js` splits/cost + `shapeSolverFlatten.js` Plan-tree → path and result) tries the bounded core A\* first at every node (so clever shortcuts like `CuCuRuRu`→1 Swapper are preserved), and only on a cap does it split the target (by-quadrant / by-half / by-layer), recurse on the pieces, and pick the cheapest assembled plan by reuse-credited op count (decomposition depth as tie-break).
 

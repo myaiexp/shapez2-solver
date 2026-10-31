@@ -23,6 +23,11 @@ import {
 
 const DEFAULT_STARTS = ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'];
 const ALL_OPS = Object.keys(operations);
+// Core A* solves these targets inside the default budget of 4000, which would skip
+// the planner. 120 caps it on the whole target and still lets single pieces through.
+const TIGHT_BUDGET = 120;
+const stepsBuilding = (path, code) => path.filter((s) =>
+    s.operation !== 'Belt Split' && s.outputs.some((o) => o.shape === code)).length;
 const cfg = new ShapeOperationConfig(4);
 
 let passed = 0, total = 0, failed = false;
@@ -51,15 +56,15 @@ function assertPathIsBuildable(label, path, target, { ops } = {}) {
 async function run() {
     // --- CuRuSuWu: the headline multi-distinct-quadrant target ---------------
     {
-        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4, nodeBudget: TIGHT_BUDGET });
         assert('CuRuSuWu solved', !!r.solutionPath);
         assertPathIsBuildable('CuRuSuWu', r.solutionPath, 'CuRuSuWu');
         assert('CuRuSuWu sane op count (<=20)', r.solutionPath.length <= 20);
 
-        // strategyTrace: by-quadrant at the root, direct-search leaves.
-        assert('CuRuSuWu root method is by-quadrant', r.strategyTrace.method === 'by-quadrant');
+        // strategyTrace: a by-half root, direct-search leaves.
+        assert('CuRuSuWu root method is by-half', r.strategyTrace.method === 'by-half');
         assert('CuRuSuWu children are all direct-search',
-            r.strategyTrace.children.length === 4 &&
+            r.strategyTrace.children.length === 2 &&
             r.strategyTrace.children.every((c) => c.method === 'direct-search'));
         assert('CuRuSuWu statesExplored aggregated', r.statesExplored > 0);
     }
@@ -97,9 +102,9 @@ async function run() {
 
     // --- a multi-layer target that genuinely needs by-layer decomposition ----
     // Two distinct multi-quadrant layers — the top direct search caps, by-layer
-    // peels them, each layer is itself solved (by-quadrant) and stacked.
+    // peels them, each layer is itself solved (by-half) and stacked.
     {
-        const r = await solveConstructive('CuRuSuWu:WuSuRuCu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
+        const r = await solveConstructive('CuRuSuWu:WuSuRuCu', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4, nodeBudget: TIGHT_BUDGET });
         assert('CuRuSuWu:WuSuRuCu solved', !!r.solutionPath);
         assertPathIsBuildable('CuRuSuWu:WuSuRuCu', r.solutionPath, 'CuRuSuWu:WuSuRuCu');
         assert('CuRuSuWu:WuSuRuCu used a decomposition', r.strategyTrace.method !== 'direct-search');
@@ -137,13 +142,13 @@ async function run() {
     // Before the fix, flatten handed one global id to both Stacker inputs and
     // every code-level gate still passed, so this is what invalidPathIds guards.
     {
-        const r = await solveConstructive('CuRu----:CuRu----', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4 });
+        const r = await solveConstructive('CuRu----:CuRu----', DEFAULT_STARTS, ALL_OPS, { maxLayers: 4, nodeBudget: TIGHT_BUDGET });
         assert('CuRu----:CuRu---- solved', !!r.solutionPath);
         assertPathIsBuildable('CuRu----:CuRu----', r.solutionPath, 'CuRu----:CuRu----');
         assert('CuRu----:CuRu---- fans the shared intermediate out with a Belt Split',
             r.solutionPath.some((s) => s.operation === 'Belt Split'));
         assert('CuRu----:CuRu---- builds the shared piece once (not twice)',
-            r.solutionPath.filter((s) => s.operation === 'Stacker').length === 2);
+            stepsBuilding(r.solutionPath, 'CuRu----') === 1);
     }
     // A tiny nodeBudget caps the top-level direct search so the planner
     // decomposes: at the default budget direct search finds Belt Split + Stacker
@@ -160,13 +165,13 @@ async function run() {
     // the user excluded, so a reused intermediate is re-built in its own id range.
     {
         const noSplit = ALL_OPS.filter((op) => op !== 'Belt Split');
-        const r = await solveConstructive('CuRu----:CuRu----', DEFAULT_STARTS, noSplit, { maxLayers: 4 });
+        const r = await solveConstructive('CuRu----:CuRu----', DEFAULT_STARTS, noSplit, { maxLayers: 4, nodeBudget: TIGHT_BUDGET });
         assert('CuRu----:CuRu---- (no Belt Split) solved', !!r.solutionPath);
         assertPathIsBuildable('CuRu----:CuRu---- (no Belt Split)', r.solutionPath, 'CuRu----:CuRu----', { ops: noSplit });
         assert('CuRu----:CuRu---- (no Belt Split) emits no disabled op',
             !r.solutionPath.some((s) => !noSplit.includes(s.operation)));
         assert('CuRu----:CuRu---- (no Belt Split) re-builds the shared piece',
-            r.solutionPath.filter((s) => s.operation === 'Stacker').length === 3);
+            stepsBuilding(r.solutionPath, 'CuRu----') === 2);
     }
 
     // --- Stacker DISABLED: assembly is a left-fold of Stacker, so decomposition
@@ -175,7 +180,7 @@ async function run() {
     // shipping an illegal op that pathValidation's core gates would still accept.
     {
         const noStacker = ALL_OPS.filter((op) => op !== 'Stacker');
-        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, noStacker, { maxLayers: 4 });
+        const r = await solveConstructive('CuRuSuWu', DEFAULT_STARTS, noStacker, { maxLayers: 4, nodeBudget: TIGHT_BUDGET });
         // Today's contract, not "whichever branch happened": assembly without
         // Stacker does not solve, and the abort is no-decomposition.
         assert('CuRuSuWu (no Stacker) fails with no-decomposition',
