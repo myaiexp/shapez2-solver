@@ -41,9 +41,10 @@ const CAP = 2000;
 // Branching-factor headroom only (one expansion / a few successors), not a
 // full frontier of runaway growth.
 const CAP_SLOP = 256;
-// CuRuCuRu was the hard target until the search kept rotations distinct (#6540);
-// IDA* now solves it inside this cap.
-const HARD_TARGET = 'CuRuSuCu:SuCuRuSu:RuSuCuRu';
+// Four colours need Painter steps the coverage heuristic ignores, so this outruns
+// the cap under every method. Uncoloured targets stopped doing so: isolation pricing
+// (#6549) takes A* through four distinct layers in 745 states.
+const HARD_TARGET = 'CrRgSbWy';
 for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
     const res = await shapeSolver(HARD_TARGET, STARTS, ALL_OPS, {
         maxLayers: 4, maxStatesPerLevel: 1000,

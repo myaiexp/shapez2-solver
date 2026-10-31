@@ -28,6 +28,8 @@ It has its own unit suite, `pathValidation.test.js`, because a hole in the gate 
 
 CI (the `test` job in `.github/workflows/pages.yml`) runs the suite on every push to `master`, and the Pages **deploy is gated on it** (`deploy: needs: test`) — a red test blocks shipping to mase.fi/shapez.
 
+The published files are not a list. `.github/assemble-site.mjs` walks from `index.html` through its scripts, module imports, the worker URL, stylesheets and asset paths, and copies what that reaches; a reference to a missing file throws. `tests/shared/assembleSite.test.js` runs the same walk, so a broken reference fails the `test` job. A root file the page never loads, such as `shapeOperationsTestUtils.js`, stays off the live site without being named anywhere.
+
 Both gates run `tests/run-suite.sh`, the one definition of the suite, so there is nothing to keep in lockstep. It discovers `tests/**/*.test.js` into an array (quoted iteration, so paths with spaces stay one file), refuses to proceed if fewer than 30 files matched (an empty `find` used to make the run succeed vacuously), runs those files plus `tests/shared/smoke.js` through `node --test` (each in its own process; a non-zero exit fails the run), then two cheap `solve.mjs` invocations.
 
 Locally, `.githooks/pre-commit` runs it before each commit and prints the output only on failure; activate once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).
@@ -36,7 +38,7 @@ Locally, `.githooks/pre-commit` runs it before each commit and prints the output
 
 The `node --test` run measures coverage of the root `*.js` modules and fails below 97% lines, 94% branches and 97% functions (Node ≥ 22.8 for the threshold flags; thresholds are integers). The floor sits just under the measured numbers (about 97.9 / 94.7 / 97.2) so erosion fails the gate; raise it when coverage rises rather than lowering it to land a change. Branch and line figures move by about 0.1 between runs because a timing-dependent block in `shapeSolverCore.js` is hit only on some runs.
 
-Node only reports modules some test imports. `main.js`, `operationGraph.js` and `operationGraphExport.js` are never imported (browser-only: DOM, CDN globals), so they are absent from the report rather than counted as 0%, and a new module no test imports is invisible to the floor too.
+Node only reports modules some test loads, so a module no test loads is absent from the report rather than counted as 0%. `tests/shared/coverageReach.test.js` closes that gap: it walks the import graph from the test files and fails on any root module the walk doesn't reach. Its one exemption is `main.js`, which wires the whole page at import time and is checked by using the page in a browser.
 
 ## Headless solve/explore harness
 

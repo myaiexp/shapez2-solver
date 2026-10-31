@@ -99,8 +99,9 @@ export const SOLVER_FIXTURES = [
     // public path from pathStack (push on expand, pop on backtrack), so a 1-op
     // solve can't catch a push/pop mismatch. This needs 3 steps (Cut, Cut, Stack)
     // and prunes siblings on the way, so a missing pop on the f > threshold
-    // backtrack fails the id-flow gate. The exhausted-iterator pop is NOT
-    // covered: no solvable fixture tried exhausts a g>0 frame in the goal pass.
+    // backtrack fails the id-flow gate. The pass keeps searching after its first
+    // goal, so frames exhaust here too and a missing pop on that branch fails
+    // the same gate.
     {
         name: 'cut-stack-ida',
         target: 'CuCu----:RuRu----',
