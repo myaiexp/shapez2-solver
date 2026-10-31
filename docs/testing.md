@@ -28,6 +28,8 @@ It has its own unit suite, `pathValidation.test.js`, because a hole in the gate 
 
 CI (the `test` job in `.github/workflows/pages.yml`) runs the suite on every push to `master`, and the Pages **deploy is gated on it** (`deploy: needs: test`) — a red test blocks shipping to mase.fi/shapez.
 
+The published files are not a list. `.github/assemble-site.mjs` walks from `index.html` through its scripts, module imports, the worker URL, stylesheets and asset paths, and copies what that reaches; a reference to a missing file throws. `tests/shared/assembleSite.test.js` runs the same walk, so a broken reference fails the `test` job. A root file the page never loads, such as `shapeOperationsTestUtils.js`, stays off the live site without being named anywhere.
+
 Both gates run `tests/run-suite.sh`, the one definition of the suite, so there is nothing to keep in lockstep. It discovers `tests/**/*.test.js` into an array (quoted iteration, so paths with spaces stay one file), refuses to proceed if fewer than 30 files matched (an empty `find` used to make the run succeed vacuously), runs those files plus `tests/shared/smoke.js` through `node --test` (each in its own process; a non-zero exit fails the run), then two cheap `solve.mjs` invocations.
 
 Locally, `.githooks/pre-commit` runs it before each commit and prints the output only on failure; activate once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).

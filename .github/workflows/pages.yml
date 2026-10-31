@@ -41,35 +41,17 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # Assemble only the static app into _site, then stamp the cache-buster.
-      # __COMMIT__ -> short SHA so ?v=<sha> assets bust on every change.
-      # The excludes are a denylist of dev-only files and dirs.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # _site holds what index.html reaches and nothing else, with __COMMIT__
+      # stamped to the short SHA so ?v=<sha> assets bust on every change. The
+      # script throws on a reference to a missing file.
       - name: Assemble site
         env:
           SHA: ${{ github.sha }}
-        run: |
-          mkdir _site
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='.githooks/' \
-            --exclude='.claude/' \
-            --exclude='.gitignore' \
-            --exclude='README.md' \
-            --exclude='CLAUDE.md' \
-            --exclude='AGENTS.md' \
-            --exclude='deploy.sh' \
-            --exclude='package.json' \
-            --exclude='docs/' \
-            --exclude='tests/' \
-            --exclude='_site/' \
-            ./ _site/
-          # upload-pages-artifact tars with --dereference, which exits non-zero
-          # on a dangling symlink ("File removed before we read it"). rsync -a
-          # copies symlinks verbatim, so any link whose target is excluded above
-          # lands here broken. Drop them rather than fail the deploy.
-          find _site -xtype l -print -delete
-          sed -i "s/__COMMIT__/${SHA::7}/g" _site/index.html
+        run: node .github/assemble-site.mjs _site "${SHA::7}"
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1

@@ -18,7 +18,7 @@ Each of the four major modules — `shapeOperations`, `shapeSolver`, `blueprintL
 
 ## Deployment
 
-Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/pages.yml`, which assembles the static app (excluding dev files) and publishes it.
+Hosted on **GitHub Pages**. Pushing to `master` triggers `.github/workflows/pages.yml`, which assembles the files `index.html` reaches (`.github/assemble-site.mjs`, an allowlist derived by walking its scripts, modules and stylesheets) and publishes them.
 
 - **Canonical URL**: https://myaiexp.github.io/shapez2-solver/
 - **Friendly URL**: `mase.fi/shapez` 301-forwards to Pages (including all subpaths) via a Cloudflare redirect rule.
