@@ -88,6 +88,7 @@ checkEqual('solvedStatusText: trace → Constructive summary appended',
     const messages = ['maxStates', 'no-decomposition', 'path-invalid', 'preventWaste'].map(c => solveFailureMessage(abortResult(c)));
     const [maxStates, noDecomp, pathInvalid, waste] = messages;
     checkEqual('solveFailureMessage maxStates: state limit + count', maxStates.includes('state limit') && maxStates.includes('1234 states'), true);
+    checkEqual('solveFailureMessage maxStates: points at the method that solves hard targets', maxStates.includes('Constructive'), true);
     checkEqual('solveFailureMessage no-decomposition: node budget + count', noDecomp.includes('node budget') && noDecomp.includes('1234 states'), true);
     checkEqual('solveFailureMessage path-invalid: path does not hold the target', pathInvalid.includes('does not hold the target'), true);
     checkEqual('solveFailureMessage preventWaste: points at Prevent Waste', waste.includes('Prevent Waste'), true);

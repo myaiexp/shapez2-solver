@@ -93,8 +93,8 @@ export function readSolveOptions() {
 
 // A*/IDA*/Bidirectional use the heuristic divisor; BFS shows beam width
 // (maxStatesPerLevel); Constructive shows its per-node A* budget (nodeBudget).
-// Same input, two payload keys — not the global maxStates ceiling (the browser
-// stays uncapped and relies on Cancel).
+// Same input, two payload keys — not the global maxStates ceiling, which is
+// fixed in solveRequest.js.
 export function syncSearchMethodControls() {
     const method = fieldValue('searchMethod');
     const heuristicGroup = fieldEl('heuristicDivisor').closest('.option-group');

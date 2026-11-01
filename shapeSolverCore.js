@@ -20,9 +20,10 @@ import { createPulse } from './shapeSolverProgress.js';
 const BIDIRECTIONAL_BACKWARD_DEPTH = 4;
 
 // IDA*'s weighted threshold returns a first goal far longer than needed (68 ops
-// for a 1-op Swapper target), so the pass keeps searching for a shorter one. The
-// browser leaves maxStates uncapped and Cancel discards the path, so that search
-// must end on its own: it stops once the distinct-state count passes
+// for a 1-op Swapper target), so the pass keeps searching for a shorter one.
+// Cancel discards the path and the browser's maxStates ceiling sits far past
+// where this search stops improving, so it ends on its own: it stops once the
+// distinct-state count passes
 // IDA_STALL_FACTOR × the count at the last improvement (at least
 // IDA_STALL_FLOOR). Measured improvement gaps were under 3× bar one 3.15× on
 // CuRuSuWu; the floor covers small searches, where Cu------ goes from 19 ops at
@@ -58,11 +59,9 @@ export async function shapeSolver(
         searchMethod = 'A*',
         shouldCancel = () => false,
         onProgress = () => {},
-        // Optional ceiling on distinct states discovered. Default Infinity (uncapped):
-        // the browser app runs without a cap and relies on the Cancel button, since an
-        // OOM there only crashes the user's own tab. Callers running inside a memory-
-        // constrained host (e.g. the node harness in helm's cgroup) pass a finite value
-        // to bound memory; on the cap the search aborts gracefully and returns
+        // Ceiling on distinct states discovered. Default Infinity (uncapped), so every
+        // host picks its own: the browser sends DEFAULT_SOLVE_MAX_STATES and the node
+        // harness defaults to 100k. On the cap the search aborts gracefully and returns
         // { ..., aborted: 'maxStates' } instead of running the process out of memory.
         maxStates = Infinity,
     } = {}

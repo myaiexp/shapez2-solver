@@ -1,10 +1,12 @@
 // Solve / Explore worker payloads (audit #12023) — run with:
 //   node tests/ui/solveRequest.test.js
 //
-// main.js used to build these objects inline, so a edit that sent maxStates
-// or dropped nodeBudget passed the suite. The shared budget box is one number
-// in two fields, and the browser does not send the global maxStates ceiling.
-import { buildSolveRequest, buildExploreRequest } from '../../solveRequest.js';
+// main.js used to build these objects inline, so a edit that dropped maxStates
+// or nodeBudget passed the suite. The shared budget box is one number in two
+// fields, and every solve carries the global maxStates ceiling, which also
+// limits nodeBudget: a hopeless search must end on the abort path, not in a
+// tab OOM.
+import { buildSolveRequest, buildExploreRequest, DEFAULT_SOLVE_MAX_STATES } from '../../solveRequest.js';
 import { MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_DEPTH } from '../../exploreDepth.js';
 
 let passed = 0;
@@ -45,7 +47,7 @@ const base = {
     checkEqual('solve: filteredOut counts the dropped starts', filteredOut, 2);
     checkEqual('solve: budget lands in both per-level and per-node fields',
         [request.maxStatesPerLevel, request.nodeBudget], [2500, 2500]);
-    check('solve: maxStates is absent (browser ceiling stays uncapped)', !Object.hasOwn(request, 'maxStates'));
+    checkEqual('solve: the global ceiling is sent', request.maxStates, DEFAULT_SOLVE_MAX_STATES);
     checkEqual('solve: layers, heuristic, method and flags pass through',
         [request.maxLayers, request.heuristicDivisor, request.searchMethod, request.preventWaste, request.monolayerPainting, request.targetShapeCode],
         [6, 0.5, 'Constructive', true, true, 'CuCu----']);
@@ -55,8 +57,19 @@ const base = {
     const { request, filteredOut } = buildSolveRequest({ ...base, filterUnusedShapes: false });
     checkEqual('solve: filter off keeps every start', request.startingShapeCodes, base.startingShapeCodes);
     checkEqual('solve: filter off drops nothing', filteredOut, 0);
-    check('solve: filter off still omits maxStates', !Object.hasOwn(request, 'maxStates'));
+    checkEqual('solve: filter off still sends the ceiling', request.maxStates, DEFAULT_SOLVE_MAX_STATES);
 }
+
+// Constructive hands nodeBudget to core as maxStates, so a huge value typed in
+// the budget box would otherwise lift the ceiling. The BFS beam needs no clamp:
+// BFS checks the ceiling itself.
+{
+    const { request } = buildSolveRequest({ ...base, budget: 1e12 });
+    checkEqual('solve: nodeBudget cannot exceed the ceiling', request.nodeBudget, DEFAULT_SOLVE_MAX_STATES);
+    checkEqual('solve: the beam width keeps the typed value', request.maxStatesPerLevel, 1e12);
+}
+
+check('solve: the ceiling is a positive finite count', Number.isSafeInteger(DEFAULT_SOLVE_MAX_STATES) && DEFAULT_SOLVE_MAX_STATES > 0);
 
 {
     const { request } = buildSolveRequest({

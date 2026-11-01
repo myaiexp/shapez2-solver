@@ -1,7 +1,9 @@
 import { createShapeCanvas } from './shapeRendering.js';
 import { setGraph3dInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 import { clearLastSolutionPath } from './operationGraph2D.js';
+import { operationIconPath } from './operationGraphElements.js';
 import { copyText } from './clipboardFeedback.js';
+import { byId } from './domUtils.js';
 
 // Pure node/link data for the 3D force graph, so the transform can be tested
 // without THREE or a DOM. Belt Split is not drawn as an op node (it is a belt
@@ -31,7 +33,7 @@ export function buildSpaceGraphData(graph, shapeImage) {
             id: op.id,
             kind: 'op',
             label: op.type,
-            image: `images/operations/${op.type.toLowerCase().replace(/\s+/g,'-')}.png`
+            image: operationIconPath(op.type)
         });
     }
 
@@ -60,7 +62,7 @@ function makeNodeSprite(image, scale) {
 }
 
 export function renderSpaceGraph(graph) {
-    const container = document.getElementById('graph-container');
+    const container = byId('graph-container');
     container.replaceChildren();
     container.style.position = 'relative';
 

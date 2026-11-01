@@ -22,7 +22,7 @@ export function crystalsFused(part1, part2) {
     return part1.shape === CRYSTAL_CHAR && part2.shape === CRYSTAL_CHAR;
 }
 
-function getCorrectedIndex(list, index) {
+function wrapPartIndex(list, index) {
     if (index > list.length - 1) {
         return index - list.length;
     }
@@ -41,7 +41,7 @@ export function getConnectedSingleLayer(layer, index, connectedFunc) {
     let previousIndex = index;
 
     for (let i = index + 1; i < layer.length + index; i++) {
-        const curIndex = getCorrectedIndex(layer, i);
+        const curIndex = wrapPartIndex(layer, i);
         if (!connectedFunc(layer[previousIndex], layer[curIndex])) {
             break;
         }
@@ -51,7 +51,7 @@ export function getConnectedSingleLayer(layer, index, connectedFunc) {
 
     previousIndex = index;
     for (let i = index - 1; i > -layer.length + index; i--) {
-        const curIndex = getCorrectedIndex(layer, i);
+        const curIndex = wrapPartIndex(layer, i);
         if (connected.includes(curIndex)) {
             break;
         }
@@ -181,9 +181,9 @@ export function makeLayersFall(layers) {
             mark(li + 1, pi);
 
             // Same-layer gravity-connected neighbours hold each other up.
-            const nextPi = getCorrectedIndex(layer, pi + 1);
+            const nextPi = wrapPartIndex(layer, pi + 1);
             if (gravityConnected(part, layer[nextPi])) mark(li, nextPi);
-            const prevPi = getCorrectedIndex(layer, pi - 1);
+            const prevPi = wrapPartIndex(layer, pi - 1);
             if (gravityConnected(part, layer[prevPi])) mark(li, prevPi);
 
             // A fused crystal directly below hangs from this one.

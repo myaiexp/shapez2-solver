@@ -89,10 +89,10 @@ function harness() {
     const { view, pushed } = harness();
     view.showOutputView('blueprint');
     view.present(solution, '1');
-    view.forget();
-    check('forget drops the solution and layout before the canvas is blanked', view.solution == null && view.layout == null);
-    view.blank();
-    check('blank pushes null to the existing renderer', pushed.at(-1) === null);
+    view.clearSolution();
+    check('clearSolution drops the solution and layout before the canvas is cleared', view.solution == null && view.layout == null);
+    view.clearCanvas();
+    check('clearCanvas pushes null to the existing renderer', pushed.at(-1) === null);
 }
 
 console.log(`\n${passed}/${total} passed`);

@@ -1,13 +1,14 @@
 // Unit tests for shapeExplorer's 2-input Stacker branch and symmetric-order
 // dedup logic (audit #3721) — run with:  node tests/solver/shapeExplorerStacker.test.js
 //
-// The explorer's inputCount===2 path pairs the inventory with the previous
-// depth's frontier. Stacker is order-sensitive, so it also pairs the frontier
-// with the older shapes (bottom = newer, top = older). When stack(A,B) equals
-// stack(B,A) it records only the id1 < id2 ordering; when the outputs differ it
-// records both orderings. No existing fixture or depth-limit test reaches this
-// branch (fixtures use Cutter+Rotator only; shapeExplorerDepthLimit.test.js
-// excludes Stacker).
+// Contract: at each depth the explorer tries Stacker on every ordered pair with
+// at least one frontier member, so its shapes match brute-force expansion of
+// every ordered pair of the inventory. When stack(A,B) equals stack(B,A) it
+// records only the id1 < id2 ordering; when the outputs differ it records both.
+// The explorer fixtures and shapeExplorerDepthLimit.test.js use no Stacker, so
+// this file is the only coverage of that branch; at depth 1 frontier and
+// inventory are the same set, so only the depth 2+ cases below can catch a lost
+// ordering.
 import { shapeExplorer } from '../../shapeExplorerCore.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';

@@ -44,12 +44,12 @@ export function createBlueprintView({ createRenderer, onViewChanged }) {
     // Split so the caller can clear the flowchart between dropping the solution
     // and blanking the canvas. A throw from either view cannot leave the stored
     // solution pointing at a solve that is no longer current.
-    function forget() {
+    function clearSolution() {
         solution = null;
         layout = null;
     }
 
-    function blank() {
+    function clearCanvas() {
         if (renderer) renderer.setLayout(null);
         notify();
     }
@@ -58,8 +58,8 @@ export function createBlueprintView({ createRenderer, onViewChanged }) {
         showOutputView,
         present,
         setThroughputMultiplier,
-        forget,
-        blank,
+        clearSolution,
+        clearCanvas,
         get renderer() { return renderer; },
         get layout() { return layout; },
         get solution() { return solution; },

@@ -15,7 +15,7 @@ Idea #6540 fixed four ways the estimate rewarded the wrong moves. The why for ea
 
 ## IDA\* branch and bound
 
-IDA\* runs its thresholds on the same weighted estimate, so the first threshold sits far above the real depth and the first goal its DFS reaches is many times too long (68 ops for the 1-op Swapper target `CuCuRuRu`). After that first goal the pass keeps searching (idea #6547). A frame is dropped once `g + h_unweighted` (`heuristic.unweighted`) reaches the best path length. A bound on `g` alone shortens the path one op per goal and runs to the state cap. The pass ends when it exhausts, at `maxStates` (the best path is returned, not `aborted`), or when it stalls: once the distinct-state count passes `IDA_STALL_FACTOR` (3) × the count at the last improvement, with a 5000-state floor. That stop matters in the browser, which sends no `maxStates` and whose Cancel discards the path. A budget tied to the first goal's cost was too small when that goal came cheap. Measured since idea #6549: CuCuRuRu 31 → 1 op, CuRuCuRu 111 → 9 (A\*: 5, ~6 s), CuRuSuWu 111 → 11; `CuRuCuRu:RuCuRuCu` reaches a 241-op first goal and finishes nothing within 60 s (A\*: 7 ops in 0.02 s).
+IDA\* runs its thresholds on the same weighted estimate, so the first threshold sits far above the real depth and the first goal its DFS reaches is many times too long (68 ops for the 1-op Swapper target `CuCuRuRu`). After that first goal the pass keeps searching (idea #6547). A frame is dropped once `g + h_unweighted` (`heuristic.unweighted`) reaches the best path length. A bound on `g` alone shortens the path one op per goal and runs to the state cap. The pass ends when it exhausts, at `maxStates` (the best path is returned, not `aborted`), or when it stalls: once the distinct-state count passes `IDA_STALL_FACTOR` (3) × the count at the last improvement, with a 5000-state floor. That stop matters in the browser, whose `maxStates` ceiling sits far past where this search stops improving and whose Cancel discards the path. A budget tied to the first goal's cost was too small when that goal came cheap. Measured since idea #6549: CuCuRuRu 31 → 1 op, CuRuCuRu 111 → 9 (A\*: 5, ~6 s), CuRuSuWu 111 → 11; `CuRuCuRu:RuCuRuCu` reaches a 241-op first goal and finishes nothing within 60 s (A\*: 7 ops in 0.02 s).
 
 ## State key
 
@@ -29,15 +29,15 @@ Keep the names separate end-to-end.
 
 | Name | Role | Browser | Harness (`solve.mjs`) |
 | --- | --- | --- | --- |
-| `maxStates` | Global distinct-state ceiling | Omitted → `Infinity`. Relies on Cancel (an OOM only crashes the user's tab). | `--max-states N`, default 100k so hard targets can't OOM helm's cgroup |
+| `maxStates` | Global distinct-state ceiling | Fixed `DEFAULT_SOLVE_MAX_STATES` (500k, `solveRequest.js`), no UI control. Also limits `nodeBudget`. Cancel stays the fast stop. | `--max-states N`, default 100k so hard targets can't OOM helm's cgroup |
 | `maxStatesPerLevel` | BFS beam width (per-depth prune) | Shared `#max-states-per-level` input, labelled "Max States Per Level" | (core BFS option; not a Constructive flag) |
 | `nodeBudget` | Constructive per-node A\* cap (fail-fast → decompose) | Same DOM input, relabelled "Node Search Budget", sent as `nodeBudget` | `--node-budget N`, default 4000 |
 
 Never call the shared input "Max States" — that name is the global `maxStates` ceiling.
 
-On the global cap the search aborts gracefully with `{ aborted: 'maxStates' }`. Successor ids are minted lazily (only for states the search keeps), so the `shapes` Map no longer grows with every edge generated (idea #1675).
+On the global cap the search aborts gracefully with `{ aborted: 'maxStates' }`, which the UI shows as the "state limit" status line. Without a cap a hard A\* solve dies with a heap OOM, which in a browser takes the whole tab. Peak live heap measured on `CrRgSbWy`: 1.4 KB per state for A\* and Bidirectional, 1 KB for BFS, 0.55 KB for IDA\*, 3 KB for A\* at 6 layers with Prevent Waste. The 500k ceiling keeps that worst case near 1.5 GB, inside a 2 GB V8 heap. Successor ids are minted lazily (only for states the search keeps), so the `shapes` Map no longer grows with every edge generated (idea #1675).
 
-The worker dispatches `searchMethod==='Constructive'` to `solveConstructive` (core never imports the planner → no cycle), reusing the shared budget input (`maxStatesPerLevel` for BFS, relabelled "Node Search Budget" and sent as `nodeBudget` for Constructive) — not the global `maxStates` ceiling, which the browser leaves uncapped.
+The worker dispatches `searchMethod==='Constructive'` to `solveConstructive` (core never imports the planner → no cycle), reusing the shared budget input (`maxStatesPerLevel` for BFS, relabelled "Node Search Budget" and sent as `nodeBudget` for Constructive) — not the global `maxStates` ceiling, which is fixed in `solveRequest.js`.
 
 ## Belt Split in forward search
 

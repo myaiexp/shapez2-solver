@@ -14,7 +14,7 @@ self.onmessage = async function (e) {
         cancelled = false;
         // Three distinct budgets — keep the names separate end-to-end:
         //   maxStatesPerLevel  BFS beam width (per-depth prune)
-        //   maxStates          global distinct-state ceiling (optional; browser omits → Infinity)
+        //   maxStates          global distinct-state ceiling (solveRequest.js sends it; Constructive uses nodeBudget instead)
         //   nodeBudget         Constructive per-node A* budget (fail-fast → decompose)
         // The UI shares one numeric field for beam vs nodeBudget (label switches by
         // method); the payload always uses the correct key so callers never alias them.

@@ -9,7 +9,7 @@ import {
     readTargetShape, readExploreDepth, readThroughputMultiplier, readSolveOptions, onFieldChange,
     syncSearchMethodControls, initExploreDepthInput,
 } from '../../uiControls.js';
-import { buildSolveRequest } from '../../solveRequest.js';
+import { buildSolveRequest, DEFAULT_SOLVE_MAX_STATES } from '../../solveRequest.js';
 import { SHAPE_LABEL_CLASS } from '../../domConstants.js';
 import { DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from '../../exploreDepth.js';
 
@@ -157,6 +157,7 @@ for (const [read, name, blank, zero, set, value] of [
         maxLayers: 3,
         maxStatesPerLevel: 2500,
         nodeBudget: 2500,
+        maxStates: DEFAULT_SOLVE_MAX_STATES,
         preventWaste: true,
         orientationSensitive: false,
         monolayerPainting: true,

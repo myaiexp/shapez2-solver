@@ -3,6 +3,7 @@ import { getCurrentColorMode } from './colorMode.js';
 import { cyInstance, setCyInstance, destroy2DGraph, destroySpaceGraph } from './operationGraphInstances.js';
 import { buildGraphElements, opTint, UNTINTED_OP } from './operationGraphElements.js';
 import { copyText } from './clipboardFeedback.js';
+import { byId } from './domUtils.js';
 
 let lastSolutionPath = null;
 
@@ -134,7 +135,7 @@ export function clearLastSolutionPath() {
 }
 
 export function renderGraph(solutionPath) {
-    const container = document.getElementById('graph-container');
+    const container = byId('graph-container');
     container.replaceChildren();
 
     destroy2DGraph();
@@ -155,10 +156,10 @@ export function renderGraph(solutionPath) {
         colorMode: getCurrentColorMode()
     });
 
-    const directionSelect = document.getElementById('direction-select');
+    const directionSelect = byId('direction-select');
     const selectedDirection = directionSelect ? directionSelect.value : 'LR';
 
-    const edgeStyleSelect = document.getElementById('edge-style-select');
+    const edgeStyleSelect = byId('edge-style-select');
     const selectedEdgeStyle = edgeStyleSelect ? edgeStyleSelect.value : 'curved';
 
     const curveStyle = EDGE_CURVE[selectedEdgeStyle] || { 'curve-style': 'bezier' };

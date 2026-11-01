@@ -6,7 +6,8 @@
 // the DOM entry point and wires document event handlers at evaluation time,
 // which would otherwise pull document access into any module that imports it.
 import { COLOR_MODE_SELECT_ID } from './domConstants.js';
+import { byId } from './domUtils.js';
 
 export function getCurrentColorMode() {
-    return document.getElementById(COLOR_MODE_SELECT_ID)?.value || 'rgb';
+    return byId(COLOR_MODE_SELECT_ID)?.value || 'rgb';
 }

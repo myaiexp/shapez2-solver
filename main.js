@@ -129,9 +129,9 @@ operationItems().forEach((item) => {
 // cannot leave the stored solution or the blueprint layout pointing at a solve
 // that is no longer drawn.
 function clearSolutionPresentation() {
-    blueprint.forget();
+    blueprint.clearSolution();
     renderGraph(null);
-    blueprint.blank();
+    blueprint.clearCanvas();
 }
 
 // Draw a solved result into every view — flowchart, blueprint layout (sized by
@@ -159,7 +159,7 @@ byId('solve-btn').addEventListener('click', () => {
 
     // Filter unused shapes if enabled. The shared budget box is one number
     // with two payload names (maxStatesPerLevel / nodeBudget). buildSolveRequest
-    // does not send maxStates — the browser leaves that ceiling uncapped.
+    // adds the global maxStates ceiling.
     const { request, filteredOut } = buildSolveRequest({
         targetShapeCode: target,
         startingShapeCodes: readStartingShapes(),

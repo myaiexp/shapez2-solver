@@ -50,8 +50,8 @@ for (const c of CASES) {
         pathReachesTarget(path, c.target, { starts: c.starts, config: CONFIG, orientationSensitive: !!c.orientationSensitive }));
 }
 
-// The browser sends no maxStates, so the search for a shorter path must end on
-// its own. CuRuSuWu's pass would run to any cap; the stall rule stops it at
+// The browser's maxStates ceiling sits far past where this search stops improving,
+// so it must end on its own. CuRuSuWu's pass would run to any cap; the stall rule stops it at
 // IDA_STALL_FACTOR (3) × max(states at the last improvement, 5000). The
 // deadline turns a regression into a failure (cancel → null), not a hung run.
 {

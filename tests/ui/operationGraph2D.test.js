@@ -5,7 +5,7 @@
 // is then driven against document/cytoscape stubs to pin its cache contract: a
 // cleared solve must never be redrawn by reRenderGraph (the edge-style handler).
 import { existsSync } from 'node:fs';
-import { buildGraphElements } from '../../operationGraphElements.js';
+import { buildGraphElements, operationIconPath } from '../../operationGraphElements.js';
 import { colorValues } from '../../shapeRenderingColors.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
@@ -104,6 +104,8 @@ check('empty path builds no elements', build([]).length === 0);
         .map((op) => byId(build([step(op, [[0, 'CuCuCuCu']], [[1, 'CuCuCuCu']])]), 'op-0').data.image)
         .filter((image) => !existsSync(new URL(`../../${image}`, import.meta.url)));
     check('every op image exists under images/operations/', missing.length === 0, missing.join(', '));
+    check('a multi-word op name maps to a hyphenated icon file',
+        operationIconPath('Rotator CW') === 'images/operations/rotator-cw.png');
 }
 
 // --- a real solver path builds a closed graph ---------------------------------

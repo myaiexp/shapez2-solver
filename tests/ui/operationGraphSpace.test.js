@@ -5,6 +5,7 @@
 // was actually built: skipping Belt Split as an op node used to leave its
 // edges pointing at the missing id, which d3-force rejects.
 import { buildSpaceGraphData } from '../../operationGraphSpace.js';
+import { operationIconPath } from '../../operationGraphElements.js';
 
 let passed = 0, total = 0, failed = false;
 function check(name, cond, detail) {
@@ -28,7 +29,7 @@ const linked = (data) => data.links.every((l) => ids(data).has(l.source) && ids(
         ],
     }, image);
     check('cutter: shape thumbnails come from shapeImage', data.nodes.filter((n) => n.kind === 'shape').every((n) => n.image === `img:${n.label}`));
-    check('cutter: op node keeps the operation image path', data.nodes.find((n) => n.id === 'op-0')?.image === 'images/operations/cutter.png');
+    check('cutter: op node keeps the operation image path', data.nodes.find((n) => n.id === 'op-0')?.image === operationIconPath('Cutter'));
     check('cutter: link kinds follow the edge direction',
         data.links.map((l) => l.kind).join(',') === 'to-op,from-op');
     check('cutter: every link endpoint is a node', linked(data));

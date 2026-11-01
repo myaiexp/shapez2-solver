@@ -10,6 +10,11 @@ export function opTint(color, colorMode) {
     return (color && colorValues[colorMode]?.[color]) || null;
 }
 
+// Shipped icon for an operation: 'Rotator CW' → images/operations/rotator-cw.png.
+export function operationIconPath(opName) {
+    return `images/operations/${opName.toLowerCase().replace(/\s+/g, '-')}.png`;
+}
+
 // Cytoscape element definitions for one solution path — the whole structure of
 // the flowchart, kept free of DOM/canvas access so it runs (and is tested) in
 // plain node. `shapeImage(code)` supplies a shape node's thumbnail URL and
@@ -71,12 +76,11 @@ export function buildGraphElements(solutionPath, { shapeImage, colorMode }) {
             }
         }
 
-        const imageName = operation.toLowerCase().replace(/\s+/g, '-');
         elements.push({
             data: {
                 id: opId,
                 label: opLabel,
-                image: `images/operations/${imageName}.png`,
+                image: operationIconPath(operation),
                 backgroundColor,
                 ...colorData
             },
