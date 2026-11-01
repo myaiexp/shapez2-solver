@@ -79,38 +79,50 @@ function isolateCost(conflictQuads, matchedQuads, numParts) {
     return MAX_ISOLATE_COST;
 }
 
+// Records `cost` under `key` unless the map already holds a cheaper one.
+function keepCheapest(map, key, cost) {
+    const prev = map.get(key);
+    if (prev === undefined || cost < prev) map.set(key, cost);
+}
+
+// Lines `rotated` up against the target `offset` layers from the ground.
+// matched: the target slots it fills with the right part. matchedQuads: the
+// quadrants holding a matched part on any layer. conflictQuads: the quadrants
+// holding, on any layer, a filled slot that does not match the target.
+function compareAtOffset(rotated, target, offset) {
+    let numParts = 0;
+    const matched = [];
+    const matchedQuads = new Set();
+    const conflictQuads = new Set();
+    for (let l = 0; l < rotated.numLayers; l++) {
+        const rl = rotated.layers[l], tl = target.layers[l + offset];
+        const len = Math.max(rl.length, tl ? tl.length : 0);
+        numParts = Math.max(numParts, len);
+        for (let q = 0; q < len; q++) {
+            const rp = rl[q], tp = tl && tl[q];
+            if (!rp || rp.shape === NOTHING_CHAR) continue;
+            if (tp && tp.shape === rp.shape) {
+                matched.push((l + offset) + ':' + q);
+                matchedQuads.add(q);
+            } else {
+                conflictQuads.add(q);
+            }
+        }
+    }
+    return { matched, matchedQuads, conflictQuads, numParts };
+}
+
 function matchAndCoverage(code, target, config) {
     let bestClean = [];
     const slotCost = new Map();  // "l:q" -> min supply cost this shape offers
     for (const rotCode of getAllRotations(getCachedShape(code), config)) {
-        const r = getCachedShape(rotCode);
+        const rotated = getCachedShape(rotCode);
         const rotateCost = rotCode === code ? 0 : ROTATE_COST;
-        const maxOffset = Math.max(0, target.numLayers - r.numLayers);
+        const maxOffset = Math.max(0, target.numLayers - rotated.numLayers);
         for (let offset = 0; offset <= maxOffset; offset++) {
-            let numParts = 0;
-            const matched = [];
-            const matchedQuads = new Set();
-            const conflictQuads = new Set();
-            for (let l = 0; l < r.numLayers; l++) {
-                const rl = r.layers[l], tl = target.layers[l + offset];
-                const len = Math.max(rl ? rl.length : 0, tl ? tl.length : 0);
-                for (let q = 0; q < len; q++) {
-                    numParts = Math.max(numParts, len);
-                    const rp = rl && rl[q], tp = tl && tl[q];
-                    if (!rp || rp.shape === NOTHING_CHAR) continue;
-                    if (tp && tp.shape === rp.shape) {
-                        matched.push((l + offset) + ':' + q);
-                        matchedQuads.add(q);
-                    } else {
-                        conflictQuads.add(q);
-                    }
-                }
-            }
+            const { matched, matchedQuads, conflictQuads, numParts } = compareAtOffset(rotated, target, offset);
             const cost = isolateCost(conflictQuads, matchedQuads, numParts) + rotateCost;
-            for (const key of matched) {
-                const prev = slotCost.get(key);
-                if (prev === undefined || cost < prev) slotCost.set(key, cost);
-            }
+            for (const key of matched) keepCheapest(slotCost, key, cost);
             if (conflictQuads.size === 0 && matched.length > bestClean.length) bestClean = matched;
         }
     }
@@ -153,10 +165,7 @@ function orientationCost(codes, variant) {
             if (layers > maxLayerCount) maxLayerCount = layers;
         }
         if (m.cleanSlots.length > 0) cleanSlotSets.push(m.cleanSlots);
-        for (const [key, cost] of m.slotCost) {
-            const prev = slotMin.get(key);
-            if (prev === undefined || cost < prev) slotMin.set(key, cost);
-        }
+        for (const [key, cost] of m.slotCost) keepCheapest(slotMin, key, cost);
     }
     // One Stacker both merges two pieces and adds a layer, so the larger of the two
     // counts bounds the stacks; their sum double-counted CuCu---- + RuRu---- as 2.
