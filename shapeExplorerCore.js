@@ -7,6 +7,7 @@ import {
 } from './shapeSolverCache.js';
 import { getCrystalColors } from './shapeColorAnalysis.js';
 import { expandUnaryOp, expandBinaryOp } from './shapeSolverExpansion.js';
+import { createPulse } from './shapeSolverProgress.js';
 
 // How often the BFS pauses to post progress and let queued messages (the
 // worker's cancel) run. Checked every PULSE_EVERY expansions so the clock read
@@ -64,7 +65,7 @@ export async function shapeExplorer(
     let depth = 0;
     let hitNodeCap = false;
     let ticks = 0;
-    let lastPulse = Date.now();
+    const progress = createPulse(onProgress, { intervalMs: PULSE_MS });
 
     const stopped = () => hitNodeCap || shouldCancel();
     const counts = () => `Shapes: ${shapesList.length}, Ops: ${opsList.length}`;
@@ -72,10 +73,7 @@ export async function shapeExplorer(
     // Post progress and yield to the event loop at most every PULSE_MS. Without
     // the yield a worker cannot process 'cancel' until the whole BFS ends.
     async function pulse() {
-        if (Date.now() - lastPulse < PULSE_MS) return;
-        lastPulse = Date.now();
-        onProgress(`Exploring depth ${depth}/${depthLimit}... ${counts()}`);
-        await new Promise(r => setTimeout(r, 0));
+        if (progress.due()) await progress.emit(`Exploring depth ${depth}/${depthLimit}... ${counts()}`);
     }
 
     function addShapeIfNew(code) {

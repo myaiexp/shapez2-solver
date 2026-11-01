@@ -86,6 +86,32 @@ for (const method of SOLVER_METHODS) {
     check(`${method}: cancellation path actually exercised (polled shouldCancel > ${N}x)`, cancel.calls() > N);
 }
 
+// --- Cancel wins over a cap abort: all four searches report the cap through
+//     onProgress, and a cancel set by then still resolves to null, not the
+//     { aborted: 'maxStates' } object. ---
+for (const method of SOLVER_METHODS) {
+    let cancelled = false;
+    const res = await shapeSolver('CrRgSbWy', STARTS, ALL_OPS, {
+        maxLayers: 4, searchMethod: method, maxStates: 50,
+        shouldCancel: () => cancelled,
+        onProgress: (message) => { if (/Aborted/.test(message)) cancelled = true; },
+    });
+    check(`${method}: a cap hit, cancel set before it returns: cancelled and resolves to null`, cancelled && res === null);
+}
+
+// --- BFS yields between levels, so a cancel waiting on the event loop lands
+//     instead of the search running on to its cap. The timer stands in for the
+//     worker's 'cancel' message. ---
+{
+    let cancelled = false;
+    setTimeout(() => { cancelled = true; }, 0);
+    const res = await shapeSolver('CrRgSbWy', STARTS, ALL_OPS, {
+        maxLayers: 4, searchMethod: 'BFS', maxStates: 300000,
+        shouldCancel: () => cancelled, onProgress: noop,
+    });
+    check('BFS: a cancel queued on the event loop lands mid-search', res === null);
+}
+
 // --- shapeExplorer honours cancellation the same way (returns null). ---
 {
     let res = await shapeExplorer(STARTS, ALL_OPS, 3, 4, alwaysCancel, noop);

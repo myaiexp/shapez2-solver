@@ -21,6 +21,8 @@ IDA\* runs its thresholds on the same weighted estimate, so the first threshold 
 
 A search state is the multiset of held shape codes, **exact** — rotations are never folded together, even when orientation-insensitive. Cutter, Half Destroyer and Swapper act on a fixed axis, and Stacker depends on the inputs' relative rotation, so a rotated shape builds different things. Folding rotations (the old per-shape canonicalization) made every Rotator step revisit its parent state, which left `Cu------` unreachable from `CuCuCuCu` and capped the default-start solves (idea #6540). Orientation-insensitivity lives only in the goal check (`acceptableCodes`).
 
+The heuristic must be a function of this key. Held order depends on the route to a state, so `neededPieces` breaks size ties by slots. A\* and Bidirectional re-open a state when they find a cheaper route, which mints new ids while the children of the old copy keep steps naming the old ones. With one h per state the new copy has the lower f, pops before those children and replaces their steps. A path's ids still don't rest on that ordering: `reconstructPath` rebinds each step to ids the chain holds (`rebindChainInputs`), and `depth` is the path's length, not the cost recorded for the goal.
+
 ## Three budgets
 
 Keep the names separate end-to-end.

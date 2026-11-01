@@ -120,8 +120,15 @@ function matchAndCoverage(code, target, config) {
 // How many of the held clean pieces an assembly needs: a greedy cover of the slots
 // they cover, largest piece first. Counting every clean piece held made a spare
 // copy cost a merge, so stacking two spares into a useless shape read as progress.
+// Equal-sized pieces are ordered by their slots because held order depends on the
+// route to a state, and a state must score the same on every route: a re-opened
+// state only pops ahead of the children of its old copy if h stays the same and
+// its lower g lowers f (tests/solver/reopenIdFlow.test.js).
 function neededPieces(cleanSlotSets) {
-    const sorted = [...cleanSlotSets].sort((a, b) => b.length - a.length);
+    const sorted = cleanSlotSets
+        .map((slots) => ({ slots, key: slots.join() }))
+        .sort((a, b) => b.slots.length - a.slots.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+        .map(({ slots }) => slots);
     const covered = new Set();
     let pieces = 0;
     for (const slots of sorted) {

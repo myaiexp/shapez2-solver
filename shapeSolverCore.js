@@ -9,8 +9,9 @@ import {
 import { buildBackwardReachability } from './shapeSolverBackward.js';
 import { operations } from './shapeSolverOperations.js';
 import { expandUnaryOp, expandBinaryOp, expandBeltSplit } from './shapeSolverExpansion.js';
-import { acceptableCodes } from './pathInventory.js';
+import { acceptableCodes, rebindChainInputs } from './pathInventory.js';
 import { createCoverageHeuristic } from './shapeSolverHeuristic.js';
+import { createPulse } from './shapeSolverProgress.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
 // precompute outward from the target before the forward A* runs. 4 trades map
@@ -270,15 +271,22 @@ export async function shapeSolver(
     }
 
     function reconstructPath(cameFrom, goalKey, initialKey) {
-        const solutionPath = [];
-        let curKey = goalKey;
-        while (curKey !== initialKey) {
-            const {parentKey, step} = cameFrom.get(curKey);
-            solutionPath.push(formatStep(step));
-            curKey = parentKey;
+        const steps = [];
+        for (let key = goalKey; key !== initialKey; key = cameFrom.get(key).parentKey) {
+            steps.push(cameFrom.get(key).step);
         }
-        solutionPath.reverse();
-        return solutionPath;
+        steps.reverse();
+        return rebindChainInputs(steps, initialAvailableIds, id => shapeCodesById.get(id)).map(formatStep);
+    }
+
+    // The two result shapes every search returns. depth is the path's length, and
+    // cancel wins over any no-path outcome, including a cap abort: a cancelled
+    // search resolves to null.
+    function solved(solutionPath, statesExplored) {
+        return { solutionPath, depth: solutionPath.length, statesExplored };
+    }
+    function noSolution(statesExplored, aborted = null) {
+        return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored, aborted };
     }
 
     // Shared best-first (A*/Bidirectional) search loop. A* and Bidirectional were
@@ -298,11 +306,11 @@ export async function shapeSolver(
         // result field and matches BFS/IDA*/maxStates: distinct state keys in
         // costSoFar (not expansions — one state can be re-opened cheaper).
         let nodesExpanded = 0;
-        let aborted = false;  // set when the maxStates cap is hit
-        let lastUpdate = performance.now();
+        let aborted = null;  // 'maxStates' once the cap is hit
+        const pulse = createPulse(onProgress, { everyN: 500 });
 
         while (open.size() > 0 && !shouldCancel()) {
-            if (costSoFar.size > maxStates) { aborted = true; break; }
+            if (costSoFar.size > maxStates) { aborted = 'maxStates'; break; }
             const currentItem = open.dequeue();
             if (!currentItem) break;
             nodesExpanded++;
@@ -311,16 +319,15 @@ export async function shapeSolver(
             const g = costSoFar.get(stateKey);
 
             if (isGoal(availableIds)) {
-                return {
-                    solutionPath: reconstructPath(cameFrom, stateKey, initialKey),
-                    depth: g,
-                    statesExplored: costSoFar.size
-                };
+                return solved(reconstructPath(cameFrom, stateKey, initialKey), costSoFar.size);
             }
 
             for (const desc of generateSuccessors(availableIds)) {
                 const newKey = successorStateKey(availableIds, desc);
                 const newG = g + 1;
+                // A re-open mints new ids, leaving the old copy's children with
+                // steps that name the old ones until this copy re-expands. The
+                // lower g pops it first, and reconstructPath rebinds ids regardless.
                 if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
                     costSoFar.set(newKey, newG);
                     const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
@@ -330,19 +337,13 @@ export async function shapeSolver(
                 }
             }
 
-            if (nodesExpanded % 500 === 0 || performance.now() - lastUpdate > 200) {
-                onProgress(`${label} | g=${g} | Open:${open.size()} | Explored:${nodesExpanded} | Total visited:${costSoFar.size}${progressSuffix}`);
-                lastUpdate = performance.now();
-                // Yield to the event loop so a long search stays cancellable, matching IDA*.
-                await new Promise(r => setTimeout(r, 0));
+            if (pulse.due(nodesExpanded)) {
+                await pulse.emit(`${label} | g=${g} | Open:${open.size()} | Explored:${nodesExpanded} | Total visited:${costSoFar.size}${progressSuffix}`);
             }
         }
 
         if (aborted) onProgress(`${label} | Aborted: hit ${maxStates}-state cap before solving${abortHint}`);
-        return shouldCancel() ? null : {
-            solutionPath: null, depth: null, statesExplored: costSoFar.size,
-            aborted: aborted ? 'maxStates' : null
-        };
+        return noSolution(costSoFar.size, aborted);
     }
 
     // -----------------------------------------------------------------------
@@ -367,164 +368,167 @@ export async function shapeSolver(
     //   • popped frames delete their output ids from shapeCodesById, so the id
     //     registry holds only the current stack's shapes, not every push ever made.
     async function runIdaStar() {
+        const run = {
+            distinctStates: new Set(),
+            nodesExpanded: 0,      // cumulative across threshold passes
+            pulse: createPulse(onProgress, { everyN: 1000 }),
+        };
         let threshold = getHeuristic(initialAvailableIds);
-        let nodesExpanded = 0;     // cumulative expansions across threshold passes
-        const distinctStates = new Set();
-        let passCount = 0;         // number of threshold-bounded passes run so far
-        let lastUpdate = performance.now();
 
-        while (!shouldCancel()) {
-            passCount++;
-            let nodesThisPass = 0;
+        for (let passCount = 1; !shouldCancel(); passCount++) {
+            const { solutionPath, nextThreshold, aborted } = await runIdaPass(threshold, passCount, run);
+            // Distinct keys (same unit as BFS visited.size / the maxStates cap), not
+            // cumulative expansions across passes.
+            const statesExplored = run.distinctStates.size;
 
-            // Depth-limited search using explicit stack. pathStack holds the step
-            // record of every non-root frame on the stack (root → top), pushed and
-            // popped with its frame; the public solution path is built from it only at
-            // the goal. bestG also does the cycle detection: while a frame is on the
-            // stack every new push is one of its descendants, at a strictly higher g
-            // than the frame's own bestG entry, so an on-path key is never re-pushed.
-            const initialKey = getStateKey(initialAvailableIds);
-            distinctStates.add(initialKey);
-            const bestG = new Map([[initialKey, 0]]);
-            const pathStack = [];
-            const stack = [{
-                availableIds: new Set(initialAvailableIds),
-                g: 0,
-                successorIterator: null,
-                stateKey: initialKey
-            }];
-            // Pop the top frame; a non-root frame also drops its step and reclaims the
-            // ids it minted (no frame still on the stack can reference them).
-            const popFrame = () => {
-                const popped = stack.pop();
-                if (popped.g === 0) return;
-                for (const id of pathStack.pop().outputIds) shapeCodesById.delete(id);
-            };
-
-            let nextThreshold = Infinity;
-            let aborted = false;
-            // Shortest goal path found this pass. The weighted threshold sits far
-            // above the true depth, so the first goal DFS reaches is often several
-            // times too long; after one is found the pass keeps going (branch and
-            // bound against its length) until it exhausts or stalls (stallLimit).
-            let solutionPath = null;
-            let stallLimit = Infinity;
-
-            while (stack.length > 0 && !shouldCancel()) {
-                // Same top-of-loop check as A* (costSoFar.size) / BFS (visited.size).
-                if (distinctStates.size > maxStates) { aborted = true; break; }
-                if (distinctStates.size > stallLimit) break;
-
-                const frame = stack[stack.length - 1];
-
-                // A frame with no successorIterator is on its first visit: check its
-                // goal/f-value, then lazily attach the iterator below. On later visits the
-                // iterator is present, so this block is skipped and we pull the next
-                // successor — the iterator's presence is what distinguishes a frame being
-                // re-expanded from one being visited for the first time.
-                if (!frame.successorIterator) {
-                    nodesThisPass++;
-                    nodesExpanded++;
-
-                    const f = frame.g + getHeuristic(frame.availableIds);
-                    if (f > threshold) {
-                        nextThreshold = Math.min(nextThreshold, f);
-                        popFrame();
-                        continue;
-                    }
-
-                    // A frame only exists at g < the best length so far (see the
-                    // push bound below), so any goal here is a strict improvement.
-                    if (isGoal(frame.availableIds)) {
-                        stallLimit = IDA_STALL_FACTOR * Math.max(distinctStates.size, IDA_STALL_FLOOR);
-                        solutionPath = pathStack.map(formatStep);
-                        onProgress(`IDA* | Pass:${passCount} | Found ${solutionPath.length}-op path, searching for shorter | Distinct:${distinctStates.size}`);
-                        popFrame();
-                        continue;
-                    }
-
-                    // Bound by the UNWEIGHTED estimate (anytime weighted search):
-                    // the weighted f orders the descent, but a frame that cannot
-                    // plausibly beat the best path is not worth expanding. g alone
-                    // tightens the bound one op per goal and runs to the state cap.
-                    if (solutionPath && frame.g + coverageHeuristic.unweighted(heldCodes(frame.availableIds)) >= solutionPath.length) {
-                        popFrame();
-                        continue;
-                    }
-
-                    frame.successorIterator = generateSuccessors(frame.availableIds);
-                }
-
-                // Branch and bound: every successor sits at g + 1, so once that
-                // reaches the best goal length this frame can only lead to goals
-                // at least as long — drop it without generating the rest.
-                const succG = frame.g + 1;
-                if (solutionPath && succG >= solutionPath.length) {
-                    popFrame();
-                    continue;
-                }
-
-                // Try next successor
-                const next = frame.successorIterator.next();
-                if (next.done) {
-                    popFrame();
-                    continue;
-                }
-
-                const desc = next.value;
-                const succKey = successorStateKey(frame.availableIds, desc);
-
-                // Transposition + cycle check: skip unless this pass has not yet
-                // reached the key at this g or lower.
-                const seenG = bestG.get(succKey);
-                if (seenG !== undefined && seenG <= succG) continue;
-                bestG.set(succKey, succG);
-
-                const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
-                pathStack.push(step);
-                distinctStates.add(succKey);
-
-                stack.push({
-                    availableIds: succIds,
-                    g: succG,
-                    successorIterator: null,
-                    stateKey: succKey
-                });
-
-                // Status update — report distinct visited (the cap metric) alongside
-                // expansion counts so progress matches A*/BFS wording.
-                if (nodesExpanded % 1000 === 0 || performance.now() - lastUpdate > 200) {
-                    onProgress(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Distinct:${distinctStates.size} | Expanded:${nodesExpanded}`);
-                    lastUpdate = performance.now();
-                    // Yield to event loop periodically for cancel checks
-                    await new Promise(r => setTimeout(r, 0));
-                }
-            }
-
-            // statesExplored reports distinct keys (same unit as BFS visited.size /
-            // the maxStates cap), not cumulative expansions across passes.
             // Cancel wins over a found path, matching the other methods. A path
             // found before the cap is returned: hitting maxStates only ends the
             // search for a shorter one.
-            if (solutionPath && !shouldCancel()) {
-                return { solutionPath, depth: solutionPath.length, statesExplored: distinctStates.size };
-            }
+            if (solutionPath && !shouldCancel()) return solved(solutionPath, statesExplored);
 
             if (aborted) {
                 onProgress(`IDA* | Aborted: hit ${maxStates}-state cap before solving`);
-                return { solutionPath: null, depth: null, statesExplored: distinctStates.size, aborted: 'maxStates' };
+                return noSolution(statesExplored, 'maxStates');
             }
 
-            if (nextThreshold === Infinity || shouldCancel()) {
-                return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: distinctStates.size };
-            }
+            if (nextThreshold === Infinity || shouldCancel()) return noSolution(statesExplored);
 
-            onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Distinct:${distinctStates.size} | Expanded:${nodesExpanded}`);
-
+            onProgress(`IDA* | Increasing threshold: ${threshold} → ${nextThreshold} | Distinct:${statesExplored} | Expanded:${run.nodesExpanded}`);
             threshold = nextThreshold;
         }
 
-        return shouldCancel() ? null : { solutionPath: null, depth: null, statesExplored: distinctStates.size };
+        return noSolution(run.distinctStates.size);
+    }
+
+    // One threshold-bounded DFS over an explicit stack. Returns the shortest path it
+    // found (or null), the lowest f it cut off (the next threshold, Infinity when
+    // nothing was cut) and whether it stopped at maxStates. `run` holds what outlives
+    // a pass: distinctStates, nodesExpanded and the progress pulse.
+    //
+    // pathStack holds the step record of every non-root frame on the stack (root →
+    // top), pushed and popped with its frame; the public solution path is built from
+    // it only at the goal. bestG also does the cycle detection: while a frame is on
+    // the stack every new push is one of its descendants, at a strictly higher g
+    // than the frame's own bestG entry, so an on-path key is never re-pushed.
+    async function runIdaPass(threshold, passCount, run) {
+        const { distinctStates, pulse } = run;
+        const initialKey = getStateKey(initialAvailableIds);
+        distinctStates.add(initialKey);
+        const bestG = new Map([[initialKey, 0]]);
+        const pathStack = [];
+        const stack = [{
+            availableIds: new Set(initialAvailableIds),
+            g: 0,
+            successorIterator: null
+        }];
+        // Pop the top frame; a non-root frame also drops its step and reclaims the
+        // ids it minted (no frame still on the stack can reference them).
+        const popFrame = () => {
+            const popped = stack.pop();
+            if (popped.g === 0) return;
+            for (const id of pathStack.pop().outputIds) shapeCodesById.delete(id);
+        };
+
+        let nodesThisPass = 0;
+        let nextThreshold = Infinity;
+        // Shortest goal path found this pass. The weighted threshold sits far
+        // above the true depth, so the first goal DFS reaches is often several
+        // times too long; after one is found the pass keeps going (branch and
+        // bound against its length) until it exhausts or stalls (stallLimit).
+        let solutionPath = null;
+        let stallLimit = Infinity;
+
+        // A frame's first visit: its f, goal and bound checks. Attaches the frame's
+        // successor iterator and returns true when it should expand, false when one
+        // of those checks settles it and it should pop.
+        function enterFrame(frame) {
+            nodesThisPass++;
+            run.nodesExpanded++;
+
+            const f = frame.g + getHeuristic(frame.availableIds);
+            if (f > threshold) {
+                nextThreshold = Math.min(nextThreshold, f);
+                return false;
+            }
+
+            // A frame only exists at g < the best length so far (see the
+            // push bound below), so any goal here is a strict improvement.
+            if (isGoal(frame.availableIds)) {
+                stallLimit = IDA_STALL_FACTOR * Math.max(distinctStates.size, IDA_STALL_FLOOR);
+                solutionPath = pathStack.map(formatStep);
+                onProgress(`IDA* | Pass:${passCount} | Found ${solutionPath.length}-op path, searching for shorter | Distinct:${distinctStates.size}`);
+                return false;
+            }
+
+            // Bound by the UNWEIGHTED estimate (anytime weighted search):
+            // the weighted f orders the descent, but a frame that cannot
+            // plausibly beat the best path is not worth expanding. g alone
+            // tightens the bound one op per goal and runs to the state cap.
+            if (solutionPath && frame.g + coverageHeuristic.unweighted(heldCodes(frame.availableIds)) >= solutionPath.length) {
+                return false;
+            }
+
+            frame.successorIterator = generateSuccessors(frame.availableIds);
+            return true;
+        }
+
+        while (stack.length > 0 && !shouldCancel()) {
+            // Same top-of-loop check as A* (costSoFar.size) / BFS (visited.size).
+            if (distinctStates.size > maxStates) return { solutionPath, nextThreshold, aborted: true };
+            if (distinctStates.size > stallLimit) break;
+
+            const frame = stack[stack.length - 1];
+
+            // The iterator's presence is what distinguishes a frame being resumed
+            // from one being visited for the first time.
+            if (!frame.successorIterator && !enterFrame(frame)) {
+                popFrame();
+                continue;
+            }
+
+            // Branch and bound: every successor sits at g + 1, so once that
+            // reaches the best goal length this frame can only lead to goals
+            // at least as long — drop it without generating the rest.
+            const succG = frame.g + 1;
+            if (solutionPath && succG >= solutionPath.length) {
+                popFrame();
+                continue;
+            }
+
+            // Try next successor
+            const next = frame.successorIterator.next();
+            if (next.done) {
+                popFrame();
+                continue;
+            }
+
+            const desc = next.value;
+            const succKey = successorStateKey(frame.availableIds, desc);
+
+            // Transposition + cycle check: skip unless this pass has not yet
+            // reached the key at this g or lower.
+            const seenG = bestG.get(succKey);
+            if (seenG !== undefined && seenG <= succG) continue;
+            bestG.set(succKey, succG);
+
+            const { availableIds: succIds, step } = applySuccessor(frame.availableIds, desc);
+            pathStack.push(step);
+            distinctStates.add(succKey);
+
+            stack.push({
+                availableIds: succIds,
+                g: succG,
+                successorIterator: null
+            });
+
+            // Status update — report distinct visited (the cap metric) alongside
+            // expansion counts so progress matches A*/BFS wording.
+            if (pulse.due(run.nodesExpanded)) {
+                await pulse.emit(`IDA* | Pass:${passCount} | Threshold:${threshold} | Nodes:${nodesThisPass} | Stack:${stack.length} | Distinct:${distinctStates.size} | Expanded:${run.nodesExpanded}`);
+            }
+        }
+
+        return { solutionPath, nextThreshold, aborted: false };
     }
 
     // -----------------------------------------------------------------------
@@ -599,16 +603,12 @@ export async function shapeSolver(
         // is the goal, { aborted: true } when the maxStates cap is hit mid-level,
         // otherwise { nextStates } — the unpruned next level (partial on cancel;
         // the caller's loop condition then stops the search).
-        function expandBfsLevel(frontier, depth) {
+        function expandBfsLevel(frontier) {
             const nextStates = [];
             for (const { availableIds, stateKey: currentKey } of frontier) {
                 if (shouldCancel()) break;
                 if (isGoal(availableIds)) {
-                    return { result: {
-                        solutionPath: reconstructPath(cameFrom, currentKey, initialKey),
-                        depth,
-                        statesExplored: visited.size
-                    } };
+                    return { result: solved(reconstructPath(cameFrom, currentKey, initialKey), visited.size) };
                 }
                 for (const desc of generateSuccessors(availableIds)) {
                     if (shouldCancel()) break;
@@ -627,24 +627,22 @@ export async function shapeSolver(
             return { nextStates };
         }
         let frontier = [{ availableIds: initialAvailableIds, stateKey: initialKey, score: calculateStateScore(initialAvailableIds) }];
-        let aborted = false;  // set when the maxStates cap is hit
-        let lastUpdate = performance.now();
+        let aborted = null;  // 'maxStates' once the cap is hit
+        const pulse = createPulse(onProgress);
         for (let depth = 0; frontier.length > 0 && !shouldCancel(); depth++) {
-            if (visited.size > maxStates) { aborted = true; break; }
-            const level = expandBfsLevel(frontier, depth);
+            if (visited.size > maxStates) { aborted = 'maxStates'; break; }
+            const level = expandBfsLevel(frontier);
             if (level.result) return level.result;
-            if (level.aborted) { aborted = true; break; }
+            if (level.aborted) { aborted = 'maxStates'; break; }
             frontier = pruneStatesAtDepth(level.nextStates, maxStatesPerLevel);
-            const now = performance.now();
-            if (now - lastUpdate > 200) {
+            if (pulse.due()) {
                 const prunedCount = level.nextStates.length - frontier.length;
                 const pruneInfo = prunedCount > 0 ? ` | Pruned ${prunedCount} States` : '';
-                onProgress(`BFS | Depth ${depth + 1} → ${frontier.length} States | ${visited.size} Total States${pruneInfo}`);
-                lastUpdate = now;
+                await pulse.emit(`BFS | Depth ${depth + 1} → ${frontier.length} States | ${visited.size} Total States${pruneInfo}`);
             }
         }
         if (aborted) onProgress(`BFS | Aborted: hit ${maxStates}-state cap before solving`);
-        return shouldCancel() ? null : {solutionPath: null, depth: null, statesExplored: visited.size, aborted: aborted ? 'maxStates' : null};
+        return noSolution(visited.size, aborted);
     }
 
     // -----------------------------------------------------------------------
