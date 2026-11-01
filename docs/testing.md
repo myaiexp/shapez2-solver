@@ -1,14 +1,18 @@
 # Testing
 
-Tests are plain `node tests/**/*.js` scripts (no framework), grouped by subsystem into `tests/{shape,solver,blueprint,shared}/` — mirroring the source's prefix-grouping.
+Tests are plain `node tests/**/*.js` scripts (no framework). `tests/{shape,solver,blueprint}/` are grouped by subsystem, mirroring the source's prefix-grouping; the other three are grouped by what the test does:
 
-`shared/` holds the harness (`fixtures.js`, `layoutFixtures.js`, `smoke.js`, `solve.mjs`, `snapshots.json`, `similarity.js`, `pathValidation.js`, `smokeSnapshot.js`, `layoutCollisions.js`) plus cross-cutting app tests (`colorMode`, `persistence`, `persistenceApply`, `solutionPresentation`, `solveRequest`, `blueprintView`, `uiControls`, `solveCli`, `exploreDepth`, `pathInventory`, `operationGraph2D`, `operationGraphSpace`, `domIds`, `clipboardFeedback`, `solverJob`). `layoutFixtures.js` is the hand-written `buildLayout` paths; `fixtures.js` re-exports them. Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path. An optional `expectShapes` list is asserted present in the explored graph — use it when the count snapshot can't tell which color an op chose.
+- `ui/` — tests of the page-side modules, run against stubs (`colorMode`, `persistence`, `persistenceApply`, `solutionPresentation`, `solveRequest`, `blueprintView`, `uiControls`, `exploreDepth`, `operationGraph2D`, `operationGraphSpace`, `operationGraphExport`, `clipboardFeedback`, `solverJob`).
+- `harness/` — the headless harness and what it is built from (`solve.mjs`, `smoke.js`, `smokeSnapshot.js`, `snapshots.json`, `fixtures.js`, `layoutFixtures.js`, `pathValidation.js`, `layoutCollisions.js`, `similarity.js`), plus the tests of those pieces (`solveCli` for `solve.mjs`). Other test directories import `pathValidation.js`, `fixtures.js`, `layoutFixtures.js` and `similarity.js` from here.
+- `meta/` — checks on the repository itself rather than a module: `domIds`, `coverageReach`, `assembleSite`.
 
-The Worker wrapper (`shapeSolver.js`) is covered by `tests/solver/workerDispatch.test.js`, which stubs `globalThis.self` and drives `self.onmessage` — Constructive dispatch, `nodeBudget` vs the core caps, explore-depth clamp, the explore node cap, explore `targetShapeCode` forwarding, cancel suppression, and `{type:'error'}` on a malformed target or a null explore start. The main-thread side — `solverJob.js`'s worker slot — is covered by `tests/shared/solverJob.test.js` against a fake `Worker`: button ownership, the generation guard against late messages from a replaced worker, and release on every terminal outcome.
+`layoutFixtures.js` is the hand-written `buildLayout` paths; `fixtures.js` re-exports them. Explorer fixtures may carry a `target` (7th arg to `shapeExplorer`) so Painter / Crystal Generator color enumeration is target-narrowed; omit it for the inventory-union path. An optional `expectShapes` list is asserted present in the explored graph — use it when the count snapshot can't tell which color an op chose.
 
-Presentation code runs against stubs, not a browser. The flowchart's structure is built by the pure `buildGraphElements` (`operationGraphElements.js`); `tests/shared/operationGraph2D.test.js` covers it directly, then drives `renderGraph`/`reRenderGraph` with `document` + `cytoscape` stubs to pin that a cleared solve is never redrawn. `tests/blueprint/blueprintRenderer.test.js` stubs `window`, `ResizeObserver`, `document.createElement` and a recording 2D context to cover `BlueprintRenderer` floors, zoom/pan, hover, `exportPng` and `destroy`; `blueprintDrawing.test.js` records `fillRect`/`fillText` calls to pin belt-kind colors and badges and per-side port positions. Neither can catch a real Cytoscape or canvas rendering regression.
+The Worker wrapper (`shapeSolver.js`) is covered by `tests/solver/workerDispatch.test.js`, which stubs `globalThis.self` and drives `self.onmessage` — Constructive dispatch, `nodeBudget` vs the core caps, explore-depth clamp, the explore node cap, explore `targetShapeCode` forwarding, cancel suppression, and `{type:'error'}` on a malformed target or a null explore start. The main-thread side — `solverJob.js`'s worker slot — is covered by `tests/ui/solverJob.test.js` against a fake `Worker`: button ownership, the generation guard against late messages from a replaced worker, and release on every terminal outcome.
 
-The full suite is zero-dependency; `npm test` (`tests/run-suite.sh`) runs it — every `tests/**/*.test.js` plus `smoke.js` under `node --test` with coverage, then the two `solve.mjs` checks — in about 25 seconds. `constructive.test.js` is the slowest file, about 3 seconds. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/shared/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites.
+Presentation code runs against stubs, not a browser. The flowchart's structure is built by the pure `buildGraphElements` (`operationGraphElements.js`); `tests/ui/operationGraph2D.test.js` covers it directly, then drives `renderGraph`/`reRenderGraph` with `document` + `cytoscape` stubs to pin that a cleared solve is never redrawn. `tests/blueprint/blueprintRenderer.test.js` stubs `window`, `ResizeObserver`, `document.createElement` and a recording 2D context to cover `BlueprintRenderer` floors, zoom/pan, hover, `exportPng` and `destroy`; `blueprintDrawing.test.js` records `fillRect`/`fillText` calls to pin belt-kind colors and badges and per-side port positions. Neither can catch a real Cytoscape or canvas rendering regression.
+
+The full suite is zero-dependency; `npm test` (`tests/run-suite.sh`) runs it — every `tests/**/*.test.js` plus `smoke.js` under `node --test` with coverage, then the two `solve.mjs` checks — in about 25 seconds. `constructive.test.js` is the slowest file, about 3 seconds. Each file `process.exit(1)`s on failure, so exit codes drive both gates below. Before committing solver/layout/shape-operations changes, run `node tests/harness/smoke.js` (snapshot suite + per-step solution-path validation) and the relevant `tests/**/*.test.js` unit suites.
 
 Shape ops must never mutate their input `Shape` objects — the solver shares parsed shapes via `getCachedShape`, so in-place mutation corrupts the cache and yields impossible paths; `tests/shape/shapeCacheIntegrity.test.js` guards this.
 
@@ -16,7 +20,7 @@ Shape ops must never mutate their input `Shape` objects — the solver shares pa
 
 ## Path-validation gate
 
-`tests/shared/pathValidation.js` is the single correctness gate behind every harness and suite that validates a path. A path must clear three independent checks:
+`tests/harness/pathValidation.js` is the single correctness gate behind every harness and suite that validates a path. A path must clear three independent checks:
 
 1. every step replays as a real op
 2. the ids flow physically (each consumed once; fan-out of a produced shape needs a `Belt Split`; a starting shape may be fed again under a fresh id, since every unproduced id gets its own source belt)
@@ -28,9 +32,9 @@ It has its own unit suite, `pathValidation.test.js`, because a hole in the gate 
 
 CI (the `test` job in `.github/workflows/pages.yml`) runs the suite on every push to `master`, and the Pages **deploy is gated on it** (`deploy: needs: test`) — a red test blocks shipping to mase.fi/shapez.
 
-The published files are not a list. `.github/assemble-site.mjs` walks from `index.html` through its scripts, module imports, the worker URL, stylesheets and asset paths, and copies what that reaches; a reference to a missing file throws. `tests/shared/assembleSite.test.js` runs the same walk, so a broken reference fails the `test` job. A root file the page never loads, such as `shapeOperationsTestUtils.js`, stays off the live site without being named anywhere.
+The published files are not a list. `.github/assemble-site.mjs` walks from `index.html` through its scripts, module imports, the worker URL, stylesheets and asset paths, and copies what that reaches; a reference to a missing file throws. `tests/meta/assembleSite.test.js` runs the same walk, so a broken reference fails the `test` job. A root file the page never loads, such as `shapeOperationsTestUtils.js`, stays off the live site without being named anywhere.
 
-Both gates run `tests/run-suite.sh`, the one definition of the suite, so there is nothing to keep in lockstep. It discovers `tests/**/*.test.js` into an array (quoted iteration, so paths with spaces stay one file), refuses to proceed if fewer than 30 files matched (an empty `find` used to make the run succeed vacuously), runs those files plus `tests/shared/smoke.js` through `node --test` (each in its own process; a non-zero exit fails the run), then two cheap `solve.mjs` invocations.
+Both gates run `tests/run-suite.sh`, the one definition of the suite, so there is nothing to keep in lockstep. It discovers `tests/**/*.test.js` into an array (quoted iteration, so paths with spaces stay one file), refuses to proceed if fewer than 30 files matched (an empty `find` used to make the run succeed vacuously), runs those files plus `tests/harness/smoke.js` through `node --test` (each in its own process; a non-zero exit fails the run), then two cheap `solve.mjs` invocations.
 
 Locally, `.githooks/pre-commit` runs it before each commit and prints the output only on failure; activate once per clone with `git config core.hooksPath .githooks` (bypass a single commit with `git commit --no-verify`).
 
@@ -38,22 +42,22 @@ Locally, `.githooks/pre-commit` runs it before each commit and prints the output
 
 The `node --test` run measures coverage of the root `*.js` modules and fails below 97% lines, 94% branches and 97% functions (Node ≥ 22.8 for the threshold flags; thresholds are integers). The floor sits just under the measured numbers (about 97.9 / 94.7 / 97.2) so erosion fails the gate; raise it when coverage rises rather than lowering it to land a change. Branch and line figures move by about 0.1 between runs because a timing-dependent block in `shapeSolverCore.js` is hit only on some runs.
 
-Node only reports modules some test loads, so a module no test loads is absent from the report rather than counted as 0%. `tests/shared/coverageReach.test.js` closes that gap: it walks the import graph from the test files and fails on any root module the walk doesn't reach. Its one exemption is `main.js`, which wires the whole page at import time and is checked by using the page in a browser.
+Node only reports modules some test loads, so a module no test loads is absent from the report rather than counted as 0%. `tests/meta/coverageReach.test.js` closes that gap: it walks the import graph from the test files and fails on any root module the walk doesn't reach. Its one exemption is `main.js`, which wires the whole page at import time and is checked by using the page in a browser.
 
 ## Headless solve/explore harness
 
-`node tests/shared/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter, with `--expect-solved` so a no-path result fails the gate) and one `--explore 2` so a signature change in the modules it wraps fails the gate. Without `--expect-solved` a miss still exits 0. An unknown `--` flag exits 2, and so does an invalid target or starting shape (before any search). A shape code that starts with `--` (empty quadrants) is a target, not a flag.
+`node tests/harness/solve.mjs` runs a solve (or `--explore N`) from the CLI and validates every step is a real operation. Use it to reproduce and diagnose solver/operation bugs without the browser. CI and pre-commit each run one solve (`CuCu----` / Cutter, with `--expect-solved` so a no-path result fails the gate) and one `--explore 2` so a signature change in the modules it wraps fails the gate. Without `--expect-solved` a miss still exits 0. An unknown `--` flag exits 2, and so does an invalid target or starting shape (before any search). A shape code that starts with `--` (empty quadrants) is a target, not a flag.
 
-Flag set, methods, and defaults live in the usage header at the top of `tests/shared/solve.mjs` — read that rather than copying a subset here.
+Flag set, methods, and defaults live in the usage header at the top of `tests/harness/solve.mjs` — read that rather than copying a subset here.
 
 ## Snapshot baselines
 
-`tests/shared/smoke.js` diffs op/layout/solver/explorer outputs against `tests/shared/snapshots.json`. A missing `snapshots.json`, or a fixture key with no baseline, is a failure — it does not record current behavior and pass.
+`tests/harness/smoke.js` diffs op/layout/solver/explorer outputs against `tests/harness/snapshots.json`. A missing `snapshots.json`, or a fixture key with no baseline, is a failure — it does not record current behavior and pass.
 
 Record or refresh baselines explicitly:
 
 ```
-SMOKE_UPDATE=1 node tests/shared/smoke.js
+SMOKE_UPDATE=1 node tests/harness/smoke.js
 ```
 
 That writes missing keys (`[baseline written]`) and overwrites mismatches (`[baseline updated]`). Review the `snapshots.json` diff before committing; a new fixture's first baseline is whatever the implementation produces today.

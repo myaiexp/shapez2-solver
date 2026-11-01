@@ -1,4 +1,4 @@
-// Standalone tests for exploreDepth.js — run with: node tests/shared/exploreDepth.test.js
+// Standalone tests for exploreDepth.js — run with: node tests/ui/exploreDepth.test.js
 //
 // clampExploreDepth bounds the space explorer's depth: every value that reaches
 // shapeExplorer from the UI or a worker message has to come out of here inside

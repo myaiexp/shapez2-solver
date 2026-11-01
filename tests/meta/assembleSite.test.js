@@ -1,5 +1,5 @@
 // The Pages artifact is the set of files the page actually loads — run with:
-//   node tests/shared/assembleSite.test.js
+//   node tests/meta/assembleSite.test.js
 //
 // Fixture repos pin each kind of reference the walk follows; the last block runs
 // it on this repo, so a root dev file can't reach the live site and a reference

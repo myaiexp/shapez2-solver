@@ -23,7 +23,7 @@ const OPS = { cut, stack, rotate90CW, getSimilarity };
 function loadSnapshots() {
     if (!existsSync(SNAPSHOTS_PATH)) {
         if (!UPDATE) {
-            console.log('✗ tests/shared/snapshots.json is missing — run SMOKE_UPDATE=1 node tests/shared/smoke.js to record baselines');
+            console.log('✗ tests/harness/snapshots.json is missing — run SMOKE_UPDATE=1 node tests/harness/smoke.js to record baselines');
             process.exit(1);
         }
         return {};

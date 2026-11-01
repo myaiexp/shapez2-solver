@@ -12,7 +12,7 @@ import { gunzipSync } from 'zlib';
 import { exportBlueprintString } from '../../blueprintExport.js';
 import { buildLayout } from '../../blueprintLayout.js';
 import { BUILDING_DATA } from '../../buildingData.js';
-import { LAYOUT_FIXTURES } from '../shared/fixtures.js';
+import { LAYOUT_FIXTURES } from '../harness/fixtures.js';
 
 let passed = 0;
 let total = 0;

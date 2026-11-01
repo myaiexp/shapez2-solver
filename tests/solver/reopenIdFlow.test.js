@@ -25,13 +25,13 @@
 // a chain that now runs through the fast route.
 //
 // Either half of the fix passes this file's fixture alone: order-independent h
-// closes the race, and rebindChainInputs (tests/shared/pathInventory.test.js)
+// closes the race, and rebindChainInputs (tests/solver/pathInventory.test.js)
 // repairs the ids if it ever opens again.
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { createCoverageHeuristic } from '../../shapeSolverHeuristic.js';
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
-import { invalidPathIds, pathReachesTarget } from '../shared/pathValidation.js';
+import { invalidPathIds, pathReachesTarget } from '../harness/pathValidation.js';
 
 let passed = 0;
 let total = 0;

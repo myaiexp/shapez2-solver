@@ -5,14 +5,14 @@
 // (shapeCrystals.test.js) and gravity (shapeGravity.test.js) with literals — but
 // the half-split geometry of cut, the layer order of stack, the Painter
 // primitive (topPaint), getSimilarity (legacy shape-comparison metric, now a
-// test-only helper in tests/shared/similarity.js; the solver uses
+// test-only helper in tests/harness/similarity.js; the solver uses
 // _matchAndCoverage in shapeSolverCore.js since idea #1677) and the
 // remaining structural ops (halfCut, swapHalves, trash, beltSplit) had no
 // golden assertion. These are literal input -> literal output, independent of
 // snapshots.json, so they fail loudly if the algorithm silently regresses.
 import { Shape, InvalidOperationInputs } from '../../shapeClass.js';
 import { cut, stack, topPaint, halfCut, swapHalves, trash, beltSplit } from '../../shapeOperations.js';
-import { getSimilarity } from '../shared/similarity.js';
+import { getSimilarity } from '../harness/similarity.js';
 
 let passed = 0;
 let total = 0;

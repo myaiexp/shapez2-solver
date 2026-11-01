@@ -1,4 +1,4 @@
-// Standalone tests for persistence.js — run with: node tests/shared/persistence.test.js
+// Standalone tests for persistence.js — run with: node tests/ui/persistence.test.js
 //
 // Covers the localStorage-backed save/load surface (audit #2218 — previously
 // only exercised as a bare JSON.parse(JSON.stringify(...)) round-trip in

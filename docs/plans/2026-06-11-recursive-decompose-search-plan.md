@@ -1,6 +1,6 @@
 # Constructive Decompose-and-Search Planner — Implementation Plan
 
-> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, and the suites named below are `tests/solver/constructive.test.js`, `tests/solver/shapeSolverDecompose.test.js` and `tests/shape/shapeCacheIntegrity.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,ui,harness,meta}/`: smoke is `node tests/harness/smoke.js`, and the suites named below are `tests/solver/constructive.test.js`, `tests/solver/shapeSolverDecompose.test.js` and `tests/shape/shapeCacheIntegrity.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
 
 **Goal:** Add a "Constructive" solver method that solves flat multi-distinct-quadrant targets (e.g. `CuRuSuWu`) by recursively decomposing the target into search-sized pieces, solving each piece with the existing search, and assembling them with `stack`.
 

@@ -5,11 +5,11 @@
 // what the operations actually do.
 //
 // Usage:
-//   node tests/shared/solve.mjs <target> [options]
-//   node tests/shared/solve.mjs CuRuCuRu
-//   node tests/shared/solve.mjs RuCuCuRu --start CuCuCuCu,RuRuRuRu --ops Swapper,Cutter
-//   node tests/shared/solve.mjs --explore 2 --start CuCuCuCu,RuRuRuRu,SuSuSuSu
-//   node tests/shared/solve.mjs CrCrCrCr --explore 1 --ops Painter --start CuCuCuCu,CrCrCrCr,CgCgCgCg
+//   node tests/harness/solve.mjs <target> [options]
+//   node tests/harness/solve.mjs CuRuCuRu
+//   node tests/harness/solve.mjs RuCuCuRu --start CuCuCuCu,RuRuRuRu --ops Swapper,Cutter
+//   node tests/harness/solve.mjs --explore 2 --start CuCuCuCu,RuRuRuRu,SuSuSuSu
+//   node tests/harness/solve.mjs CrCrCrCr --explore 1 --ops Painter --start CuCuCuCu,CrCrCrCr,CgCgCgCg
 //
 // Options:
 //   --start a,b,c        starting shape codes (default matches the app's default
@@ -87,7 +87,7 @@ function parseArgs(argv) {
 }
 
 // Step/edge operation validation (applyOp + validateStep) lives in the shared
-// tests/shared/pathValidation.js so every harness and suite that validates a
+// tests/harness/pathValidation.js so every harness and suite that validates a
 // path stays in lockstep. Empty
 // (`--------`) outputs are kept there: the explorer keeps them as nodes and the
 // solver drops them, so both stay a subset of the produced set.
@@ -133,7 +133,7 @@ if (opts.explore != null) {
     process.exit(bad ? 1 : 0);
 }
 
-if (!opts.target) { console.error('usage: node tests/shared/solve.mjs <target> [options]  (or --explore N)'); process.exit(2); }
+if (!opts.target) { console.error('usage: node tests/harness/solve.mjs <target> [options]  (or --explore N)'); process.exit(2); }
 
 const res = opts.method === 'Constructive'
     ? await solveConstructive(opts.target, starting, ops, {

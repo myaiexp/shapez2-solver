@@ -13,7 +13,7 @@ import { shapeSolver } from '../../shapeSolverCore.js';
 import { solveConstructive } from '../../shapeSolverConstructive.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { Shape, ShapeOperationConfig } from '../../shapeClass.js';
-import { pathReachesTarget, pathInventoryAcceptable } from '../shared/pathValidation.js';
+import { pathReachesTarget, pathInventoryAcceptable } from '../harness/pathValidation.js';
 
 let passed = 0;
 let total = 0;

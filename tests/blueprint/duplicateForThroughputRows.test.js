@@ -8,7 +8,7 @@
 // layout fixtures overlapped from multiplier 2, CuRuSuWu:WuSuRuCu by 35 tiles.
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
 import { MACHINE_GAP } from '../../blueprintPositions.js';
-import { LAYOUT_FIXTURES } from '../shared/layoutFixtures.js';
+import { LAYOUT_FIXTURES } from '../harness/layoutFixtures.js';
 
 let passed = 0;
 let total = 0;

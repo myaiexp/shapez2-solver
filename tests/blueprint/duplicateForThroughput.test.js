@@ -8,7 +8,7 @@
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
 import { MACHINE_GAP } from '../../blueprintPositions.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { pathIsValid } from '../shared/pathValidation.js';
+import { pathIsValid } from '../harness/pathValidation.js';
 
 let passed = 0;
 let total = 0;

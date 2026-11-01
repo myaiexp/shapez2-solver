@@ -4,7 +4,7 @@
 // would still pass CI. Run with: node tests/solver/beamWidth.test.js
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { pathIsValid, pathReachesTarget } from '../shared/pathValidation.js';
+import { pathIsValid, pathReachesTarget } from '../harness/pathValidation.js';
 
 let passed = 0;
 let total = 0;

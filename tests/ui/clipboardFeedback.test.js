@@ -1,4 +1,4 @@
-// Standalone tests for clipboardFeedback.js — run with: node tests/shared/clipboardFeedback.test.js
+// Standalone tests for clipboardFeedback.js — run with: node tests/ui/clipboardFeedback.test.js
 //
 // Every clipboard action in the UI (graph/blueprint image copy, shape-code copy
 // on a node click) reports its outcome on the #status line through this module.

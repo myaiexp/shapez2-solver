@@ -1,5 +1,5 @@
-// Exit-code contract for tests/shared/solve.mjs (audit #12020) — run with:
-//   node tests/shared/solveCli.test.js
+// Exit-code contract for tests/harness/solve.mjs (audit #12020) — run with:
+//   node tests/harness/solveCli.test.js
 //
 // CI and pre-commit invoke this harness as a gate. A no-path result used to
 // exit 0, so a solver that stopped solving the one-cut target stayed green.
@@ -22,7 +22,7 @@ function check(name, cond, detail) {
 }
 
 function run(args) {
-    return spawnSync(process.execPath, ['tests/shared/solve.mjs', ...args], {
+    return spawnSync(process.execPath, ['tests/harness/solve.mjs', ...args], {
         cwd: root,
         encoding: 'utf8',
     });

@@ -11,7 +11,7 @@
 import { buildLayout } from '../../blueprintLayout.js';
 import { BUILDING_DATA } from '../../buildingData.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { pathIsValid } from '../shared/pathValidation.js';
+import { pathIsValid } from '../harness/pathValidation.js';
 
 let passed = 0, total = 0, failed = false;
 function check(name, cond) {

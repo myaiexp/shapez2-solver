@@ -9,7 +9,7 @@
 import { shapeSolver } from '../../shapeSolverCore.js';
 import { operations } from '../../shapeSolverOperations.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
-import { pathIsValid } from '../shared/pathValidation.js';
+import { pathIsValid } from '../harness/pathValidation.js';
 
 let passed = 0;
 let total = 0;
@@ -28,7 +28,7 @@ const noop = () => {};
 
 // Every step must be a real operation (guards lazy id minting / applySuccessor
 // from ever reconstructing an impossible path). Validated under the solver's
-// maxLayers via the shared tests/shared/pathValidation.js.
+// maxLayers via the shared tests/harness/pathValidation.js.
 const CONFIG = new ShapeOperationConfig(4);
 
 // --- A hard target aborts at the cap instead of running unbounded ---

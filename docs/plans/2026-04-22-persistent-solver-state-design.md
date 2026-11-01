@@ -1,8 +1,8 @@
 # Persistent Solver State
 
-> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`; current commands are in [testing.md](../testing.md).
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,ui,harness,meta}/`: smoke is `node tests/harness/smoke.js`; current commands are in [testing.md](../testing.md).
 >
-> Updated 2026-10-08 to match the shipped `persistence.js`: Reset Saved State / `clearState()`, `captureState(runtime)`, `isValidSolutionPath`, `applyState`'s corrupt-list and tab guards, and their tests — `tests/shared/persistence.test.js` (storage) and `tests/shared/persistenceApply.test.js` (`captureState`/`applyState` against a fake document). `applyState` restores the form and returns the solution; it does not draw. The original "no Clear button" non-goal is superseded.
+> Updated 2026-10-08 to match the shipped `persistence.js`: Reset Saved State / `clearState()`, `captureState(runtime)`, `isValidSolutionPath`, `applyState`'s corrupt-list and tab guards, and their tests — `tests/ui/persistence.test.js` (storage) and `tests/ui/persistenceApply.test.js` (`captureState`/`applyState` against a fake document). `applyState` restores the form and returns the solution; it does not draw. The original "no Clear button" non-goal is superseded.
 
 ## Problem
 
@@ -89,7 +89,7 @@ Storage key: `shapez2-solver-state-v1`. Single JSON blob:
 
 **Why store `solutionPath` and not the layout:** the layout is recomputable via `buildLayout(solutionPath)` + `duplicateForThroughput(layout, multiplier)`. Storing the path instead of the layout keeps the blob smaller and avoids breakage if the layout schema ever changes — old solutions still re-layout cleanly. The Cytoscape graph is rebuilt the same way (`renderGraph(solutionPath)`).
 
-**Why store `strategyTrace`:** the Constructive status summary is derived from the trace, not from `solutionPath`. `captureState` writes `blueprint.solution` through unchanged, so a Constructive solve keeps its trace. On restore, `restorableSolution` keeps a valid trace and drops a corrupt one without rejecting the path (`tests/shared/persistenceApply.test.js`).
+**Why store `strategyTrace`:** the Constructive status summary is derived from the trace, not from `solutionPath`. `captureState` writes `blueprint.solution` through unchanged, so a Constructive solve keeps its trace. On restore, `restorableSolution` keeps a valid trace and drops a corrupt one without rejecting the path (`tests/ui/persistenceApply.test.js`).
 
 **Why strings for numeric inputs:** mirrors what the form actually holds. Avoids `null`/`NaN` round-trip issues when an input is empty.
 
@@ -149,8 +149,8 @@ With no valid saved solution, status stays `Idle` (a saved "No solution found." 
 
 ## Testing
 
-- **Unit tests** (`tests/shared/persistence.test.js`): `loadState` / `saveState` / `clearState` against an in-memory localStorage stub — round trip, nothing stored, corrupt JSON, throwing storage backends, and `clearState`'s return value — plus `isValidSolutionPath` accept/reject cases. `tests/shared/smoke.js` also runs every solver-produced path through `isValidSolutionPath`, so a path a reload would discard fails the suite.
-- **DOM tests** (`tests/shared/persistenceApply.test.js`): `captureState`/`applyState` against a fake `document` mirroring `index.html` — round trip, field restore, the solution gate, corrupt lists and tab names. `applyState` does not draw; throughput duplication and status lines are tested in `solutionPresentation.test.js`. Real rendering is covered only by the manual verification below.
+- **Unit tests** (`tests/ui/persistence.test.js`): `loadState` / `saveState` / `clearState` against an in-memory localStorage stub — round trip, nothing stored, corrupt JSON, throwing storage backends, and `clearState`'s return value — plus `isValidSolutionPath` accept/reject cases. `tests/harness/smoke.js` also runs every solver-produced path through `isValidSolutionPath`, so a path a reload would discard fails the suite.
+- **DOM tests** (`tests/ui/persistenceApply.test.js`): `captureState`/`applyState` against a fake `document` mirroring `index.html` — round trip, field restore, the solution gate, corrupt lists and tab names. `applyState` does not draw; throughput duplication and status lines are tested in `solutionPresentation.test.js`. Real rendering is covered only by the manual verification below.
 - **Manual verification** before commit:
   1. Set custom target + non-default options + edited starting shapes; refresh; confirm everything restored.
   2. Run a solve; refresh; confirm flowchart and blueprint render identically without re-solving.

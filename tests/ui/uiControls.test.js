@@ -1,5 +1,5 @@
 // Sidebar readers and starting-shape rows (audit #11351 / #11353) — run with:
-//   node tests/shared/uiControls.test.js
+//   node tests/ui/uiControls.test.js
 //
 // Solve and Explore share one parser per numeric field. The row builder is the
 // markup the remove handler and applyState both use, so the classes live here

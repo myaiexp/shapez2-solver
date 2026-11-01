@@ -7,7 +7,7 @@
 # erosion: integers (node truncates decimals), set at or just under the current
 # numbers. Raise them when coverage rises; don't lower them to land a change.
 # Only modules some test loads are measured, so an untested module would be
-# absent rather than 0%; tests/shared/coverageReach.test.js fails on one.
+# absent rather than 0%; tests/meta/coverageReach.test.js fails on one.
 # Needs Node >= 22.8 for the --test-coverage-* threshold flags.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,7 +27,7 @@ node --test \
   --test-coverage-lines=97 \
   --test-coverage-branches=94 \
   --test-coverage-functions=97 \
-  "${TESTS[@]}" tests/shared/smoke.js
+  "${TESTS[@]}" tests/harness/smoke.js
 
-node tests/shared/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json --expect-solved
-node tests/shared/solve.mjs --explore 2
+node tests/harness/solve.mjs 'CuCu----' --start CuCuCuCu --ops Cutter --json --expect-solved
+node tests/harness/solve.mjs --explore 2

@@ -11,7 +11,7 @@
 //     THREE texture per shape node, all on the main thread)
 //
 // These bounds guard the UI/worker boundary only. The CLI harness
-// (`tests/shared/solve.mjs --explore N`) calls shapeExplorer directly and sets
+// (`tests/harness/solve.mjs --explore N`) calls shapeExplorer directly and sets
 // its own `--max-nodes`, so deliberate deep runs outside the browser still work.
 export const DEFAULT_EXPLORE_DEPTH = 2;
 export const MAX_EXPLORE_DEPTH = 8;
