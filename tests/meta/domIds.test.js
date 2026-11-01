@@ -1,5 +1,5 @@
 // Literal DOM ids in the root scripts must exist in index.html — run with:
-//   node tests/shared/domIds.test.js
+//   node tests/meta/domIds.test.js
 //
 // persistenceApply.test.js checks the ids persistence.js touches while
 // capturing and applying. The other scripts (main.js, uiControls.js, the

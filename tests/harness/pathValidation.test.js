@@ -1,7 +1,7 @@
 // Unit tests for the shared path gates — run with:
-//   node tests/shared/pathValidation.test.js
+//   node tests/harness/pathValidation.test.js
 //
-// tests/shared/pathValidation.js is the single correctness gate behind smoke.js,
+// tests/harness/pathValidation.js is the single correctness gate behind smoke.js,
 // solve.mjs, constructive.test.js and solverStateCap.test.js, yet nothing tested
 // the gate itself: a hole in it silently unblocks every harness at once (audit
 // #5499/#5500 — a double-consumed id and a zero-op solve both slipped through).

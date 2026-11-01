@@ -1,5 +1,5 @@
 // Blueprint renderer lifetime (audit #11336 / #11337) — run with:
-//   node tests/shared/blueprintView.test.js
+//   node tests/ui/blueprintView.test.js
 //
 // Restoring the Blueprint tab with no saved solution must still create a
 // renderer, because present() only draws when one exists. Changing the
@@ -8,7 +8,7 @@
 // the canvas on the old one until reload.
 import { createBlueprintView } from '../../blueprintView.js';
 import { buildSolutionLayout } from '../../solutionPresentation.js';
-import { LAYOUT_FIXTURES } from './layoutFixtures.js';
+import { LAYOUT_FIXTURES } from '../harness/layoutFixtures.js';
 
 let passed = 0;
 let total = 0;

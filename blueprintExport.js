@@ -39,7 +39,6 @@ const DIR_TO_ROTATION = { E: 0, S: 1, W: 2, N: 3 };
 export async function exportBlueprintString(layout) {
     const entries = [];
 
-    // Add machines
     for (const machine of layout.machines) {
         const def = BUILDING_DATA[machine.operation];
         if (!def || !def.gameId) continue;
@@ -54,7 +53,6 @@ export async function exportBlueprintString(layout) {
         entries.push(entry);
     }
 
-    // Add belts
     for (const belt of layout.belts) {
         const T = BELT_TYPE_MAP[belt.kind] || BELT_TYPE_MAP.normal;
         const entry = {
@@ -91,14 +89,12 @@ export async function exportBlueprintString(layout) {
 async function encodeBlueprintString(blueprint) {
     const json = JSON.stringify(blueprint);
 
-    // Gzip compress using CompressionStream API
     const blob = new Blob([json]);
     const cs = new CompressionStream('gzip');
     const compressedStream = blob.stream().pipeThrough(cs);
     const compressedBlob = await new Response(compressedStream).blob();
     const buffer = await compressedBlob.arrayBuffer();
 
-    // Base64 encode
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {

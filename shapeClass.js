@@ -18,7 +18,10 @@ export const UNPAINTABLE_SHAPES = [
 ];
 export const REPLACED_BY_CRYSTAL = [PIN_CHAR, NOTHING_CHAR];
 
-// Shape Classes
+export function isPaintedPart(part) {
+    return !UNPAINTABLE_SHAPES.includes(part.shape) && part.color !== 'u';
+}
+
 export class ShapePart {
     constructor(shape, color) {
         this.shape = shape;

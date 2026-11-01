@@ -146,13 +146,11 @@ export function extractTopology(solutionPath) {
         return resolveProducer(upstreamId, v);
     }
 
-    // Build edges and identify sources
     for (let i = 0; i < solutionPath.length; i++) {
         const step = solutionPath[i];
         for (const inp of step.inputs) {
             const resolved = resolveProducer(inp.id, null);
             if (resolved !== null) {
-                // Edge from producing step to consuming step
                 edges.push({
                     from: resolved.stepIndex,
                     to: i,
@@ -167,7 +165,6 @@ export function extractTopology(solutionPath) {
                 sources.set(inp.id, inp.shape);
             }
 
-            // Track consumers
             if (!consumers.has(inp.id)) consumers.set(inp.id, []);
             consumers.get(inp.id).push(i);
         }
@@ -189,13 +186,11 @@ export function extractTopology(solutionPath) {
 export function topoSort(topology) {
     const { nodes } = topology;
 
-    // Collect only placeable (non-Belt-Split) step indices
     const placeableSteps = new Set();
     for (const [idx, node] of nodes) {
         if (!node.isBeltSplit) placeableSteps.add(idx);
     }
 
-    // Build adjacency and in-degree for placeable steps only
     const inDegree = new Map();
     const adj = new Map();
     for (const idx of placeableSteps) {
@@ -254,7 +249,6 @@ export function topoSort(topology) {
  * @returns {Map<number, number[]>} rowIndex -> [stepIndices in that row]
  */
 export function groupIntoRows(sortedSteps, topology) {
-    // Build effective upstream map for placeable steps
     const placeableSteps = new Set(sortedSteps);
     const upstreamOf = new Map(); // stepIdx -> Set<stepIdx>
     for (const idx of placeableSteps) {
@@ -282,7 +276,6 @@ export function groupIntoRows(sortedSteps, topology) {
         }
     }
 
-    // Collect steps into rows
     const rows = new Map();
     for (const idx of sortedSteps) {
         const r = rowOf.get(idx);

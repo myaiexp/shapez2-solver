@@ -1,6 +1,6 @@
 # Modularize Large Files Implementation Plan
 
-> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,shared}/`: smoke is `node tests/shared/smoke.js`, fixtures/snapshots are in `tests/shared/`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
+> **Historical — test paths have moved.** Tests now live under `tests/{shape,solver,blueprint,ui,harness,meta}/`: smoke is `node tests/harness/smoke.js`, fixtures/snapshots are in `tests/harness/`, unit suites are `tests/<subsystem>/*.test.js`. The paths and commands below are as written at the time; current commands are in [testing.md](../testing.md).
 
 **Goal:** Split the 4 source files exceeding 300 lines into smaller sibling modules, separating the Web Worker entry from the algorithm core, while preserving behavior verified by a new smoke test harness.
 

@@ -1,5 +1,5 @@
 // Solve / Explore worker payloads (audit #12023) — run with:
-//   node tests/shared/solveRequest.test.js
+//   node tests/ui/solveRequest.test.js
 //
 // main.js used to build these objects inline, so a edit that sent maxStates
 // or dropped nodeBudget passed the suite. The shared budget box is one number

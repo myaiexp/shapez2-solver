@@ -1,5 +1,5 @@
 // Unit tests for the smoke snapshot compare/update gate. Run with:
-//   node tests/shared/smokeSnapshot.test.js
+//   node tests/harness/smokeSnapshot.test.js
 import { applySnapshot } from './smokeSnapshot.js';
 
 let passed = 0, total = 0, failed = false;

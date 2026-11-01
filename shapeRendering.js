@@ -107,7 +107,6 @@ export function createShapeCanvas(shapeCode, size = 100) {
     const ctx = canvas.getContext('2d');
     const colorMode = getCurrentColorMode();
 
-    // Determine quad/hex geometry mode based on shapeCode
     const firstLayer = shapeCode.split(SHAPE_LAYER_SEPARATOR)[0];
     const numParts = firstLayer.length / 2;
     const geometryMode = numParts === 6 ? HEX_MODE : QUAD_MODE;

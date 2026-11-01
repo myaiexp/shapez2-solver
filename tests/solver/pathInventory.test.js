@@ -1,5 +1,5 @@
 // Unit tests for pathInventory's acceptableCodes and rebindChainInputs — run with:
-//   node tests/shared/pathInventory.test.js
+//   node tests/solver/pathInventory.test.js
 //
 // Core search and Constructive both treat acceptableCodes as 'the target' (exact
 // match vs every rotation). Pinning the helper — including the optional pre-parsed

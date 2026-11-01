@@ -9,6 +9,7 @@ import {
     CRYSTAL_CHAR,
     PIN_CHAR,
     UNPAINTABLE_SHAPES,
+    isPaintedPart,
     layerToCode
 } from './shapeClass.js';
 
@@ -17,13 +18,7 @@ export function getRequiredColors(targetShape) {
 
     for (const layer of targetShape.layers) {
         for (const part of layer) {
-            // Skip unpaintable shapes
-            if (UNPAINTABLE_SHAPES.includes(part.shape)) continue;
-
-            // Add non-uncolored parts
-            if (part.color !== 'u') {
-                colors.add(part.color);
-            }
+            if (isPaintedPart(part)) colors.add(part.color);
         }
     }
 
@@ -50,7 +45,6 @@ export function filterStartingShapes(startingShapeCodes, targetShapeCode) {
     const requiredColors = getRequiredColors(target);
     const requiredShapes = getRequiredShapes(target);
 
-    // If target has no specific colors or shapes, keep all starting shapes
     if (requiredColors.size === 0 && requiredShapes.size === 0) {
         return startingShapeCodes;
     }
@@ -60,12 +54,10 @@ export function filterStartingShapes(startingShapeCodes, targetShapeCode) {
 
         for (const layer of shape.layers) {
             for (const part of layer) {
-                // Check if this part's shape is required
                 if (requiredShapes.has(part.shape)) {
                     return true;
                 }
 
-                // Check if this part's color is required (and shape is paintable)
                 if (!UNPAINTABLE_SHAPES.includes(part.shape) &&
                     requiredColors.has(part.color)) {
                     return true;

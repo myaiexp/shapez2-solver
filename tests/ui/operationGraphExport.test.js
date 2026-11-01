@@ -1,5 +1,5 @@
 // Graph image copy, through the operationGraph.js facade main.js uses — run with:
-//   node tests/shared/operationGraphExport.test.js
+//   node tests/ui/operationGraphExport.test.js
 //
 // copyGraphToClipboard picks the live view: Cytoscape, else the 3D graph, else a
 // failure on #status. The 3D branch must draw a frame before toBlob, because the

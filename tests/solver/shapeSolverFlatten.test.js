@@ -15,7 +15,7 @@ import {
     invalidPathIds,
     pathReachesTarget,
     pathInventoryAcceptable,
-} from '../shared/pathValidation.js';
+} from '../harness/pathValidation.js';
 
 const ALL_OPS = Object.keys(operations);
 const NO_TRASH = ALL_OPS.filter((op) => op !== 'Trash');

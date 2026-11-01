@@ -14,7 +14,7 @@ import { operations } from '../../shapeSolverOperations.js';
 import { ShapeOperationConfig } from '../../shapeClass.js';
 import { getCachedShape } from '../../shapeSolverCache.js';
 import { createCoverageHeuristic } from '../../shapeSolverHeuristic.js';
-import { pathIsValid, pathReachesTarget } from '../shared/pathValidation.js';
+import { pathIsValid, pathReachesTarget } from '../harness/pathValidation.js';
 
 let passed = 0, total = 0, failed = false;
 

@@ -1,5 +1,5 @@
 // Unit tests for layout collision counters used by smoke layout snapshots.
-// Run with: node tests/shared/layoutCollisions.test.js
+// Run with: node tests/harness/layoutCollisions.test.js
 import { overlappingBeltTiles, beltsOverMachineFootprint } from './layoutCollisions.js';
 
 let passed = 0, total = 0, failed = false;

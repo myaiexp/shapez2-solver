@@ -1,4 +1,4 @@
-// Standalone tests for tests/shared/similarity.js — run with: node tests/shared/similarity.test.js
+// Standalone tests for tests/harness/similarity.js — run with: node tests/harness/similarity.test.js
 //
 // The similarity stack is a TEST-ONLY helper (audit #5530 moved it out of the
 // app: the solver has used _matchAndCoverage in shapeSolverCore.js since idea

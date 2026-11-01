@@ -1,4 +1,4 @@
-// Standalone tests for colorMode.js — run with: node tests/shared/colorMode.test.js
+// Standalone tests for colorMode.js — run with: node tests/ui/colorMode.test.js
 //
 // The point of this suite is to prove the circular import was broken (audit
 // #2423): colorMode.js must import in a plain Node process WITHOUT a DOM. If it

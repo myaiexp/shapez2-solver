@@ -56,16 +56,12 @@ export function buildLayout(solutionPath) {
         };
     }
 
-    // Step 1: build dependency graph
     const topology = extractTopology(solutionPath);
 
-    // Step 2: topological sort (excluding Belt Splits)
     const sorted = topoSort(topology);
 
-    // Step 3: group into rows
     const rows = groupIntoRows(sorted, topology);
 
-    // Step 4: assign positions and route belts
     const layout = assignPositions(rows, solutionPath, topology);
 
     return layout;
@@ -179,7 +175,6 @@ export function duplicateForThroughput(layout, multiplier = 1) {
         });
     }
 
-    // Recompute grid bounds
     const { gridWidth, gridHeight } = computeGridBounds(newMachines, newBelts, maxWidth);
 
     return {

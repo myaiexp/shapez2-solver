@@ -1,4 +1,4 @@
-// Worker job lifecycle tests — run with: node tests/shared/solverJob.test.js
+// Worker job lifecycle tests — run with: node tests/ui/solverJob.test.js
 //
 // Solve and Explore share one worker slot. Drives solverJob.js against a fake
 // Worker and #status element to pin ownership (which button is "Cancel"), the

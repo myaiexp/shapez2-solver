@@ -50,7 +50,7 @@ The explorer's BFS re-applies every enabled op across the whole frontier each le
 - **Depth** is clamped to 1–8 (empty/invalid → 2) at both the UI parse and the worker boundary.
 - **Nodes**: `shapeExplorer`'s `maxNodes` caps shape + op nodes, mirroring the solver's `maxStates`. When the next op would exceed it, expansion stops and the partial graph comes back with `{ aborted: 'maxNodes', depth }`, where `depth` is the level that was cut short. The worker always passes `DEFAULT_EXPLORE_MAX_NODES` (6000), which bounds what `renderSpaceGraph` hydrates on the main thread and still holds the complete default-depth graph. `solutionPresentation.js` (`exploreStatus`) reports the cap in the status line.
 
-The BFS posts `Exploring depth d/N...` at each level and every ~100 ms within one, yielding to the event loop each time so the worker's cancel flag can be set mid-run. `node tests/shared/solve.mjs --explore N` calls `shapeExplorer` directly: depth is unclamped and `--max-nodes` defaults to 100k, because `--timeout` alone does not bound memory.
+The BFS posts `Exploring depth d/N...` at each level and every ~100 ms within one, yielding to the event loop each time so the worker's cancel flag can be set mid-run. `node tests/harness/solve.mjs --explore N` calls `shapeExplorer` directly: depth is unclamped and `--max-nodes` defaults to 100k, because `--timeout` alone does not bound memory.
 
 ## Constructive method
 

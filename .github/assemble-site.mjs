@@ -3,7 +3,7 @@
 // The artifact is what index.html reaches, walked through its scripts, modules and
 // stylesheets, so a dev file added to the repo root stays out without anyone listing
 // it. A reference to a file that does not exist throws, because the page would 404
-// on it. tests/shared/assembleSite.test.js runs the same walk in the test job, which
+// on it. tests/meta/assembleSite.test.js runs the same walk in the test job, which
 // the deploy job needs.
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';

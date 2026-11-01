@@ -15,7 +15,7 @@ import {
     invalidPathSteps,
     invalidPathIds,
     pathReachesTarget,
-} from '../shared/pathValidation.js';
+} from '../harness/pathValidation.js';
 
 let passed = 0;
 let total = 0;

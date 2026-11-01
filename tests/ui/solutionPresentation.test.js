@@ -1,5 +1,5 @@
 // Standalone tests for solutionPresentation.js — run with:
-//   node tests/shared/solutionPresentation.test.js
+//   node tests/ui/solutionPresentation.test.js
 //
 // main.js's presentSolution draws a live solve and a restored one through these
 // helpers, so the multiplier parse, the blueprint layout and the status line
@@ -10,7 +10,7 @@ import {
     isSolvedResult,
 } from '../../solutionPresentation.js';
 import { buildLayout, duplicateForThroughput } from '../../blueprintLayout.js';
-import { LAYOUT_FIXTURES } from './layoutFixtures.js';
+import { LAYOUT_FIXTURES } from '../harness/layoutFixtures.js';
 
 let passed = 0;
 let total = 0;

@@ -1,5 +1,5 @@
 // Standalone tests for persistence.js captureState/applyState — run with:
-//   node tests/shared/persistenceApply.test.js
+//   node tests/ui/persistenceApply.test.js
 //
 // These two read and write the live page (form fields, starting shapes, enabled
 // ops, tabs, graph selects), and main.js's DOMContentLoaded restore

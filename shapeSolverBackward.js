@@ -19,7 +19,6 @@ export function buildBackwardReachability(targetShapeCode, config, enabledOperat
     reachable.set(targetShapeCode, 0);
     let frontier = [targetShapeCode];
 
-    // Map enabled operations to their inverse functions
     const inverseOps = [];
     for (const opName of enabledOperations) {
         if (opName === 'Painter') inverseOps.push(inverseUnpaint);

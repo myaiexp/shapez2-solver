@@ -1,4 +1,4 @@
-// Flowchart tests — run with: node tests/shared/operationGraph2D.test.js
+// Flowchart tests — run with: node tests/ui/operationGraph2D.test.js
 //
 // buildGraphElements is the flowchart's whole structure (shape/op nodes, edges,
 // Belt Split branch edges, colored-op styling) and runs without a DOM. renderGraph

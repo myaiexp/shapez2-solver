@@ -1,5 +1,5 @@
 // Every root module must load under some test — run with:
-//   node tests/shared/coverageReach.test.js
+//   node tests/meta/coverageReach.test.js
 //
 // Node's coverage report omits a module no test loads instead of counting it as
 // 0%, so the floor in tests/run-suite.sh cannot see one. This walks the import
@@ -22,7 +22,7 @@ function check(name, cond, detail) {
 }
 
 function testEntries(root) {
-    const entries = ['tests/shared/smoke.js'];
+    const entries = ['tests/harness/smoke.js'];
     const dirs = ['tests'];
     while (dirs.length > 0) {
         const dir = dirs.pop();
@@ -63,7 +63,7 @@ function unreachedModules(root) {
 
 const scratch = mkdtempSync(join(tmpdir(), 'coverage-reach-'));
 for (const [path, text] of Object.entries({
-    'tests/shared/smoke.js': `import '../../viaSmoke.js';`,
+    'tests/harness/smoke.js': `import '../../viaSmoke.js';`,
     'tests/nested/a.test.js': `const m = await import('../../viaDynamic.js');
         // import '../../commentedOut.js';
         const fixture = \`from './noSuchFile.js'\`;`,

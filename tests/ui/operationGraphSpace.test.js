@@ -1,4 +1,4 @@
-// Space-graph data transform — run with: node tests/shared/operationGraphSpace.test.js
+// Space-graph data transform — run with: node tests/ui/operationGraphSpace.test.js
 //
 // buildSpaceGraphData is the 3D graph's whole structure (shape/op nodes and
 // links) and runs without THREE or a DOM. Every link must name a node that
