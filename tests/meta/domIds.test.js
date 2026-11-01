@@ -4,17 +4,18 @@
 // persistenceApply.test.js checks the ids persistence.js touches while
 // capturing and applying. The other scripts (main.js, uiControls.js, the
 // graph modules) fail a renamed id only as a null dereference in the browser.
+// Form field ids live in the FORM_FIELDS table, so they are checked from it.
 // Template ids (a tab name plus a suffix) are not literals; activateTab
 // returns false when either half is missing, so they are not scanned here.
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { FORM_FIELDS } from '../../uiControls.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const page = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const pageIds = new Set([...page.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
 
-// byId / getElementById literals, plus readInt('id') which is byId underneath.
-const lookupRe = /(?:\bbyId|\bgetElementById|\breadInt)\(\s*['"]([^'"]+)['"]/g;
+const lookupRe = /(?:\bbyId|\bgetElementById)\(\s*['"]([^'"]+)['"]/g;
 
 let passed = 0, total = 0, failed = false;
 function check(name, cond, detail) {
@@ -39,6 +40,9 @@ for (const name of files) {
 check('scanned the root scripts', files.length > 0);
 check('found literal DOM lookups', seen.size > 0, `matched ${seen.size}`);
 check('every literal DOM id exists in index.html', missing.length === 0, missing.join(', '));
+
+const missingFields = Object.values(FORM_FIELDS).map(({ id }) => id).filter((id) => !pageIds.has(id));
+check('every form field id exists in index.html', missingFields.length === 0, missingFields.join(', '));
 
 // Repeated ids make getElementById ambiguous. separator and the input row are
 // styling hooks, so they have to be classes — one id per element.

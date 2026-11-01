@@ -1,29 +1,14 @@
 import { byId } from './domUtils.js';
 import { operations } from './shapeSolverOperations.js';
-import { readStartingShapes, readEnabledOperations, operationItems, activeTab, activateTab, setStartingShapes } from './uiControls.js';
+import { FORM_FIELDS, readStartingShapes, readEnabledOperations, operationItems, activeTab, activateTab, setStartingShapes, syncSearchMethodControls } from './uiControls.js';
 
 export const STORAGE_KEY = 'shapez2-solver-state-v1';
 export const SCHEMA_VERSION = 1;
 
-const INPUT_FIELDS = {
-    target: { id: 'target-shape', kind: 'value' },
-    depthLimit: { id: 'depth-limit-input', kind: 'value' },
-    searchMethod: { id: 'search-method-select', kind: 'value' },
-    maxStatesPerLevel: { id: 'max-states-per-level', kind: 'value' },
-    heuristicDivisor: { id: 'heuristic-divisor', kind: 'value' },
-    preventWaste: { id: 'prevent-waste', kind: 'checked' },
-    orientationSensitive: { id: 'orientation-sensitive', kind: 'checked' },
-    monolayerPainting: { id: 'monolayer-painting', kind: 'checked' },
-    filterUnusedShapes: { id: 'filter-unused-shapes', kind: 'checked' },
-    throughputMultiplier: { id: 'throughput-multiplier', kind: 'value' },
-    maxLayers: { id: 'max-layers', kind: 'value' },
-    colorMode: { id: 'color-mode-select', kind: 'value' },
-};
-
-// The ids main.js listens on. Built from INPUT_FIELDS so a new saved field
+// The ids main.js listens on. Built from FORM_FIELDS so a new saved field
 // cannot be restored but never saved (or the reverse).
 export function persistedInputIds() {
-    return Object.values(INPUT_FIELDS).map(({ id }) => id);
+    return Object.values(FORM_FIELDS).map(({ id }) => id);
 }
 
 export function onPersistedInputChange(handler) {
@@ -135,7 +120,7 @@ function stringList(value) {
 
 export function captureState(runtime) {
     const inputs = {};
-    for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {
+    for (const [field, { id, kind }] of Object.entries(FORM_FIELDS)) {
         const el = byId(id);
         if (!el) continue;
         inputs[field] = kind === 'checked' ? el.checked : el.value;
@@ -162,7 +147,7 @@ export function captureState(runtime) {
 // draws it, the same path a live solve takes. Starting-shape rows come from
 // uiControls.setStartingShapes.
 export function applyState(state) {
-    for (const [field, { id, kind }] of Object.entries(INPUT_FIELDS)) {
+    for (const [field, { id, kind }] of Object.entries(FORM_FIELDS)) {
         const el = byId(id);
         if (!el || !(field in state.inputs)) continue;
         if (kind === 'checked') el.checked = !!state.inputs[field];
@@ -183,7 +168,7 @@ export function applyState(state) {
         });
     }
 
-    byId('search-method-select').dispatchEvent(new Event('change'));
+    syncSearchMethodControls();
 
     if (state.view.activeSidebarTab) activateTab('sidebar', state.view.activeSidebarTab);
     if (state.view.activeOutputView) activateTab('output', state.view.activeOutputView);

@@ -10,10 +10,9 @@ import { buildSolveRequest, buildExploreRequest } from './solveRequest.js';
 import { exportBlueprintString } from './blueprintExport.js';
 import { loadState, saveState, clearState, captureState, applyState, onPersistedInputChange } from './persistence.js';
 import { $, byId } from './domUtils.js';
-import { DEFAULT_EXPLORE_DEPTH, MAX_EXPLORE_DEPTH, DEFAULT_EXPLORE_MAX_NODES } from './exploreDepth.js';
 import { copyImage, copyTextFrom, reportCopyFailure } from './clipboardFeedback.js';
 import { runSolverJob, cancelActiveJob, isJobRunning } from './solverJob.js';
-import { readStartingShapes, readEnabledOperations, operationItems, activeTab, onTabClick, setStartingShapes, addStartingShape, readMaxLayers, readLevelBudget, readHeuristicDivisor } from './uiControls.js';
+import { readStartingShapes, readEnabledOperations, operationItems, activeTab, onTabClick, setStartingShapes, addStartingShape, readMaxLayers, readTargetShape, readExploreDepth, readThroughputMultiplier, readSolveOptions, onFieldChange, syncSearchMethodControls, initExploreDepthInput } from './uiControls.js';
 
 // BlueprintRenderer.setLayout resets to floor 0 (and a fresh renderer starts
 // there), so every layout or floor change re-reads the label from the renderer
@@ -74,7 +73,7 @@ byId('extract-cancel').addEventListener('click', () => {
 });
 
 byId('extract-confirm').addEventListener('click', () => {
-    const target = byId('target-shape').value.trim();
+    const target = readTargetShape();
     const mode = $('input[name="extract-mode"]:checked').value;
     const includePins = byId('include-pins').checked;
     const includeColor = byId('include-color').checked;
@@ -140,7 +139,7 @@ function clearSolutionPresentation() {
 // solution. The single presentation path for both a live solve and a restored one.
 function presentSolution(solution) {
     renderGraph(solution.solutionPath);
-    blueprint.present(solution, byId('throughput-multiplier')?.value);
+    blueprint.present(solution, readThroughputMultiplier());
     byId('status').textContent = solvedStatusText(solution);
 }
 
@@ -155,17 +154,7 @@ byId('solve-btn').addEventListener('click', () => {
         return;
     }
 
-    // Gather inputs
-    const target = byId('target-shape').value.trim();
-    let starting = readStartingShapes();
-    const ops = readEnabledOperations();
-
-    const preventWaste = byId('prevent-waste').checked;
-    const orientationSensitive = byId('orientation-sensitive').checked;
-    const monolayerPainting = byId('monolayer-painting').checked;
-    const searchMethod = byId('search-method-select').value;
-    const filterUnusedShapes = byId('filter-unused-shapes')?.checked ?? true;
-
+    const target = readTargetShape();
     if (!showValidationErrors(target, 'target shape')) return;
 
     // Filter unused shapes if enabled. The shared budget box is one number
@@ -173,16 +162,9 @@ byId('solve-btn').addEventListener('click', () => {
     // does not send maxStates — the browser leaves that ceiling uncapped.
     const { request, filteredOut } = buildSolveRequest({
         targetShapeCode: target,
-        startingShapeCodes: starting,
-        enabledOperations: ops,
-        maxLayers: readMaxLayers(),
-        budget: readLevelBudget(),
-        preventWaste,
-        orientationSensitive,
-        monolayerPainting,
-        heuristicDivisor: readHeuristicDivisor(),
-        searchMethod,
-        filterUnusedShapes,
+        startingShapeCodes: readStartingShapes(),
+        enabledOperations: readEnabledOperations(),
+        ...readSolveOptions(),
     });
     if (filteredOut > 0) {
         console.log(`Filtered out ${filteredOut} unused starting shapes`);
@@ -235,8 +217,7 @@ byId('explore-btn').addEventListener('click', () => {
 
     const starting = readStartingShapes();
     const ops = readEnabledOperations();
-    const targetRaw = byId('target-shape').value;
-    const targetShapeCode = targetRaw.trim() || null;
+    const targetShapeCode = readTargetShape() || null;
     // Empty target is optional for Explore (color-context heuristics only);
     // a non-empty value must pass the same allowlist Solve already uses.
     if (targetShapeCode && !showValidationErrors(targetShapeCode, 'target shape')) return;
@@ -251,9 +232,9 @@ byId('explore-btn').addEventListener('click', () => {
     const data = buildExploreRequest({
         startingShapeCodes: starting,
         enabledOperations: ops,
-        depthLimit: byId('depth-limit-input').value,
+        depthLimit: readExploreDepth(),
         maxLayers: readMaxLayers(),
-        targetShapeCode: targetRaw,
+        targetShapeCode,
     });
 
     runSolverJob({
@@ -273,46 +254,17 @@ byId('explore-btn').addEventListener('click', () => {
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
     initializeDefaultShapes();
-    byId('color-mode-select')?.addEventListener('change', refreshShapeColors);
+    onFieldChange('colorMode', refreshShapeColors);
+    initExploreDepthInput();
 
-    // Surface the explore-depth bounds on the input itself (single source of
-    // truth: the same constants clampExploreDepth enforces). Seeding a value
-    // makes the default explicit rather than implicit in an empty field; the
-    // persisted value, restored below, still wins.
-    const depthInput = byId('depth-limit-input');
-    if (depthInput) {
-        depthInput.max = String(MAX_EXPLORE_DEPTH);
-        depthInput.placeholder = `Depth (${DEFAULT_EXPLORE_DEPTH})`;
-        depthInput.title = `Operation steps to explore (1-${MAX_EXPLORE_DEPTH}). `
-            + `The explored graph grows multiplicatively with depth and stops at ${DEFAULT_EXPLORE_MAX_NODES} nodes.`;
-        if (!depthInput.value) depthInput.value = String(DEFAULT_EXPLORE_DEPTH);
-    }
-
-    // Search method toggle: A*/IDA*/Bidirectional use the heuristic divisor;
-    // BFS shows beam width (maxStatesPerLevel); Constructive shows its per-node
-    // A* budget (nodeBudget). Same DOM input, two payload keys — not the global
-    // maxStates ceiling (browser stays uncapped and relies on Cancel).
-    byId('search-method-select').addEventListener('change', (e) => {
-        const method = e.target.value;
-        const heuristicGroup = byId('heuristic-divisor').closest('.option-group');
-        const budgetGroup = byId('max-states-per-level').closest('.option-group');
-        const usesHeuristic = method === 'A*' || method === 'IDA*' || method === 'Bidirectional';
-        const usesBudgetControl = method === 'BFS' || method === 'Constructive';
-        heuristicGroup.style.display = usesHeuristic ? 'block' : 'none';
-        budgetGroup.style.display = usesBudgetControl ? 'block' : 'none';
-        // Same input, two concepts: BFS beam width vs Constructive nodeBudget.
-        budgetGroup.querySelector('label').textContent =
-            method === 'Constructive' ? 'Node Search Budget' : 'Max States Per Level';
-    });
-
-    // Initial toggle
-    byId('search-method-select').dispatchEvent(new Event('change'));
+    onFieldChange('searchMethod', syncSearchMethodControls);
+    syncSearchMethodControls();
 
     // Rebuild the blueprint when the multiplier changes after a solve. The
     // generic listener below also saves the new value; this one runs first so
     // the layout Copy Blueprint exports matches the select.
-    byId('throughput-multiplier')?.addEventListener('change', () => {
-        blueprint.setThroughputMultiplier(byId('throughput-multiplier').value);
+    onFieldChange('throughputMultiplier', () => {
+        blueprint.setThroughputMultiplier(readThroughputMultiplier());
     });
     onPersistedInputChange(persist);
 
