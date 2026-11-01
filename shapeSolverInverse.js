@@ -1,6 +1,6 @@
 import {
     Shape, ShapePart, NOTHING_CHAR,
-    UNPAINTABLE_SHAPES, layersToCode,
+    isPaintedPart, layersToCode,
 } from './shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from './shapeRotation.js';
 import {
@@ -18,21 +18,11 @@ import { cut } from './shapeOperations.js';
 export function inverseUnpaint(shape, config) {
     const results = [];
     const topLayer = shape.layers[shape.layers.length - 1];
-    // Check if top layer has any painted parts
-    const hasPainted = topLayer.some(p =>
-        !UNPAINTABLE_SHAPES.includes(p.shape) && p.color !== 'u'
-    );
-    if (!hasPainted) return results;
+    if (!topLayer.some(isPaintedPart)) return results;
 
-    // Generate the unpainted version
     const newLayers = shape.layers.map((layer, li) => {
         if (li === shape.layers.length - 1) {
-            return layer.map(p => {
-                if (!UNPAINTABLE_SHAPES.includes(p.shape) && p.color !== 'u') {
-                    return new ShapePart(p.shape, 'u');
-                }
-                return p;
-            });
+            return layer.map(p => (isPaintedPart(p) ? new ShapePart(p.shape, 'u') : p));
         }
         return layer;
     });

@@ -65,7 +65,6 @@ export class BlueprintRenderer {
         this._onMouseUp     = this._handleMouseUp.bind(this);
         this._onMouseLeave  = this._handleMouseLeave.bind(this);
 
-        // Attach events
         this._canvas.addEventListener("wheel", this._onWheel, { passive: false });
         this._canvas.addEventListener("mousedown", this._onMouseDown);
         this._canvas.addEventListener("mousemove", this._onMouseMove);
@@ -79,7 +78,6 @@ export class BlueprintRenderer {
             this._resizeObserver.observe(parent);
         }
 
-        // Initial sizing and cursor
         this._canvas.style.cursor = "grab";
         this._handleResize();
         this._render();
@@ -263,11 +261,9 @@ export class BlueprintRenderer {
         ctx.save();
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // reset to DPR-scaled identity
 
-        // Clear
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, cw, ch);
 
-        // Apply pan + zoom and draw the scene
         drawScene(ctx, this._layout, this._visibleMachines, this._visibleBelts, this._shapeIconCache, this._panX, this._panY, this._zoom);
 
         ctx.restore();
@@ -331,7 +327,6 @@ export class BlueprintRenderer {
             return;
         }
 
-        // Hover detection
         this._updateTooltip(e);
     }
 
@@ -385,14 +380,12 @@ export class BlueprintRenderer {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // Convert to world (grid) space
         const worldX = (mouseX - this._panX) / this._zoom;
         const worldY = (mouseY - this._panY) / this._zoom;
 
         const gridCol = Math.floor(worldX / TILE_SIZE);
         const gridRow = Math.floor(worldY / TILE_SIZE);
 
-        // Find a machine whose bounding box covers this tile
         const hit = this._visibleMachines.find((m) => {
             const mw = m.def?.width ?? 1;
             const md = m.def?.depth ?? 1;
@@ -409,7 +402,6 @@ export class BlueprintRenderer {
 
         this._ensureTooltip();
 
-        // Build tooltip content
         const lines = [hit.operation];
 
         if (hit.inputShapes && hit.inputShapes.length > 0) {

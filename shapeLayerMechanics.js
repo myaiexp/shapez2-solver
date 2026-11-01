@@ -11,7 +11,6 @@ function cellKey(layer, part) {
     return `${layer},${part}`;
 }
 
-// Shape Logic & Utility Functions
 export function gravityConnected(part1, part2) {
     if ([NOTHING_CHAR, PIN_CHAR].includes(part1.shape) || [NOTHING_CHAR, PIN_CHAR].includes(part2.shape)) {
         return false;
@@ -83,23 +82,12 @@ export function getConnectedMultiLayer(layers, layerIndex, partIndex, connectedF
             }
         }
 
-        const toCheckLayer = curLayer - 1;
-        const toCheckPart = curPart;
-        if (curLayer > 0) {
-            const key = cellKey(toCheckLayer, toCheckPart);
-            if (!seen.has(key) && connectedFunc(layers[curLayer][curPart], layers[toCheckLayer][toCheckPart])) {
+        for (const adjacentLayer of [curLayer - 1, curLayer + 1]) {
+            if (adjacentLayer < 0 || adjacentLayer >= layers.length) continue;
+            const key = cellKey(adjacentLayer, curPart);
+            if (!seen.has(key) && connectedFunc(layers[curLayer][curPart], layers[adjacentLayer][curPart])) {
                 seen.add(key);
-                connected.push([toCheckLayer, toCheckPart]);
-            }
-        }
-
-        const toCheckLayerAbove = curLayer + 1;
-        const toCheckPartAbove = curPart;
-        if (curLayer < layers.length - 1) {
-            const key = cellKey(toCheckLayerAbove, toCheckPartAbove);
-            if (!seen.has(key) && connectedFunc(layers[curLayer][curPart], layers[toCheckLayerAbove][toCheckPartAbove])) {
-                seen.add(key);
-                connected.push([toCheckLayerAbove, toCheckPartAbove]);
+                connected.push([adjacentLayer, curPart]);
             }
         }
     }
@@ -205,7 +193,6 @@ export function makeLayersFall(layers) {
         return supported;
     }
 
-    // First pass of calculating supported parts
     let supportedPartStates = computeSupportedStates(layers);
 
     // If a crystal is marked as unsupported it will fall and thus break
@@ -218,7 +205,7 @@ export function makeLayersFall(layers) {
         }
     }
 
-    // Second pass of calculating supported parts
+    // Broken crystals held other parts up, so support has to be recomputed.
     supportedPartStates = computeSupportedStates(layers);
 
     for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {

@@ -250,7 +250,6 @@ function computeFloorCount(machines, belts) {
     const usedFloors = new Set();
     for (const m of machines) {
         usedFloors.add(m.floor);
-        // Multi-floor machines span additional floors
         if (m.def.floors > 1) {
             for (let f = 0; f < m.def.floors; f++) usedFloors.add(m.floor + f);
         }

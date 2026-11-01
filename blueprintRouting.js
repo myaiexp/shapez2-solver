@@ -20,14 +20,12 @@
  * @param {number} inputIndex - which input port this belt feeds
  */
 export function routeBelt(belts, fromX, fromY, fromFloor, toX, toY, toFloor, shapeCode, def, inputIndex) {
-    // Determine if this is a merge input (machine has >1 input)
     const isMerge = def.inputs.length > 1 && inputIndex > 0;
 
     let x = fromX;
     let y = fromY;
     let floor = fromFloor;
 
-    // Horizontal segment first: move east or west at source row
     if (x < toX) {
         while (x < toX) {
             belts.push({ x, y, floor, direction: 'E', kind: 'normal', shapeCode });
@@ -40,17 +38,13 @@ export function routeBelt(belts, fromX, fromY, fromFloor, toX, toY, toFloor, sha
         }
     }
 
-    // If floor transition needed, insert belt lift before vertical segment
     if (floor !== toFloor) {
-        // Place lift tile on source floor
         belts.push({ x, y, floor, direction: 'S', kind: 'lift', shapeCode });
-        // Place lift tile on destination floor
         belts.push({ x, y, floor: toFloor, direction: 'S', kind: 'lift', shapeCode });
         floor = toFloor;
         y++; // advance past the lift tile
     }
 
-    // Vertical segment: move south toward the target machine's back face
     while (y < toY) {
         belts.push({ x, y, floor, direction: 'S', kind: 'normal', shapeCode });
         y++;
@@ -62,7 +56,6 @@ export function routeBelt(belts, fromX, fromY, fromFloor, toX, toY, toFloor, sha
         y--;
     }
 
-    // Place a merge belt just above the target machine if this feeds a multi-input
     if (isMerge) {
         belts.push({
             x: toX,

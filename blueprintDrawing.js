@@ -115,18 +115,15 @@ function drawMachines(ctx, visibleMachines) {
 
         const fill = machineColor(machine.operation);
 
-        // Filled rectangle
         ctx.fillStyle = fill;
         ctx.globalAlpha = 0.6;
         ctx.fillRect(px + 2, py + 2, w - 4, h - 4);
         ctx.globalAlpha = 1.0;
 
-        // Border
         ctx.strokeStyle = darken(fill, 0.15);
         ctx.lineWidth = 2;
         ctx.strokeRect(px + 2, py + 2, w - 4, h - 4);
 
-        // Label (operation name)
         ctx.fillStyle = LABEL_COLOR;
         ctx.font = LABEL_FONT;
         ctx.textAlign = "center";
@@ -137,7 +134,6 @@ function drawMachines(ctx, visibleMachines) {
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
 
-        // Input/output port indicators (small squares)
         drawPorts(ctx, machine, px, py, w, h);
     }
 }

@@ -42,26 +42,21 @@ export const VALID_COLORS = [
 export function validateShapeCode(shapeCode) {
     const errors = [];
 
-    // Check if shapeCode is a string
     if (typeof shapeCode !== 'string') {
         return { isValid: false, errors: ['The shape code must be a string.'] };
     }
 
-    // Check if empty
     if (shapeCode.length === 0) {
         return { isValid: false, errors: ['The shape code cannot be empty.'] };
     }
 
-    // Split into layers
     const layers = shapeCode.split(SHAPE_LAYER_SEPARATOR);
 
-    // Check if we have at least one layer
     if (layers.length === 0) {
         errors.push('The shape code must contain at least one layer.');
         return { isValid: false, errors };
     }
 
-    // Check each layer
     let expectedPartsPerLayer = null;
 
     for (let i = 0; i < layers.length; i++) {
@@ -69,7 +64,6 @@ export function validateShapeCode(shapeCode) {
         const layerErrors = validateLayer(layer, i);
         errors.push(...layerErrors);
 
-        // Check for consistent number of parts
         const numParts = layer.length / 2;
         if (expectedPartsPerLayer === null) {
             expectedPartsPerLayer = numParts;
@@ -88,13 +82,11 @@ function validateLayer(layer, layerIndex) {
     const errors = [];
     const layerLabel = `Layer ${layerIndex + 1}`;
 
-    // Check if layer is empty
     if (layer.length === 0) {
         errors.push(`${layerLabel} is empty. Each layer must contain shape-color pairs.`);
         return errors;
     }
 
-    // Check if layer length is even
     if (layer.length % 2 !== 0) {
         errors.push(`${layerLabel} must contain an even number of characters (each shape must have a color).`);
         return errors;

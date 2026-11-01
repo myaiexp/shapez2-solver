@@ -5,7 +5,7 @@
 // true iff *every* character of the concatenated layers is NOTHING_CHAR ('-'),
 // i.e. every part is "--" (Nothing shape, no color). A single non-'-' char —
 // a shape char OR a stray color — makes the shape non-empty.
-import { Shape, ShapePart, NOTHING_CHAR } from '../../shapeClass.js';
+import { Shape, ShapePart, NOTHING_CHAR, UNPAINTABLE_SHAPES, isPaintedPart } from '../../shapeClass.js';
 
 let passed = 0;
 let total = 0;
@@ -61,6 +61,23 @@ check('directly-built empty part',
 // A Nothing shape carrying a stray color is NOT empty — the color char counts.
 check('Nothing shape with a stray color (-u) is non-empty',
     new Shape([[new ShapePart(NOTHING_CHAR, 'u')]]), false);
+
+// --- isPaintedPart: paintable and not uncolored ---
+function checkPainted(name, part, expected) {
+    total++;
+    if (isPaintedPart(part) === expected) {
+        console.log(`✓ ${name}`);
+        passed++;
+    } else {
+        console.log(`✗ ${name}\n    expected isPaintedPart=${expected}`);
+        failed = true;
+    }
+}
+checkPainted('a colored paintable part is painted', new ShapePart('C', 'r'), true);
+checkPainted('an uncolored paintable part is not', new ShapePart('C', 'u'), false);
+for (const shape of UNPAINTABLE_SHAPES) {
+    checkPainted(`an unpaintable ${shape} part is not, whatever its color`, new ShapePart(shape, 'r'), false);
+}
 
 console.log(`\n${passed}/${total} passed`);
 if (failed) process.exit(1);

@@ -171,7 +171,6 @@ export function pushPin(shape, config = new ShapeOperationConfig()) {
 export function genCrystal(shape, color, config = new ShapeOperationConfig()) {
     const newLayers = shape.layers.map(layer =>
         layer.map(p => {
-            // Only replace pins and nothing with crystals
             if (REPLACED_BY_CRYSTAL.includes(p.shape)) {
                 return new ShapePart(CRYSTAL_CHAR, color);
             }

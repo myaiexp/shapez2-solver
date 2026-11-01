@@ -2,7 +2,7 @@
 // which Crystal Generator colors are worth trying from a given shape. Both
 // answers are derived from the TARGET, so the search never expands a paint or
 // crystallize op toward a color the target has no use for.
-import { CRYSTAL_CHAR, UNPAINTABLE_SHAPES } from './shapeClass.js';
+import { CRYSTAL_CHAR, UNPAINTABLE_SHAPES, isPaintedPart } from './shapeClass.js';
 
 // Colors worth painting inputShape with: for every paintable part of its TOP
 // layer (the only layer a Painter touches), the target's colors for that same
@@ -11,7 +11,7 @@ export function getPaintColors(inputShape, targetShape) {
     const targetColorMap = new Map();
     for (const layer of targetShape.layers) {
         for (const part of layer) {
-            if (!UNPAINTABLE_SHAPES.includes(part.shape) && part.color !== "u") {
+            if (isPaintedPart(part)) {
                 if (!targetColorMap.has(part.shape)) {
                     targetColorMap.set(part.shape, new Set());
                 }

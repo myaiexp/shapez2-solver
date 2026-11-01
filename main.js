@@ -46,7 +46,6 @@ function initializeDefaultShapes() {
     setStartingShapes(['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu']);
 }
 
-// Add Shape Button
 byId('add-shape-btn').addEventListener('click', () => {
     const input = byId('new-shape-input');
     const code = input.value.trim();
@@ -58,7 +57,6 @@ byId('add-shape-btn').addEventListener('click', () => {
     persist();
 });
 
-// Remove Shape Button
 byId('starting-shapes').addEventListener('click', (e) => {
     if (e.target.classList.contains('remove-shape')) {
         e.target.parentElement.remove();

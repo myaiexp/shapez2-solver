@@ -495,7 +495,6 @@ export async function shapeSolver(
                 continue;
             }
 
-            // Try next successor
             const next = frame.successorIterator.next();
             if (next.done) {
                 popFrame();
@@ -547,7 +546,6 @@ export async function shapeSolver(
         function getHeuristicBidirectional(availableIds) {
             if (availableIds.size === 0) return Infinity;
 
-            // Check if any shape is in the backward map
             let bestBackwardDist = Infinity;
             for (const id of availableIds) {
                 const code = shapeCodesById.get(id);
