@@ -75,7 +75,7 @@ class FakeElement {
             },
         });
         this.children = [];
-        this.events = [];
+        this.style = {};
         this._listeners = new Map();
     }
     appendChild(child) { this.children.push(child); return child; }
@@ -86,10 +86,9 @@ class FakeElement {
         this._listeners.set(type, list);
     }
     getContext() { return noopCtx(); }
-    // Records the element's value at dispatch time: main.js's search-method listener
-    // reads it, so the change must fire after the fields are restored.
+    closest() { return (this.group ??= new FakeElement()); }
+    querySelector() { return (this.label ??= new FakeElement()); }
     dispatchEvent(ev) {
-        this.events.push({ type: ev.type, value: this.value });
         for (const fn of this._listeners.get(ev.type) ?? []) fn(ev);
         return true;
     }
@@ -202,8 +201,9 @@ const baseState = (inputs = {}, view = {}, sol = null) => ({ version: SCHEMA_VER
     checkEqual('apply: returns the validated solution + restoredFloor', result, { solution: solution(okPath), restoredFloor: 2 });
     checkEqual('apply: starting shapes rebuilt in order', readStartingShapes(), ['RuRuRuRu', 'SuSuSuSu']);
     check('apply: each rebuilt row has a remove button', b.removeCount() === 2);
-    checkEqual('apply: search-method change fires once, after the value is restored',
-        b.el('search-method-select').events, [{ type: 'change', value: 'IDA*' }]);
+    checkEqual('apply: search-method controls follow the restored method',
+        ['heuristic-divisor', 'max-states-per-level'].map((id) => b.el(id).closest('.option-group').style.display),
+        ['block', 'none']);
     check('apply: status line untouched (presentSolution owns it)', b.el('status').textContent === 'Ready');
 
     const pageIds = new Set([...readFileSync(new URL('../../index.html', import.meta.url), 'utf8').matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
