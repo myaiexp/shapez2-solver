@@ -1,12 +1,13 @@
-// Unit tests for routeBelt floor-transition (belt-lift) and northward-guard
-// branches (audit #3720) — run with:  node tests/blueprint/routeBelt.test.js
+// Unit tests for routeBelt's floor transition (belt lift), merge tile and
+// never-north contract (audit #3720) — run with:
+// node tests/blueprint/routeBelt.test.js
 //
-// blueprintRouting.js routes belts L-shaped (horizontal then vertical). Two paths
-// were untested: (1) when fromFloor !== toFloor it inserts paired lift tiles and
-// advances y past the lift before the southward segment; (2) when fromY > toY on
-// the same floor the northward guard emits N tiles (not expected in normal layout).
-// We pin exact coordinates so an off-by-one y-advance after the lift or a wrong
-// guard loop bound would fail.
+// blueprintRouting.js routes belts L-shaped (horizontal then vertical). When the
+// floors differ it inserts paired lift tiles and advances y past the lift before
+// the southward segment. A route whose start lies south of the machine's back
+// face is a layout bug and throws: a north belt would enter the machine through
+// its output side. We pin exact coordinates so an off-by-one y-advance after the
+// lift would fail.
 import { routeBelt } from '../../blueprintRouting.js';
 
 let passed = 0;
@@ -19,13 +20,26 @@ function check(name, cond) {
     else { console.log(`✗ ${name}`); failed = true; }
 }
 
-const SINGLE_INPUT_DEF = { inputs: [{}] };
 const SHAPE = 'CuCuCuCu';
+
+function route(belts, from, to, isMerge = false) {
+    routeBelt(belts, { from, to, shapeCode: SHAPE, isMerge });
+}
+
+function throwsWithoutTiles(from, to) {
+    const belts = [];
+    try {
+        route(belts, from, to);
+    } catch {
+        return belts.length === 0;
+    }
+    return false;
+}
 
 // --- floor transition: lift pair then southward segment on destination floor ----
 {
     const belts = [];
-    routeBelt(belts, 0, 0, 0, 0, 2, 1, SHAPE, SINGLE_INPUT_DEF, 0);
+    route(belts, { x: 0, y: 0, floor: 0 }, { x: 0, y: 2, floor: 1 });
 
     const lifts = belts.filter(b => b.kind === 'lift');
     check('floor transition: exactly two lift tiles', lifts.length === 2);
@@ -47,24 +61,31 @@ const SHAPE = 'CuCuCuCu';
         belts.length === 3);
 }
 
-// --- northward guard: same floor, fromY > toY ----------------------------------
+// --- merge input: a merge tile just above the back face, on the input's floor ---
 {
-    const fromY = 5;
-    const toY = 2;
     const belts = [];
-    routeBelt(belts, 0, fromY, 0, 0, toY, 0, SHAPE, SINGLE_INPUT_DEF, 0);
+    route(belts, { x: 0, y: 0, floor: 0 }, { x: 1, y: 3, floor: 1 }, true);
+    const merges = belts.filter(b => b.kind === 'merge');
+    check('merge: exactly one merge tile', merges.length === 1);
+    check('merge: tile at (1,2,1) heading south',
+        merges[0].x === 1 && merges[0].y === 2 && merges[0].floor === 1
+        && merges[0].direction === 'S' && merges[0].shapeCode === SHAPE);
 
-    const north = belts.filter(b => b.direction === 'N');
-    check('northward guard: emits exactly (fromY - toY) north tiles', north.length === fromY - toY);
-    check('northward guard: north tiles at y=5,4,3',
-        north.length === 3
-        && north[0].x === 0 && north[0].y === 5 && north[0].floor === 0
-        && north[1].x === 0 && north[1].y === 4 && north[1].floor === 0
-        && north[2].x === 0 && north[2].y === 3 && north[2].floor === 0);
-    check('northward guard: all emitted tiles are normal (no lift)',
-        belts.every(b => b.kind === 'normal'));
-    check('northward guard: no lift tile produced',
-        belts.every(b => b.kind !== 'lift'));
+    const plain = [];
+    route(plain, { x: 0, y: 0, floor: 0 }, { x: 1, y: 3, floor: 1 });
+    check('merge: no merge tile on a non-merge input', plain.every(b => b.kind !== 'merge'));
+}
+
+// --- never north: a route that would have to reverse throws, leaving no tiles ---
+check('never north: start south of the back face throws',
+    throwsWithoutTiles({ x: 0, y: 5, floor: 0 }, { x: 0, y: 2, floor: 0 }));
+check('never north: a lift that lands past the back face throws',
+    throwsWithoutTiles({ x: 0, y: 4, floor: 0 }, { x: 0, y: 4, floor: 1 }));
+{
+    const belts = [];
+    route(belts, { x: 0, y: 4, floor: 0 }, { x: 3, y: 4, floor: 0 });
+    check('never north: a same-row route is still allowed',
+        belts.length === 3 && belts.every(b => b.direction === 'E'));
 }
 
 console.log(`[${passed}/${total} passed]`);

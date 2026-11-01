@@ -1,9 +1,7 @@
 import { BUILDING_DATA } from './buildingData.js';
 import { routeBelt } from './blueprintRouting.js';
 import { computeGridBounds } from './blueprintBounds.js';
-
-/** Vertical distance between machine rows in tiles */
-export const ROW_PITCH = 4;
+import { rowPitchFor } from './blueprintRowPitch.js';
 
 /** Horizontal gap between machines within a row */
 export const MACHINE_GAP = 1;
@@ -122,11 +120,12 @@ function placeMachines(rows, solutionPath, sources) {
     const belts = [];
     const sourceEntries = placeSources(sources, maxRowWidth, sourceWidth, belts);
 
-    // Machine rows start ROW_PITCH below the source entries, if there are any
-    const firstMachineY = sources.size > 0 ? ROW_PITCH : 0;
+    // Machine rows start one pitch below the source entries, if there are any
+    const rowPitch = rowPitchFor(solutionPath);
+    const firstMachineY = sources.size > 0 ? rowPitch : 0;
     const placed = { machines: [], machinePos: new Map(), outputPortsByStep: new Map() };
     for (const rowIdx of rowKeys) {
-        placeRow(entriesByRow.get(rowIdx), firstMachineY + rowIdx * ROW_PITCH, maxRowWidth, placed);
+        placeRow(entriesByRow.get(rowIdx), firstMachineY + rowIdx * rowPitch, maxRowWidth, placed);
     }
 
     return { ...placed, belts, sourceEntries, maxRowWidth };
@@ -236,7 +235,12 @@ function routeAllBelts(solutionPath, machinePos, producerPosByShapeId, belts) {
             const src = producerPosByShapeId.get(inp.id);
             if (!src) continue;
 
-            routeBelt(belts, src.x, src.y, src.floor ?? 0, inputX, inputY, inputFloor, inp.shape, def, ii);
+            routeBelt(belts, {
+                from: { x: src.x, y: src.y, floor: src.floor ?? 0 },
+                to: { x: inputX, y: inputY, floor: inputFloor },
+                shapeCode: inp.shape,
+                isMerge: def.inputs.length > 1 && ii > 0,
+            });
         }
     }
 }

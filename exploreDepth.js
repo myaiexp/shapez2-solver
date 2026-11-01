@@ -2,7 +2,7 @@
 //
 // Every extra level re-applies every enabled operation across the whole
 // frontier, so shapes, op nodes and edges grow multiplicatively with depth. At
-// the UI defaults (4 starts, all ops) depth 2 is 2052 shapes + 2846 ops, while
+// the UI defaults (4 starts, all ops) depth 2 is 2084 shapes + 3002 ops, while
 // depth 3 runs through gigabytes of heap without finishing. Two bounds keep
 // that out of the browser:
 //   - depth: an empty field or a typo'd 99 is clamped to [1, MAX], default 2
@@ -17,7 +17,7 @@ export const DEFAULT_EXPLORE_DEPTH = 2;
 export const MAX_EXPLORE_DEPTH = 8;
 
 // Shape nodes + op nodes. Holds the complete default-depth graph at the UI
-// defaults (4898 nodes) with headroom, so a first Explore click is never cut
+// defaults (5086 nodes) with headroom, so a first Explore click is never cut
 // short; tests/solver/shapeExplorerNodeCap.test.js pins that.
 export const DEFAULT_EXPLORE_MAX_NODES = 6000;
 

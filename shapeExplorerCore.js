@@ -124,9 +124,9 @@ export async function shapeExplorer(
     }
 
     // Record one operation node and its edges: the op node, an edge from each input
-    // shape, and an edge to each output shape (registering newly-discovered outputs
-    // into discoveredIds and the per-depth frontier). Shared by the unary and binary
-    // exploration paths. A no-op once the node cap is hit.
+    // shape, and an edge to each output shape. Outputs new to the graph go into
+    // shapesList and newlyDiscovered, the next depth's frontier. Shared by the unary
+    // and binary exploration paths. A no-op once the node cap is hit.
     function recordOperation(opName, params, inputIds, outputCodes, newlyDiscovered) {
         if (!fitsUnderCap(outputCodes)) return;
         const opId = `op-${nextOpId++}`;
@@ -136,10 +136,7 @@ export async function shapeExplorer(
         }
         for (const oc of outputCodes) {
             const { id: outId, added } = addShapeIfNew(oc);
-            if (added) {
-                discoveredIds.add(outId);
-                newlyDiscovered.add(outId);
-            }
+            if (added) newlyDiscovered.add(outId);
             edges.push({ source: opId, target: `shape-${outId}` });
         }
     }
@@ -171,17 +168,29 @@ export async function shapeExplorer(
         }
     }
 
-    // Binary BFS pairing: full inventory × previous-depth frontier (not start×start).
+    // Binary BFS pairing: inventory × previous-depth frontier (not start×start). A
+    // pair of two older shapes was expanded at an earlier depth. Stacker is the one
+    // order-sensitive binary op (Swapper(A,B) only reverses Swapper(B,A)'s outputs),
+    // so it also takes the frontier on the bottom of each older shape.
     async function exploreBinaryOp(op, opName, allShapeIds, frontierIds, newlyDiscovered) {
+        await explorePairs(op, opName, allShapeIds, frontierIds, newlyDiscovered);
+        if (opName === 'Stacker') {
+            const frontierSet = new Set(frontierIds);
+            const olderIds = allShapeIds.filter(id => !frontierSet.has(id));
+            await explorePairs(op, opName, frontierIds, olderIds, newlyDiscovered);
+        }
+    }
+
+    async function explorePairs(op, opName, ids1, ids2, newlyDiscovered) {
         const isStacker = opName === 'Stacker';
 
-        for (const id1 of allShapeIds) {
+        for (const id1 of ids1) {
             if (stopped()) return;
 
             const inputCode1 = shapesList[id1].code;
             const shape1 = getShapeById(id1);
 
-            for (const id2 of frontierIds) {
+            for (const id2 of ids2) {
                 if (stopped()) return;
                 if (++ticks % PULSE_EVERY === 0) await pulse();
 
@@ -214,19 +223,15 @@ export async function shapeExplorer(
         }
     }
 
-    const discoveredIds = new Set();
-    for (const code of startingShapeCodes) {
-        const { id } = addShapeIfNew(code);
-        discoveredIds.add(id);
-    }
+    for (const code of startingShapeCodes) addShapeIfNew(code);
 
-    let frontier = new Set(discoveredIds);
+    let frontier = new Set(shapesList.map(s => s.id));
 
     for (let level = 1; level <= depthLimit; level++) {
         if (stopped()) break;
 
         const newlyDiscovered = new Set();
-        const allShapeIds = Array.from(discoveredIds);
+        const allShapeIds = shapesList.map(s => s.id);
         const frontierIds = Array.from(frontier);
 
         if (frontierIds.length === 0) break;

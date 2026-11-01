@@ -45,7 +45,7 @@ The state is a multiset of shape codes, so a Belt Split adds one more copy of a 
 
 ## Space-explorer bounds
 
-The explorer's BFS re-applies every enabled op across the whole frontier each level, so the graph grows multiplicatively with depth: at the UI defaults (4 starts, all ops) depth 2 is 2052 shapes + 2846 ops, while uncapped depth 3 runs through gigabytes of heap without finishing. `exploreDepth.js` holds two bounds:
+The explorer's BFS re-applies every enabled op across the whole frontier each level, so the graph grows multiplicatively with depth: at the UI defaults (4 starts, all ops) depth 2 is 2084 shapes + 3002 ops, while uncapped depth 3 runs through gigabytes of heap without finishing. Binary ops pair the inventory with the previous level's frontier; a pair of two older shapes was expanded earlier. Stacker also pairs the frontier with the older shapes, because stacking is order-sensitive, so each depth reaches the same shapes as trying every ordered pair (the solver's successor generation). `exploreDepth.js` holds two bounds:
 
 - **Depth** is clamped to 1–8 (empty/invalid → 2) at both the UI parse and the worker boundary.
 - **Nodes**: `shapeExplorer`'s `maxNodes` caps shape + op nodes, mirroring the solver's `maxStates`. When the next op would exceed it, expansion stops and the partial graph comes back with `{ aborted: 'maxNodes', depth }`, where `depth` is the level that was cut short. The worker always passes `DEFAULT_EXPLORE_MAX_NODES` (6000), which bounds what `renderSpaceGraph` hydrates on the main thread and still holds the complete default-depth graph. `solutionPresentation.js` (`exploreStatus`) reports the cap in the status line.
