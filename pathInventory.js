@@ -37,6 +37,30 @@ export function simulateFinalInventoryMap(path, { starts } = {}) {
     return inventory;
 }
 
+// Bind a search chain's steps to ids the chain itself holds. Every step leaves
+// the state its successor expanded from, so the codes always line up, but a
+// step can name ids minted on a route the chain no longer runs through (a state
+// re-opened cheaper keeps its children's steps). A step keeps an input id the
+// chain holds, so a chain with no stale id comes back unchanged; otherwise it
+// takes the oldest held id of that code. Output ids stay: each step minted its own.
+export function rebindChainInputs(steps, startIds, codeOf) {
+    const held = new Map();  // code -> ids on hand, oldest first
+    const hold = (id) => {
+        const code = codeOf(id);
+        if (held.has(code)) held.get(code).push(id);
+        else held.set(code, [id]);
+    };
+    for (const id of startIds) hold(id);
+    return steps.map((step) => {
+        const inputIds = step.inputIds.map((id) => {
+            const ids = held.get(codeOf(id));
+            return ids.splice(Math.max(ids.indexOf(id), 0), 1)[0];
+        });
+        step.outputIds.forEach(hold);
+        return { ...step, inputIds };
+    });
+}
+
 // Codes still on hand after replaying the path (optional start seeding).
 export function finalInventoryCodes(path, { starts } = {}) {
     if (!path) return [];

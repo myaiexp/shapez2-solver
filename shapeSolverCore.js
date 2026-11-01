@@ -9,7 +9,7 @@ import {
 import { buildBackwardReachability } from './shapeSolverBackward.js';
 import { operations } from './shapeSolverOperations.js';
 import { expandUnaryOp, expandBinaryOp, expandBeltSplit } from './shapeSolverExpansion.js';
-import { acceptableCodes } from './pathInventory.js';
+import { acceptableCodes, rebindChainInputs } from './pathInventory.js';
 import { createCoverageHeuristic } from './shapeSolverHeuristic.js';
 
 // Backward BFS depth for Bidirectional search: how many reverse operations to
@@ -270,15 +270,12 @@ export async function shapeSolver(
     }
 
     function reconstructPath(cameFrom, goalKey, initialKey) {
-        const solutionPath = [];
-        let curKey = goalKey;
-        while (curKey !== initialKey) {
-            const {parentKey, step} = cameFrom.get(curKey);
-            solutionPath.push(formatStep(step));
-            curKey = parentKey;
+        const steps = [];
+        for (let key = goalKey; key !== initialKey; key = cameFrom.get(key).parentKey) {
+            steps.push(cameFrom.get(key).step);
         }
-        solutionPath.reverse();
-        return solutionPath;
+        steps.reverse();
+        return rebindChainInputs(steps, initialAvailableIds, id => shapeCodesById.get(id)).map(formatStep);
     }
 
     // Shared best-first (A*/Bidirectional) search loop. A* and Bidirectional were
@@ -311,16 +308,16 @@ export async function shapeSolver(
             const g = costSoFar.get(stateKey);
 
             if (isGoal(availableIds)) {
-                return {
-                    solutionPath: reconstructPath(cameFrom, stateKey, initialKey),
-                    depth: g,
-                    statesExplored: costSoFar.size
-                };
+                const solutionPath = reconstructPath(cameFrom, stateKey, initialKey);
+                return { solutionPath, depth: solutionPath.length, statesExplored: costSoFar.size };
             }
 
             for (const desc of generateSuccessors(availableIds)) {
                 const newKey = successorStateKey(availableIds, desc);
                 const newG = g + 1;
+                // A re-open mints new ids, leaving the old copy's children with
+                // steps that name the old ones until this copy re-expands. The
+                // lower g pops it first, and reconstructPath rebinds ids regardless.
                 if (!costSoFar.has(newKey) || newG < costSoFar.get(newKey)) {
                     costSoFar.set(newKey, newG);
                     const { availableIds: succIds, step } = applySuccessor(availableIds, desc);
