@@ -93,5 +93,15 @@ for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
     check('reconstructed solution path is valid (lazy minting intact)', pathIsValid(res?.solutionPath, CONFIG));
 }
 
+// --- A search that exhausts the space reports aborted: null under every method,
+//     the same result shape as a cap abort. ---
+for (const method of ['A*', 'BFS', 'IDA*', 'Bidirectional']) {
+    const res = await shapeSolver('RuRuRuRu', ['CuCuRuRu'], ['Rotator CW'], {
+        maxLayers: 4, searchMethod: method, shouldCancel: noCancel, onProgress: noop,
+    });
+    check(`${method}: exhausted search has no path and aborted: null`,
+        res && res.solutionPath === null && res.depth === null && res.aborted === null);
+}
+
 console.log(`[${passed}/${total} passed]`);
 process.exit(failed ? 1 : 0);
