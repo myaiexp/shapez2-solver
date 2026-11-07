@@ -52,11 +52,6 @@ export function validateShapeCode(shapeCode) {
 
     const layers = shapeCode.split(SHAPE_LAYER_SEPARATOR);
 
-    if (layers.length === 0) {
-        errors.push('The shape code must contain at least one layer.');
-        return { isValid: false, errors };
-    }
-
     let expectedPartsPerLayer = null;
 
     for (let i = 0; i < layers.length; i++) {
