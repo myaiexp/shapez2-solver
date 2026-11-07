@@ -185,6 +185,7 @@ byId('solve-btn').addEventListener('click', () => {
         btn,
         idleLabel: 'Solve',
         action: 'solve',
+        startStatus: 'Solving...',
         onComplete: persist,
         onResultError: clearSolutionPresentation,
         data: request,

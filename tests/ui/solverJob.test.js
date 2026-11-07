@@ -42,6 +42,7 @@ function start(btn, idleLabel, extra = {}) {
         onResult: (r) => calls.result.push(r),
         onResultError: () => { calls.resultError++; },
         onComplete: () => { calls.complete++; },
+        startStatus: `${idleLabel}...`,
         ...extra,
     });
     return { worker: workers.at(-1), calls };
@@ -123,6 +124,22 @@ for (const [name, fire, expected] of [
     check('late messages from the replaced worker are ignored',
         status.textContent !== 'stale progress' && solve.calls.result.length === 0 && isJobRunning(exploreBtn));
     cancelActiveJob();
+}
+
+// --- start status ----------------------------------------------------------
+{
+    // The worker's first progress message can be seconds away (a long first BFS
+    // level), so the start itself must replace the previous job's result text.
+    status.textContent = 'Solved in 0.21s at Depth 8';
+    start(solveBtn, 'Solve', { startStatus: 'Solving...' });
+    check('a new job replaces the previous result text', status.textContent === 'Solving...', status.textContent);
+    cancelActiveJob();
+
+    const before = workers.length;
+    let threw = false;
+    try { start(solveBtn, 'Solve', { startStatus: undefined }); } catch { threw = true; }
+    check('a job without startStatus is refused before spawning a worker',
+        threw && workers.length === before && !isJobRunning(solveBtn) && solveBtn.textContent === 'Solve');
 }
 
 delete globalThis.document;

@@ -52,7 +52,10 @@ export function cancelActiveJob() {
 // cancel clicks to cancelActiveJob() before gathering any inputs.
 // `onResultError` resets whatever a throwing `onResult` half-drew; `onComplete`
 // runs after any result (presented or failed) of a job that is still current.
+// `startStatus` is required: the worker's first progress message can be seconds
+// away, and until then #status would still show the previous job's result.
 export function runSolverJob({ btn, idleLabel, action, data, onResult, onResultError, onComplete, startStatus }) {
+    if (!startStatus) throw new TypeError(`runSolverJob(${action}): startStatus is required`);
     const status = byId('status');
 
     // finishJob() resets any in-flight job's button (which must be the OTHER
@@ -121,6 +124,6 @@ export function runSolverJob({ btn, idleLabel, action, data, onResult, onResultE
     };
 
     btn.textContent = 'Cancel';
-    if (startStatus) status.textContent = startStatus;
+    status.textContent = startStatus;
     solverWorker.postMessage({ action, data });
 }
