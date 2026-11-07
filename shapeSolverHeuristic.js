@@ -21,8 +21,15 @@
 //     that side up first, else 3.
 //   • cleanSlots: target slots covered when the shape is a fully clean sub-shape
 //     (no conflicts) — a piece that can be stacked straight in. [] otherwise.
-// Colour is ignored: a wrong colour is one cheap Painter op, whereas STRUCTURE is
-// what the search cannot assemble.
+//   • paintCost: each distinct target colour that no held shape supplies in place
+//     (right part, right colour, at a slot it can fill) costs one Painter op,
+//     charged once per colour however many slots carry it (idea #7003). Ignoring
+//     colour made the uncoloured structure of a painted target score as solved, so
+//     every colour variant tied and the frontier flooded: CrCrCrCr:RgRgRgRg hit the
+//     state cap under A* while BFS found it in 3 ops. A part whose colour no Painter
+//     can reach — wrong below the shape's top layer, or painted where the target is
+//     uncoloured — is a conflict, not a supply: crediting it made stacking before
+//     painting look one Painter op from done. Crystals and pins are never charged.
 //
 // Four choices that look loosenable but are not (ideas #6540, #6549):
 //   • An orientation-insensitive goal is scored against each rotation of the target
@@ -40,7 +47,7 @@
 //   • Isolation is summed per target slot, even though one cut can serve several.
 //     Charging each shape once flattened h on multi-layer targets: CuRuCuRu:RuCuRuCu
 //     went from 7 ops in 299 states to no result in 60 s.
-import { NOTHING_CHAR } from './shapeClass.js';
+import { NOTHING_CHAR, UNPAINTABLE_SHAPES, isPaintedPart } from './shapeClass.js';
 import { getAllRotations } from './shapeRotation.js';
 import { getCachedShape } from './shapeSolverCache.js';
 import { rightHalfSize } from './shapeHalfGeometry.js';
@@ -49,7 +56,20 @@ const CUT_COST = 1;
 const ROTATE_AND_CUT_COST = 2;
 const MAX_ISOLATE_COST = 3;
 const ROTATE_COST = 1;
-const FABRICATE_COST = 4;  // no held shape has this part at all
+const FABRICATE_COST = 4;
+const PAINT_COST = 1;  // no held shape has this part at all
+
+// [slotKey, colour] for every target slot a Painter op colours.
+function targetPaintSlots(target) {
+    const slots = [];
+    for (let l = 0; l < target.numLayers; l++) {
+        for (let q = 0; q < target.layers[l].length; q++) {
+            const part = target.layers[l][q];
+            if (part.shape !== NOTHING_CHAR && isPaintedPart(part)) slots.push([l + ':' + q, part.color]);
+        }
+    }
+    return slots;
+}
 
 function targetSlotKeys(target) {
     const keys = [];
@@ -85,13 +105,27 @@ function keepCheapest(map, key, cost) {
     if (prev === undefined || cost < prev) map.set(key, cost);
 }
 
+// Whether a held part of the target's shape can end up in the target's colour.
+// A Painter colours only the top layer and nothing removes paint, so a wrong
+// colour below the top, or any colour on an uncoloured target slot, is final.
+// Crystals and pins keep shape-only matching: no Painter op applies to them.
+function colourReachable(heldPart, targetPart, onTopLayer) {
+    if (heldPart.color === targetPart.color) return true;
+    if (UNPAINTABLE_SHAPES.includes(targetPart.shape)) return true;
+    return onTopLayer && targetPart.color !== 'u';
+}
+
 // Lines `rotated` up against the target `offset` layers from the ground.
-// matched: the target slots it fills with the right part. matchedQuads: the
+// matched: the target slots it fills with the right part; coloured: those of
+// them whose colour matches the target's too. matchedQuads: the
 // quadrants holding a matched part on any layer. conflictQuads: the quadrants
-// holding, on any layer, a filled slot that does not match the target.
+// holding, on any layer, a filled slot that does not match the target — which
+// includes the right part in a colour no Painter can reach (see colourReachable).
 function compareAtOffset(rotated, target, offset) {
+    const topLayer = rotated.numLayers - 1;
     let numParts = 0;
     const matched = [];
+    const coloured = [];
     const matchedQuads = new Set();
     const conflictQuads = new Set();
     for (let l = 0; l < rotated.numLayers; l++) {
@@ -101,32 +135,36 @@ function compareAtOffset(rotated, target, offset) {
         for (let q = 0; q < len; q++) {
             const rp = rl[q], tp = tl && tl[q];
             if (!rp || rp.shape === NOTHING_CHAR) continue;
-            if (tp && tp.shape === rp.shape) {
-                matched.push((l + offset) + ':' + q);
+            if (tp && tp.shape === rp.shape && colourReachable(rp, tp, l === topLayer)) {
+                const key = (l + offset) + ':' + q;
+                matched.push(key);
+                if (tp.color === rp.color) coloured.push(key);
                 matchedQuads.add(q);
             } else {
                 conflictQuads.add(q);
             }
         }
     }
-    return { matched, matchedQuads, conflictQuads, numParts };
+    return { matched, coloured, matchedQuads, conflictQuads, numParts };
 }
 
 function matchAndCoverage(code, target, config) {
     let bestClean = [];
     const slotCost = new Map();  // "l:q" -> min supply cost this shape offers
+    const colouredSlots = new Set();  // "l:q" it can supply in the target's colour
     for (const rotCode of getAllRotations(getCachedShape(code), config)) {
         const rotated = getCachedShape(rotCode);
         const rotateCost = rotCode === code ? 0 : ROTATE_COST;
         const maxOffset = Math.max(0, target.numLayers - rotated.numLayers);
         for (let offset = 0; offset <= maxOffset; offset++) {
-            const { matched, matchedQuads, conflictQuads, numParts } = compareAtOffset(rotated, target, offset);
+            const { matched, coloured, matchedQuads, conflictQuads, numParts } = compareAtOffset(rotated, target, offset);
+            for (const key of coloured) colouredSlots.add(key);
             const cost = isolateCost(conflictQuads, matchedQuads, numParts) + rotateCost;
             for (const key of matched) keepCheapest(slotCost, key, cost);
             if (conflictQuads.size === 0 && matched.length > bestClean.length) bestClean = matched;
         }
     }
-    return { cleanSlots: bestClean, slotCost };
+    return { cleanSlots: bestClean, slotCost, colouredSlots };
 }
 
 // How many of the held clean pieces an assembly needs: a greedy cover of the slots
@@ -153,10 +191,12 @@ function neededPieces(cleanSlotSets) {
 
 // Estimated ops remaining for one target orientation, in real op-units: for each
 // target slot, the cheapest way any held shape can supply it; plus the stacks still
-// needed — to merge each clean piece beyond the first, or to add each missing layer.
+// needed — to merge each clean piece beyond the first, or to add each missing layer;
+// plus one Painter op per target colour no held shape supplies in place.
 function orientationCost(codes, variant) {
     const slotMin = new Map();
     const cleanSlotSets = [];
+    const colouredSlots = new Set();
     let maxLayerCount = 0;
     for (const code of codes) {
         const m = variant.match(code);
@@ -166,6 +206,7 @@ function orientationCost(codes, variant) {
         }
         if (m.cleanSlots.length > 0) cleanSlotSets.push(m.cleanSlots);
         for (const [key, cost] of m.slotCost) keepCheapest(slotMin, key, cost);
+        for (const key of m.colouredSlots) colouredSlots.add(key);
     }
     // One Stacker both merges two pieces and adds a layer, so the larger of the two
     // counts bounds the stacks; their sum double-counted CuCu---- + RuRu---- as 2.
@@ -174,7 +215,11 @@ function orientationCost(codes, variant) {
         const c = slotMin.get(key);
         h += c === undefined ? FABRICATE_COST : c;
     }
-    return h;
+    const missingColours = new Set();
+    for (const [key, colour] of variant.paintSlots) {
+        if (!colouredSlots.has(key)) missingColours.add(colour);
+    }
+    return h + missingColours.size * PAINT_COST;
 }
 
 // Returns heuristic(codes) for an array of held shape codes. heuristicDivisor
@@ -193,6 +238,7 @@ export function createCoverageHeuristic({ target, config, orientationSensitive, 
         return {
             target: variantTarget,
             slotKeys: targetSlotKeys(variantTarget),
+            paintSlots: targetPaintSlots(variantTarget),
             match(code) {
                 let m = cache.get(code);
                 if (m === undefined) {
