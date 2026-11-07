@@ -1,7 +1,7 @@
 import { refreshShapeElements } from './shapeRendering.js';
 import { Shape } from './shapeClass.js';
 import { extractLayers } from './startingShapes.js';
-import { copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph, refreshGraphColors } from './operationGraph.js';
+import { copyGraphToClipboard, applyGraphLayout, renderGraph, renderSpaceGraph, reRenderGraph, refreshGraphColors, pauseSpaceGraph, resumeSpaceGraph } from './operationGraph.js';
 import { showValidationErrors } from './shapeValidation.js';
 import { solvedStatusText, solveFailureMessage, exploreStatus, isSolvedResult } from './solutionPresentation.js';
 import { BlueprintRenderer } from './blueprintRenderer.js';
@@ -143,6 +143,11 @@ function presentSolution(solution) {
     byId('status').textContent = solvedStatusText(solution);
 }
 
+// A live 3D space graph's force layout ticks on the main thread and, at a few
+// thousand nodes, delays the worker's messages by seconds; hold it still while a
+// Solve or Explore runs. A result that replaces the graph makes the resume a no-op.
+const spaceGraphPausedWhileRunning = { onStart: pauseSpaceGraph, onFinish: resumeSpaceGraph };
+
 byId('solve-btn').addEventListener('click', () => {
     const btn = byId('solve-btn');
     const status = byId('status');
@@ -185,6 +190,8 @@ byId('solve-btn').addEventListener('click', () => {
         btn,
         idleLabel: 'Solve',
         action: 'solve',
+        startStatus: 'Solving...',
+        ...spaceGraphPausedWhileRunning,
         onComplete: persist,
         onResultError: clearSolutionPresentation,
         data: request,
@@ -242,6 +249,7 @@ byId('explore-btn').addEventListener('click', () => {
         idleLabel: 'Explore',
         action: 'explore',
         startStatus: 'Exploring...',
+        ...spaceGraphPausedWhileRunning,
         data,
         onResult(result) {
             if (!result) return;

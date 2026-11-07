@@ -57,23 +57,6 @@ export function inverseRotate180(shape, config) {
 }
 
 /**
- * Unstack: decompose a multi-layer shape into (bottom, top) pairs.
- * For each split point, yield the bottom layers and top layers as separate shapes.
- */
-export function inverseUnstack(shape, config) {
-    const results = [];
-    if (shape.numLayers < 2) return results;
-
-    for (let splitAt = 1; splitAt < shape.numLayers; splitAt++) {
-        const bottomLayers = shape.layers.slice(0, splitAt);
-        const topLayers = shape.layers.slice(splitAt);
-
-        results.push(layersToCode(bottomLayers), layersToCode(topLayers));
-    }
-    return results;
-}
-
-/**
  * Uncut (Cutter inverse for Bidirectional): the shape is treated as one geometric
  * half of a cut result, and the predecessors are whole shapes that cut back to it.
  *

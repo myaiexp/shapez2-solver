@@ -171,9 +171,10 @@ export const SOLVER_FIXTURES = [
         ...baseSolverParams,
     },
     // #2210: the Bidirectional search method had no fixture. These two exercise it
-    // end-to-end — building the backward reachability map and the forward A* that
-    // consumes it. A trivial 1-op stack, and a 3-op cut+stack so the forward loop
-    // runs over several states. (cut+stack is orientation-sensitive so the final
+    // end-to-end — the backward reachability map and the forward A* that consumes
+    // it. A trivial 1-op stack (Stacker has no inverse in the map, idea #7002, so
+    // the map is just the target), and a 3-op cut+stack whose Cutter inverse fills
+    // the map while the forward loop runs over several states. (cut+stack is orientation-sensitive so the final
     // code equals the target exactly rather than a rotation-equivalent of it.)
     {
         name: 'bidi-stack',

@@ -78,6 +78,17 @@ function asObj(map) {
         === JSON.stringify({ [TARGET]: 0 }));
 }
 
+// --- Stacker is two-input: neither half alone reaches the target -------------
+// The map is a per-shape distance: Bidirectional sets h to the smallest depth of
+// any held code. Listing each unstacked half at depth 1 made holding CuSu---- read
+// as one op from CuSu----:RuWu---- before RuWu---- existed, and the forward
+// search flooded that basin to the state cap (idea #7002).
+{
+    const map = buildBackwardReachability('CuSu----:RuWu----', cfg, ['Stacker', 'Painter'], 4, noCancel);
+    check('stacker: a half is not a predecessor', !map.has('CuSu----') && !map.has('RuWu----'));
+    check('stacker: map is just the target', map.size === 1);
+}
+
 // --- shouldCancel stops expansion --------------------------------------------
 {
     const always = buildBackwardReachability(TARGET, cfg, ['Rotator CW'], 4, () => true);
@@ -92,6 +103,16 @@ function asObj(map) {
         Math.max(...depths) === 1);
     check('cancel-after-depth1: did not reach depth 2+',
         depths.every(d => d <= 1));
+}
+
+// --- end to end: Bidirectional on a two-layer stack target -----------------
+// Default starts, all ops. Before #7002 this aborted at 500k states; A* takes 350.
+{
+    const { shapeSolver } = await import('../../shapeSolverCore.js');
+    const { operations } = await import('../../shapeSolverOperations.js');
+    const result = await shapeSolver('CuSu----:RuWu----', ['CuCuCuCu', 'RuRuRuRu', 'SuSuSuSu', 'WuWuWuWu'],
+        Object.keys(operations), { searchMethod: 'Bidirectional', maxStates: 20000 });
+    check('bidirectional: solves CuSu----:RuWu---- inside 20k states', result.solutionPath !== null);
 }
 
 console.log(`[${passed}/${total} passed]`);
