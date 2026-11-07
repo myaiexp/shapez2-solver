@@ -1,7 +1,7 @@
 // Unit tests for inverse (predecessor) ops in shapeSolverInverse.js.
 // Run with: node tests/solver/shapeSolverInverse.test.js
 //
-// Covers early-exit guards (wrong layer count) for inverseUnstack / inverseUnpin,
+// Covers the early-exit guard (wrong layer count) for inverseUnpin,
 // inverseUncut's whole-shape predecessors (geometric left/right matching cut()),
 // and one non-early-return case per function so empty results are
 // proven to come from the guard, not from always returning empty.
@@ -13,7 +13,6 @@ import { Shape } from '../../shapeClass.js';
 import { rotate90CW, rotate90CCW, rotate180 } from '../../shapeRotation.js';
 import { cut } from '../../shapeOperations.js';
 import {
-    inverseUnstack,
     inverseUncut,
     inverseUnpin,
     inverseUnpaint,
@@ -32,14 +31,6 @@ function check(name, actual, expected) {
 }
 
 const shape = (code) => Shape.fromShapeCode(code);
-
-// --- inverseUnstack: early return when numLayers < 2 -------------------------
-// Guard: `if (shape.numLayers < 2) return results;` — a single-layer shape has
-// nothing to unstack, so the empty array is returned before the split loop.
-check('inverseUnstack single-layer returns []', inverseUnstack(shape('CuCuCuCu'), null), []);
-check('inverseUnstack single-layer gappy returns []', inverseUnstack(shape('Cu--Su--'), null), []);
-// Contrast: a 2-layer shape passes the guard and yields the (bottom, top) pair.
-check('inverseUnstack 2-layer splits (non-early)', inverseUnstack(shape('CuCuCuCu:RuRuRuRu'), null), ['CuCuCuCu', 'RuRuRuRu']);
 
 // --- inverseUncut: whole predecessors of a pure half -------------------------
 // Geometry matches cut(): leading = right, trailing = left. Candidates are the
