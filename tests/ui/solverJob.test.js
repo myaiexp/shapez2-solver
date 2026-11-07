@@ -35,13 +35,19 @@ globalThis.Worker = class {
 const solveBtn = { textContent: 'Solve' };
 const exploreBtn = { textContent: 'Explore' };
 
+// Every job's onStart/onFinish, in order, so replacement can be checked for
+// "old job finishes before the new one starts".
+const lifecycle = [];
+
 function start(btn, idleLabel, extra = {}) {
-    const calls = { result: [], resultError: 0, complete: 0 };
+    const calls = { result: [], resultError: 0, complete: 0, finish: 0 };
     runSolverJob({
         btn, idleLabel, action: idleLabel.toLowerCase(), data: { n: 1 },
         onResult: (r) => calls.result.push(r),
         onResultError: () => { calls.resultError++; },
         onComplete: () => { calls.complete++; },
+        onStart: () => lifecycle.push(`start ${idleLabel}`),
+        onFinish: () => { calls.finish++; lifecycle.push(`finish ${idleLabel}`); },
         startStatus: `${idleLabel}...`,
         ...extra,
     });
@@ -70,6 +76,7 @@ function start(btn, idleLabel, extra = {}) {
     check('result releases the button and worker',
         solveBtn.textContent === 'Solve' && !isJobRunning(solveBtn) && worker.terminated && worker.onmessage === null);
     check('onComplete runs once after a result', calls.complete === 1 && calls.resultError === 0);
+    check('onFinish runs once after a result', calls.finish === 1);
     onmessage({ data: { type: 'result', result: { depth: 2 } } });
     check('a second message from the finished job is ignored', calls.result.length === 1 && calls.complete === 1);
 }
@@ -81,6 +88,7 @@ function start(btn, idleLabel, extra = {}) {
     check('a throwing onResult reports the error', status.textContent === 'Error: render broke' && errors.length === 1);
     check('a throwing onResult resets the views, then completes', calls.resultError === 1 && calls.complete === 1);
     check('a throwing onResult still releases the button', solveBtn.textContent === 'Solve' && worker.terminated);
+    check('a throwing onResult still runs onFinish once', calls.finish === 1);
 }
 
 // --- worker error / crash / unreadable message --------------------------------
@@ -95,6 +103,7 @@ for (const [name, fire, expected] of [
     check(`${name}: status explains`, status.textContent === expected, status.textContent);
     check(`${name}: button and worker released`, exploreBtn.textContent === 'Explore' && !isJobRunning(exploreBtn) && worker.terminated);
     check(`${name}: no result callbacks`, calls.result.length === 0 && calls.complete === 0);
+    check(`${name}: onFinish runs once`, calls.finish === 1);
 }
 
 // --- cancel -----------------------------------------------------------------
@@ -107,15 +116,21 @@ for (const [name, fire, expected] of [
     check('cancel releases the button and says so', solveBtn.textContent === 'Solve' && status.textContent === 'Cancelled.');
     onmessage({ data: { type: 'result', result: {} } });
     check('a result queued before cancel is dropped', calls.result.length === 0 && status.textContent === 'Cancelled.');
+    check('cancel runs onFinish once', calls.finish === 1);
     cancelActiveJob();
-    check('cancel with nothing running is harmless', status.textContent === 'Cancelled.');
+    check('cancel with nothing running is harmless', status.textContent === 'Cancelled.' && calls.finish === 1);
 }
 
 // --- a new job replaces the other action's job ---------------------------------
 {
     const solve = start(solveBtn, 'Solve');
     const stale = solve.worker.onmessage;
+    lifecycle.length = 0;
     const explore = start(exploreBtn, 'Explore');
+    // main.js pauses the space graph in onStart and resumes it in onFinish; the
+    // replaced job's resume must not land after the new job's pause.
+    check('the replaced job finishes before the new one starts',
+        lifecycle.join(',') === 'finish Solve,start Explore', lifecycle.join(','));
     check('starting Explore mid-Solve resets the Solve button', solveBtn.textContent === 'Solve' && !isJobRunning(solveBtn));
     check('the replaced worker is terminated', solve.worker.terminated && !explore.worker.terminated);
     check('Explore now owns the worker', isJobRunning(exploreBtn) && exploreBtn.textContent === 'Cancel');

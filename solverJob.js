@@ -1,7 +1,7 @@
 import { byId } from './domUtils.js';
 
 let solverWorker = null;
-// The single button that currently owns the shared worker ({ btn, idleLabel }),
+// The single button that currently owns the shared worker ({ btn, idleLabel, onFinish }),
 // or null when idle. Solve and Explore share one worker, so this — not the
 // per-call `btn` closure, and never the button's label text — is the source of
 // truth for which action is running. Label text is presentation only: routing a
@@ -25,6 +25,7 @@ function finishJob() {
     // Invalidate first so a message already scheduled for this turn cannot land
     // after teardown and clobber status / graph / persisted solution.
     jobGeneration += 1;
+    const finished = activeJob;
     if (activeJob) {
         activeJob.btn.textContent = activeJob.idleLabel;
         activeJob = null;
@@ -38,6 +39,7 @@ function finishJob() {
         solverWorker.terminate();
         solverWorker = null;
     }
+    finished?.onFinish?.();
 }
 
 // Stop the in-flight job and release the UI. The single cancel path: both click
@@ -54,7 +56,10 @@ export function cancelActiveJob() {
 // runs after any result (presented or failed) of a job that is still current.
 // `startStatus` is required: the worker's first progress message can be seconds
 // away, and until then #status would still show the previous job's result.
-export function runSolverJob({ btn, idleLabel, action, data, onResult, onResultError, onComplete, startStatus }) {
+// `onStart` runs once the replaced job (if any) has run its `onFinish`, and
+// `onFinish` runs exactly once on every terminal outcome — result, error, crash,
+// cancel, or replacement by the next job.
+export function runSolverJob({ btn, idleLabel, action, data, onResult, onResultError, onComplete, onStart, onFinish, startStatus }) {
     if (!startStatus) throw new TypeError(`runSolverJob(${action}): startStatus is required`);
     const status = byId('status');
 
@@ -67,7 +72,8 @@ export function runSolverJob({ btn, idleLabel, action, data, onResult, onResultE
     const isCurrent = () => jobId === jobGeneration;
 
     solverWorker = new Worker(new URL('./shapeSolver.js', import.meta.url), { type: 'module' });
-    activeJob = { btn, idleLabel };
+    activeJob = { btn, idleLabel, onFinish };
+    onStart?.();
 
     solverWorker.onmessage = ({ data: msg }) => {
         if (!isCurrent()) return;
